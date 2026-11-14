@@ -40,23 +40,42 @@ pnpm dev
 O arquivo `.env` não deve ser versionado. As credenciais de exemplo são fictícias
 e exclusivas deste ambiente local.
 
-**`pnpm dev` é a entrada principal**, anexada aos logs do Docker Compose. O script
-executa `docker compose up --build` para iniciar todos os serviços declarados.
-Ao adicionar serviços ao Compose, eles participarão do mesmo comando. O inicializador
-`aws-init` aguarda o MiniStack saudável, cria o bucket caso necessário e termina;
-repetir a inicialização preserva um bucket existente. O RabbitMQ aguarda a conclusão
-com sucesso de `aws-init`, tornando a inicialização uma condição de prontidão da
-pilha. Uma falha do inicializador faz ambos os comandos de desenvolvimento falharem.
+**`pnpm dev` é a entrada principal** e roda em duas etapas:
+
+1. **Infraestrutura no Docker** (`pnpm infra:up`): sobe RabbitMQ e MiniStack em
+   segundo plano e aguarda ficarem saudáveis. O inicializador `aws-init` aguarda o
+   MiniStack, cria o bucket caso necessário e termina; repetir a inicialização
+   preserva um bucket existente. O RabbitMQ aguarda a conclusão com sucesso de
+   `aws-init`, e uma falha do inicializador interrompe o `pnpm dev`.
+2. **Serviços e apps no host** (`turbo run dev`): executa o script `dev` de cada
+   pacote em `services/` e `apps/` em paralelo, na interface de terminal do
+   Turborepo.
+
+### Interface do Turborepo
+
+Cada pacote aparece como uma "aba" na lista à esquerda, com seu log à direita.
+
+| Tecla | Ação |
+| --- | --- |
+| `↑` / `↓` | Seleciona o pacote cujo log é exibido. |
+| `i` | Interage com o processo selecionado (enviar entrada); `Ctrl+Z` sai do modo. |
+| `/` | Filtra a lista de pacotes. |
+| `Ctrl+C` | Encerra os serviços e apps. |
+
+`Ctrl+C` encerra apenas os processos do turbo; a infraestrutura continua rodando
+no Docker. Use `pnpm down` para pará-la. Para um pacote participar, basta ter um
+script `dev` no seu `package.json`. Sem pacotes com `dev`, o turbo apenas informa
+que não há tarefas.
 
 ## Comandos
 
 | Comando | Comportamento |
 | --- | --- |
-| `pnpm dev` | Inicia a pilha completa e acompanha os logs no terminal. |
-| `pnpm dev:detached` | Inicia a pilha em segundo plano e aguarda saúde e inicialização. |
-| `pnpm down` | Encerra a pilha, preservando os volumes. |
+| `pnpm dev` | Sobe a infraestrutura e roda os serviços/apps na interface do turbo. |
+| `pnpm infra:up` | Sobe só a infraestrutura em segundo plano e aguarda saúde e inicialização. |
+| `pnpm infra:logs` | Acompanha os logs da infraestrutura no Docker. |
+| `pnpm down` | Encerra a infraestrutura, preservando os volumes. |
 | `pnpm test` | Valida os exemplos dos contratos JSON Schema. |
-| `docker compose logs -f` | Acompanha os logs de todos os serviços. |
 | `docker compose down --volumes` | **Destrutivo:** encerra a pilha e remove os volumes (mensagens, objetos S3, dados DynamoDB). |
 
 ## Higiene Git e reprodução

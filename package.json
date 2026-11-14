@@ -5,8 +5,9 @@
   "scripts": {
     "test": "pnpm validate:contracts",
     "validate:contracts": "node scripts/validate-contracts.mjs",
-    "dev": "docker compose up --build",
-    "dev:detached": "docker compose up --build --detach --wait",
+    "dev": "pnpm infra:up && turbo run dev",
+    "infra:up": "docker compose up --build --detach --wait",
+    "infra:logs": "docker compose logs --follow",
     "down": "docker compose down"
   },
   "devDependencies": {
