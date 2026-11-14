@@ -1,0 +1,16 @@
+{
+  "name": "rpg-monorepo",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "validate:contracts": "node scripts/validate-contracts.mjs",
+    "dev": "docker compose up --build",
+    "dev:detached": "docker compose up --build --detach --wait",
+    "down": "docker compose down"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "turbo": "2.11.11"
+  }
+}
