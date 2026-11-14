@@ -35,9 +35,9 @@ saudável. Ele monta o repositório somente para leitura em `/work` e executa
 (`rpg-assets`). O script cria o bucket se necessário e verifica a API DynamoDB;
 não são criadas tabelas de domínio. O RabbitMQ depende da conclusão com sucesso
 de `aws-init`, tornando a inicialização uma condição explícita de prontidão da
-pilha nos dois comandos `pnpm dev` e `pnpm dev:detached`.
+pilha em `docker compose up`, inclusive com `--wait`.
 
-A entrada principal do ambiente é `pnpm dev`; `pnpm down` preserva os volumes.
+A entrada principal do ambiente é `docker compose up`; `docker compose down` preserva os volumes.
 Para conferir os serviços declarados:
 
 ```sh

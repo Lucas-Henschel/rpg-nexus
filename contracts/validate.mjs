@@ -8,7 +8,7 @@ async function readJson(relativePath) {
 
 try {
   const schema = await readJson(
-    "../contracts/events/event-envelope.schema.json",
+    "./events/event-envelope.schema.json",
   );
   const { default: Ajv2020 } = await import("ajv/dist/2020.js");
   const { default: addFormats } = await import("ajv-formats");
@@ -18,10 +18,10 @@ try {
 
   const validate = ajv.compile(schema);
   const valid = await readJson(
-    "../contracts/examples/event-envelope.valid.json",
+    "./examples/event-envelope.valid.json",
   );
   const invalid = await readJson(
-    "../contracts/examples/event-envelope.invalid.json",
+    "./examples/event-envelope.invalid.json",
   );
 
   if (!validate(valid)) {

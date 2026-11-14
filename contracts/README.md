@@ -14,8 +14,8 @@ eventos publicados no RabbitMQ, usando JSON Schema draft 2020-12.
 
 Todos os seis campos são obrigatórios. O esquema do envelope verifica a
 estrutura comum; os contratos de cada tipo de evento podem definir os dados
-internos do `payload`. Os serviços permanecem independentes e não são membros
-do workspace pnpm (`services/*` fica fora dele).
+internos do `payload`. Cada serviço implementa o envelope na sua linguagem,
+seguindo este esquema como fonte oficial.
 
 A versão é mantida por `type`. Incremente `version` quando uma mudança quebrar
 consumidores existentes, como remover/renomear campos, mudar tipos ou significados
@@ -25,10 +25,19 @@ com esquemas separados por versão; produtores e consumidores usam o par
 `type`/`version` para rotear e validar mensagens. Mantenha a versão anterior até
 migrar seus consumidores e processar as mensagens pendentes.
 
-Após `pnpm install`, execute na raiz:
+## Validação
+
+Com Node.js instalado, dentro de `contracts/`:
 
 ```sh
-pnpm validate:contracts
+npm ci
+npm test
+```
+
+Sem Node.js, usando Docker a partir da raiz do repositório:
+
+```sh
+docker run --rm -v "$PWD/contracts:/contracts" -w /contracts node:24-alpine sh -c "npm ci && npm test"
 ```
 
 A validação usa Ajv para draft 2020-12 e `ajv-formats` para conferir UUIDs e
@@ -36,6 +45,3 @@ datas. O comando termina com status 0 somente quando
 `examples/event-envelope.valid.json` é aceito e
 `examples/event-envelope.invalid.json` é rejeitado. O exemplo inválido omite
 `messageId`; o tipo e o payload dos exemplos são apenas ilustrativos.
-
-Os scripts `pnpm dev`, `pnpm dev:detached` e `pnpm down` controlam o
-Docker Compose definido na raiz do repositório.

@@ -20,5 +20,5 @@ Valide a definição a partir da raiz, mesmo sem `.env`:
 docker compose --env-file .env.example config --quiet
 ```
 
-A entrada principal do ambiente é `pnpm dev`; `pnpm down` encerra os contêineres
+A entrada principal do ambiente é `docker compose up`; `docker compose down` encerra os contêineres
 preservando os volumes.
