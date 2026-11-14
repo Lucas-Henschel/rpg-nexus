@@ -48,7 +48,7 @@ services:
       start_period: 10s
 
   aws-init:
-    image: amazon/aws-cli:2
+    image: amazon/aws-cli:2.40.2
     restart: "no"
     depends_on:
       ministack:
