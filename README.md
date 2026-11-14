@@ -15,8 +15,9 @@ adicionados quando forem implementados.
 | `infra/` | Configuração da infraestrutura local (RabbitMQ, MiniStack). |
 | `scripts/` | Scripts auxiliares do monorepo. |
 
-Cada pasta dentro de `apps/` ou `services/` com seu próprio `package.json` passa a
-fazer parte do workspace pnpm (`pnpm-workspace.yaml`).
+Cada serviço fica em sua própria pasta dentro de `services/`, com `Dockerfile` e
+endpoint de health check, e é declarado no `docker-compose.yml`. Serviços Node com
+`package.json` também passam a fazer parte do workspace pnpm (`pnpm-workspace.yaml`).
 
 ## Pré-requisitos
 
@@ -40,41 +41,33 @@ pnpm dev
 O arquivo `.env` não deve ser versionado. As credenciais de exemplo são fictícias
 e exclusivas deste ambiente local.
 
-**`pnpm dev` é a entrada principal** e roda em duas etapas:
+**`pnpm dev` é a entrada principal** e executa `docker compose up --build`, subindo
+a infraestrutura e todos os serviços declarados no Compose, com os logs anexados
+ao terminal. O inicializador `aws-init` aguarda o MiniStack saudável, cria o
+bucket caso necessário e termina; repetir a inicialização preserva um bucket
+existente. O RabbitMQ aguarda a conclusão com sucesso de `aws-init`, tornando a
+inicialização uma condição de prontidão da pilha. Uma falha do inicializador faz
+ambos os comandos de desenvolvimento falharem.
 
-1. **Infraestrutura no Docker** (`pnpm infra:up`): sobe RabbitMQ e MiniStack em
-   segundo plano e aguarda ficarem saudáveis. O inicializador `aws-init` aguarda o
-   MiniStack, cria o bucket caso necessário e termina; repetir a inicialização
-   preserva um bucket existente. O RabbitMQ aguarda a conclusão com sucesso de
-   `aws-init`, e uma falha do inicializador interrompe o `pnpm dev`.
-2. **Serviços e apps no host** (`turbo run dev`): executa o script `dev` de cada
-   pacote em `services/` e `apps/` em paralelo, na interface de terminal do
-   Turborepo.
+### Logs separados por serviço
 
-### Interface do Turborepo
+`pnpm dev` mistura os logs de todos os contêineres, com o nome do serviço como
+prefixo. Para ver cada serviço separadamente, suba a pilha em segundo plano com
+`pnpm dev:detached` e use uma destas opções:
 
-Cada pacote aparece como uma "aba" na lista à esquerda, com seu log à direita.
-
-| Tecla | Ação |
-| --- | --- |
-| `↑` / `↓` | Seleciona o pacote cujo log é exibido. |
-| `i` | Interage com o processo selecionado (enviar entrada); `Ctrl+Z` sai do modo. |
-| `/` | Filtra a lista de pacotes. |
-| `Ctrl+C` | Encerra os serviços e apps. |
-
-`Ctrl+C` encerra apenas os processos do turbo; a infraestrutura continua rodando
-no Docker. Use `pnpm down` para pará-la. Para um pacote participar, basta ter um
-script `dev` no seu `package.json`. Sem pacotes com `dev`, o turbo apenas informa
-que não há tarefas.
+- [lazydocker](https://github.com/jesseduffield/lazydocker) (`brew install lazydocker`):
+  interface no terminal com a lista de contêineres e o log de cada um.
+- Um painel do terminal por serviço com `docker compose logs -f <serviço>`.
+- A aba de logs de cada contêiner no Docker Desktop.
 
 ## Comandos
 
 | Comando | Comportamento |
 | --- | --- |
-| `pnpm dev` | Sobe a infraestrutura e roda os serviços/apps na interface do turbo. |
-| `pnpm infra:up` | Sobe só a infraestrutura em segundo plano e aguarda saúde e inicialização. |
-| `pnpm infra:logs` | Acompanha os logs da infraestrutura no Docker. |
-| `pnpm down` | Encerra a infraestrutura, preservando os volumes. |
+| `pnpm dev` | Sobe a pilha completa e acompanha os logs no terminal. |
+| `pnpm dev:detached` | Sobe a pilha em segundo plano e aguarda saúde e inicialização. |
+| `pnpm logs` | Acompanha os logs de todos os serviços. |
+| `pnpm down` | Encerra a pilha, preservando os volumes. |
 | `pnpm test` | Valida os exemplos dos contratos JSON Schema. |
 | `docker compose down --volumes` | **Destrutivo:** encerra a pilha e remove os volumes (mensagens, objetos S3, dados DynamoDB). |
 
@@ -82,7 +75,7 @@ que não há tarefas.
 
 Versione `pnpm-lock.yaml` e instale com `pnpm install --frozen-lockfile` para usar
 as versões registradas. `.env.example` é versionado; `.env`, suas variantes locais,
-`node_modules/`, `.turbo/` e os diretórios locais `data/` e `.local/` são ignorados.
+`node_modules/` e os diretórios locais `data/` e `.local/` são ignorados.
 Os dados da pilha ficam nos volumes nomeados do Docker, fora da árvore Git.
 
 Para validar a configuração de referência, execute

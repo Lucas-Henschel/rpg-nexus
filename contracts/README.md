@@ -29,7 +29,6 @@ Após `pnpm install`, execute na raiz:
 
 ```sh
 pnpm validate:contracts
-pnpm turbo run validate:contracts
 ```
 
 A validação usa Ajv para draft 2020-12 e `ajv-formats` para conferir UUIDs e
@@ -38,6 +37,5 @@ datas. O comando termina com status 0 somente quando
 `examples/event-envelope.invalid.json` é rejeitado. O exemplo inválido omite
 `messageId`; o tipo e o payload dos exemplos são apenas ilustrativos.
 
-A tarefa raiz do Turbo tem cache desabilitado para sempre executar essas
-asserções. Os scripts `pnpm dev`, `pnpm dev:detached` e `pnpm down` controlam o
+Os scripts `pnpm dev`, `pnpm dev:detached` e `pnpm down` controlam o
 Docker Compose definido na raiz do repositório.
