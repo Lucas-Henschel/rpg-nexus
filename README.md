@@ -20,7 +20,8 @@ fazer parte do workspace pnpm (`pnpm-workspace.yaml`).
 
 ## Pré-requisitos
 
-- Node.js 20 ou superior e `pnpm` na versão indicada em `package.json`.
+- Node.js 24 LTS (mínimo 22) e `pnpm` na versão indicada em `package.json`.
+  Veja o passo a passo em [Instalação do Node.js e do pnpm](docs/instalacao-node-pnpm.md).
 - Docker Engine ou Docker Desktop em execução, com Docker Compose v2.
 - Portas locais `5672`, `15672` e `4566` livres, ou portas alternativas no `.env`.
 
