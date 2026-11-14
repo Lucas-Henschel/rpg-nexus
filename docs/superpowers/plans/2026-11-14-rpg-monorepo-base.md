@@ -58,11 +58,11 @@ Expected: FAIL indicando que o esquema do envelope não foi encontrado ou que o 
 
 - [ ] **Step 3: Implementar o esquema e a configuração raiz**
 
-Criar o JSON Schema draft 2020-12 que exige `messageId`, `correlationId`, `type`, `version`, `occurredAt` e `payload`; `messageId` e `correlationId` são strings UUID, `occurredAt` é date-time, `version` é inteiro positivo e `payload` é objeto. Configurar `package.json` com `packageManager: "pnpm@11.25.0"`, `turbo@2.11.11`, `ajv`, `validate:contracts`, `dev` (`docker compose up --build`), `dev:detached` (`docker compose up --build --detach --wait`) e `down` (`docker compose down`); declarar `apps/*` e `packages/*` no workspace sem incluir `services/*`.
+Criar o JSON Schema draft 2020-12 que exige `messageId`, `correlationId`, `type`, `version`, `occurredAt` e `payload`; `messageId` e `correlationId` são strings UUID, `occurredAt` é date-time, `version` é inteiro positivo e `payload` é objeto. Configurar `package.json` com `packageManager: "pnpm@11.25.0"`, `turbo@2.11.11`, `ajv`, `validate:contracts`, `dev` (`docker compose up --build`), `dev:detached` (`docker compose up --build --detach --wait`) e `down` (`docker compose down`); declarar `apps/*` e `packages/*` no workspace sem incluir `services/*`; declarar `//#validate:contracts` em `turbo.json` com `cache: false`.
 
 - [ ] **Step 4: Executar a validação do contrato e a tarefa Turbo**
 
-Run: `pnpm install --frozen-lockfile && pnpm validate:contracts && pnpm turbo run validate:contracts`
+Run: `pnpm install && pnpm install --frozen-lockfile && pnpm validate:contracts && pnpm turbo run validate:contracts`
 
 Expected: PASS; o exemplo válido passa, o inválido é rejeitado e Turbo executa a tarefa raiz.
 
@@ -128,7 +128,7 @@ Criar `test-init-resources.sh` para executar duas vezes o inicializador contra o
 
 - [ ] **Step 2: Rodar o teste para confirmar a falha**
 
-Run: `docker compose run --rm aws-init /work/infra/ministack/test-init-resources.sh`
+Run: `docker compose run --rm --entrypoint /bin/sh aws-init /work/infra/ministack/test-init-resources.sh`
 
 Expected: FAIL porque `init-resources.sh` ainda não existe.
 
@@ -200,7 +200,7 @@ git commit -m "docs: add local development workflow"
 
 - [ ] **Step 1: Fazer a auditoria de arquivos versionáveis**
 
-Run: `git init && git status --short && find . -maxdepth 2 -name '.env' -o -name 'node_modules' -o -name '.turbo'`
+Run: `git status --short && find . -maxdepth 2 -name '.env' -o -name 'node_modules' -o -name '.turbo'`
 
 Expected: `.env`, dependências e caches não aparecem como arquivos a versionar.
 
