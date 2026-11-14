@@ -3,6 +3,8 @@
   "private": true,
   "packageManager": "pnpm@11.25.0",
   "scripts": {
+    "test": "pnpm validate:contracts && pnpm test:startup",
+    "test:startup": "node --test scripts/test-startup.mjs",
     "validate:contracts": "node scripts/validate-contracts.mjs",
     "dev": "docker compose up --build",
     "dev:detached": "docker compose up --build --detach --wait",

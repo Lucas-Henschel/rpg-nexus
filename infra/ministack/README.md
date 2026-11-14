@@ -32,8 +32,10 @@ em `/data`. `PERSIST_STATE=1` preserva metadados em `/data/state` e
 saudável. Ele monta o repositório somente para leitura em `/work` e executa
 `/bin/sh /work/infra/ministack/init-resources.sh`, recebendo `AWS_ENDPOINT_URL`
 (`http://ministack:4566`), região, credenciais fictícias e `RPG_ASSETS_BUCKET`
-(`rpg-assets`). O script será entregue na etapa de inicialização dos recursos;
-não são criadas tabelas de domínio nesta definição.
+(`rpg-assets`). O script cria o bucket se necessário e verifica a API DynamoDB;
+não são criadas tabelas de domínio. O RabbitMQ depende da conclusão com sucesso
+de `aws-init`, tornando a inicialização uma condição explícita de prontidão da
+pilha nos dois comandos `pnpm dev` e `pnpm dev:detached`.
 
 A entrada principal do ambiente é `pnpm dev`; `pnpm down` preserva os volumes.
 Para conferir os serviços declarados:

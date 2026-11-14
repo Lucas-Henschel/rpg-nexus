@@ -37,7 +37,9 @@ local.
 executa `docker compose up --build` para iniciar todos os serviços declarados.
 Ao adicionar serviços ao Compose, eles participarão do mesmo comando. O inicializador
 `aws-init` aguarda o MiniStack saudável, cria o bucket caso necessário e termina;
-repetir a inicialização preserva um bucket existente.
+repetir a inicialização preserva um bucket existente. O RabbitMQ aguarda a conclusão
+com sucesso de `aws-init`, tornando a inicialização uma condição de prontidão da
+pilha. Uma falha do inicializador faz ambos os comandos de desenvolvimento falharem.
 
 Para iniciar em segundo plano e verificar a infraestrutura:
 
@@ -48,7 +50,8 @@ pnpm down
 ```
 
 `pnpm dev:detached` executa `docker compose up --build --detach --wait`, aguardando
-os serviços saudáveis. É a opção preferida para smoke tests. `make smoke` exige a
+o inicializador concluir com sucesso e os serviços ficarem saudáveis. É a opção
+preferida para smoke tests. `make smoke` exige a
 pilha já iniciada: consulta a API de saúde do RabbitMQ no host, verifica a existência
 do bucket por S3 `head-bucket` e chama DynamoDB `list-tables` pela AWS CLI em
 contêiner contra `http://localhost:4566` (ou a porta configurada). Qualquer falha
@@ -61,11 +64,12 @@ resolvido, respeitando `.env` e as variáveis do ambiente.
 | --- | --- |
 | `make bootstrap` | Cria `.env` a partir do exemplo, sem sobrescrever o existente. |
 | `pnpm dev` | Inicia a pilha completa e acompanha os logs no terminal. |
-| `pnpm dev:detached` / `make up` | Inicia a pilha completa em segundo plano e aguarda saúde. |
+| `pnpm dev:detached` / `make up` | Inicia a pilha completa em segundo plano e aguarda saúde e inicialização. |
 | `pnpm down` / `make down` | Encerra a pilha, preservando os volumes. |
 | `make logs` | Acompanha os logs de todos os serviços do Compose. |
 | `make verify` | Valida a definição Compose e os exemplos dos contratos JSON Schema. |
 | `make smoke` | Verifica RabbitMQ, o bucket S3 e a API DynamoDB pelos endpoints do host. |
+| `pnpm test` | Valida os contratos e testa os dois comandos de desenvolvimento com Docker. |
 | `make reset-local` | **Destrutivo:** encerra a pilha e remove seus volumes persistentes. |
 
 `make reset-local` executa `docker compose down --volumes --remove-orphans`.
@@ -74,6 +78,11 @@ Remove os volumes nomeados deste projeto Compose (`rabbitmq-data` e
 persistida do RabbitMQ, objetos S3 e dados DynamoDB. Não use para uma parada comum;
 use `pnpm down`. Um próximo bootstrap da pilha recria os volumes e o bucket vazio.
 O comando não remove volumes de outros projetos Compose.
+
+`pnpm test:startup` cobre inicialização rápida, atrasada e com falha tanto em
+`pnpm dev` quanto em `pnpm dev:detached`, sempre com um bucket inicialmente ausente.
+Os testes usam projetos Compose isolados, portas temporárias e removem apenas seus
+próprios contêineres e volumes ao terminar; não exigem a rede do host.
 
 ## Higiene Git e reprodução
 

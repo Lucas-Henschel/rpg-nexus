@@ -17,6 +17,14 @@ estrutura comum; os contratos de cada tipo de evento podem definir os dados
 internos do `payload`. Os serviços permanecem independentes e não são membros
 do workspace pnpm (`services/*` fica fora dele).
 
+A versão é mantida por `type`. Incremente `version` quando uma mudança quebrar
+consumidores existentes, como remover/renomear campos, mudar tipos ou significados
+ou adicionar campos obrigatórios. Campos opcionais aditivos podem manter a versão
+se os consumidores aceitarem campos desconhecidos. Versões incompatíveis coexistem
+com esquemas separados por versão; produtores e consumidores usam o par
+`type`/`version` para rotear e validar mensagens. Mantenha a versão anterior até
+migrar seus consumidores e processar as mensagens pendentes.
+
 Após `pnpm install`, execute na raiz:
 
 ```sh
@@ -32,4 +40,4 @@ datas. O comando termina com status 0 somente quando
 
 A tarefa raiz do Turbo tem cache desabilitado para sempre executar essas
 asserções. Os scripts `pnpm dev`, `pnpm dev:detached` e `pnpm down` controlam o
-Docker Compose; eles dependem do arquivo Compose criado na etapa seguinte.
+Docker Compose definido na raiz do repositório.
