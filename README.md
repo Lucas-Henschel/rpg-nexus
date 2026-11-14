@@ -18,10 +18,11 @@ adicionados quando forem implementados.
 
 ## Primeiro uso
 
-Na raiz do repositório:
+Após clonar o repositório, execute na raiz (o primeiro uso exige acesso à internet
+para baixar as dependências e as imagens Docker):
 
 ```sh
-pnpm install
+pnpm install --frozen-lockfile
 make bootstrap
 make verify
 pnpm dev
@@ -73,6 +74,19 @@ Remove os volumes nomeados deste projeto Compose (`rabbitmq-data` e
 persistida do RabbitMQ, objetos S3 e dados DynamoDB. Não use para uma parada comum;
 use `pnpm down`. Um próximo bootstrap da pilha recria os volumes e o bucket vazio.
 O comando não remove volumes de outros projetos Compose.
+
+## Higiene Git e reprodução
+
+Versione `pnpm-lock.yaml` e instale com `pnpm install --frozen-lockfile` para usar
+as versões registradas. `.env.example` é versionado; `.env`, suas variantes locais,
+`node_modules/`, `.turbo/` e os diretórios locais `data/` e `.local/` são ignorados.
+Os dados da pilha ficam nos volumes nomeados do Docker, fora da árvore Git.
+
+Após `make down`, `git status --short` deve permanecer vazio em um clone sem
+alterações de código. Para validar também a configuração de referência, execute
+`docker compose --env-file .env.example config --quiet`. As imagens RabbitMQ e
+MiniStack usam tags móveis; o lockfile fixa as dependências pnpm, mas não congela
+as imagens Docker.
 
 ## Endpoints e variáveis
 

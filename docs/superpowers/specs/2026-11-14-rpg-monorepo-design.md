@@ -51,7 +51,6 @@ raiz
 ├── scripts/               # automações de inicialização e validação
 ├── docs/                  # arquitetura, decisões e demonstrações
 ├── docker-compose.yml     # infraestrutura e, depois, serviços
-├── compose.dev.yml        # sobreposições voltadas ao desenvolvimento
 ├── .env.example           # variáveis sem segredos
 ├── Makefile               # interface neutra: up, down, logs, verify
 ├── package.json           # scripts raiz e Turbo
@@ -92,8 +91,19 @@ Cada microsserviço terá um diretório próprio em `services/`, seu manifesto d
 - Um clone novo, com Docker e Node/pnpm instalados, consegue preparar o ambiente a partir do README.
 - `pnpm dev` inicia toda a pilha declarada pelo Compose; `pnpm dev:detached` deixa RabbitMQ e MiniStack saudáveis, e S3 e DynamoDB respondem no endpoint AWS local do MiniStack.
 - A inicialização é repetível e cria os recursos locais declarados sem intervenção manual.
-- `make verify` valida a configuração Compose, os arquivos de contrato e as tarefas Turbo existentes.
+- `make verify` valida a configuração Compose e os exemplos do contrato JSON Schema. As tarefas Turbo serão usadas quando existirem pacotes Node/TypeScript com tarefas próprias.
 - Nenhuma credencial, volume de dados ou configuração específica de uma máquina entra no Git.
+
+## Reprodução e higiene Git
+
+O README descreve o fluxo de clone, `pnpm install --frozen-lockfile`, `make bootstrap`,
+`make verify` e `pnpm dev`. O lockfile e `.env.example` são versionados; `.env`,
+variantes locais, dependências, caches e diretórios locais `data/` e `.local/` são
+ignorados. Os dados persistentes do runtime ficam em volumes nomeados do Docker,
+fora do Git, e `make down` os preserva. O smoke usa a rede do host; no Docker
+Desktop, ela deve estar habilitada conforme o README. O primeiro uso exige acesso
+à internet para baixar dependências e imagens. As tags móveis das imagens Docker
+não garantem reprodução binária, mesmo com o lockfile pnpm preservado.
 
 ## Pontos a definir antes dos serviços
 
