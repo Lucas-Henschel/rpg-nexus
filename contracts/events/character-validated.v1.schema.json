@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:character-validated:v1",
+  "title": "CharacterValidated v1",
+  "description": "O S2 aprovou o personagem e reservou capacidade (hold) para a operação. A reserva fica HELD até ItemAcquired (COMMITTED) ou AcquisitionCancelled (RELEASED).",
+  "x-routing": {
+    "exchange": "rpg.events",
+    "routingKey": "character.validated.v1",
+    "producer": "characters (S2, P2)",
+    "consumers": ["inventory (S3, P3)"]
+  },
+  "allOf": [{ "$ref": "urn:rpg-nexus:envelope:v1" }],
+  "properties": {
+    "type": { "const": "rpg.character.validated.v1" },
+    "version": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["operationId", "campaignId", "characterId", "itemId", "quantity", "slotsRemaining"],
+      "additionalProperties": true,
+      "properties": {
+        "operationId": { "$ref": "#/$defs/id" },
+        "campaignId": { "$ref": "#/$defs/id" },
+        "characterId": { "$ref": "#/$defs/id" },
+        "itemId": { "$ref": "#/$defs/id" },
+        "quantity": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "slotsRemaining": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Informativo: capacidade livre observada no momento da decisão."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" }
+  }
+}

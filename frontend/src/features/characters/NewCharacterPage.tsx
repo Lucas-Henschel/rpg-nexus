@@ -1,0 +1,95 @@
+import { useState, type FormEvent } from "react";
+import { createCharacter } from "../../api/characters";
+import { ApiError } from "../../api/http";
+import { useCampaign } from "../../components/campaign";
+import { useToast } from "../../components/Toast";
+import { Link, navigate } from "../../router";
+import { sheetFromTemplate, TEMPLATES, type Template } from "../../sheet/templates";
+
+function TemplateIcon({ icon }: { icon: Template["icon"] }) {
+  const paths: Record<Template["icon"], string> = {
+    blank: "M32 18v28M18 32h28",
+    sword: "M46 10 22 34l8 8 24-24V10zM22 34l-6 6m14 2-6 6M14 42l8 8M12 52l6-6",
+    eye: "M6 32c8-12 17-18 26-18s18 6 26 18c-8 12-17 18-26 18S14 44 6 32zM32 24a8 8 0 1 0 0 16 8 8 0 0 0 0-16z",
+    planet: "M32 16a16 16 0 1 0 0 32 16 16 0 0 0 0-32zM13 42C6 47 4 51 6 53c3 3 16-3 29-13s22-21 20-25c-1-2-5-1-11 2",
+    feather: "M52 10C34 12 20 24 16 44l-4 10M16 44c10-2 22-8 30-20M24 34h14M30 26h14",
+  };
+  return (
+    <svg className="template__icon" viewBox="0 0 64 64" aria-hidden="true">
+      <path d={paths[icon]} />
+    </svg>
+  );
+}
+
+export function NewCharacterPage() {
+  const [campaign] = useCampaign();
+  const toast = useToast();
+  const [templateId, setTemplateId] = useState(TEMPLATES[0].id);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState("");
+  const template = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim()) return setProblem("O personagem precisa de um nome.");
+    setSaving(true);
+    setProblem("");
+    try {
+      const created = await createCharacter({
+        campaignId: campaign,
+        name: name.trim(),
+        attributes: template.attributes,
+        skills: template.skills,
+        hp: { current: template.hpMax, max: template.hpMax },
+        maxItems: template.maxItems,
+        sheet: sheetFromTemplate(template),
+      });
+      toast("ok", `${created.name} criado.`);
+      navigate(`/personagens/${created.id}`);
+    } catch (error) {
+      setProblem(error instanceof ApiError ? error.message : "Não foi possível criar o personagem.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <main className="page">
+      <Link to="/personagens" className="back-link">
+        Voltar aos personagens
+      </Link>
+      <h1 className="page__title">Escolha o modelo da ficha</h1>
+      <p className="page__lead">O modelo é só o ponto de partida. Depois de criar, você muda, tira e acrescenta o que quiser.</p>
+
+      <form onSubmit={submit} noValidate>
+        <div className="templates" role="radiogroup" aria-label="Modelo da ficha">
+          {TEMPLATES.map((item) => {
+            const blocks = item.columns.flat().length;
+            return (
+              <label key={item.id} className={`template${item.id === templateId ? " template--chosen" : ""}${item.icon === "blank" ? " template--blank" : ""}`}>
+                <input type="radio" name="template" value={item.id} checked={item.id === templateId} onChange={() => setTemplateId(item.id)} />
+                <TemplateIcon icon={item.icon} />
+                <span className="template__name">{item.name}</span>
+                <span className="template__summary">{item.summary}</span>
+                <span className="template__meta">
+                  {blocks === 0 ? "Nenhum bloco pronto" : `${blocks} blocos prontos, ${Object.keys(item.attributes).length} atributos`}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="create-bar">
+          <label className="create-bar__name">
+            <span>Nome do personagem</span>
+            <input className="felt-input" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+          </label>
+          <button type="submit" className="button button--brass" disabled={saving}>
+            {saving ? "Criando…" : `Criar personagem na campanha ${campaign}`}
+          </button>
+        </div>
+        {problem && <p className="field-error field-error--felt">{problem}</p>}
+      </form>
+    </main>
+  );
+}

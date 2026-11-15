@@ -1,0 +1,531 @@
+/* ---------- Início: topo ---------- */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 440px);
+  align-items: center;
+  gap: clamp(2rem, 6vw, 5rem);
+  max-width: var(--largura);
+  margin: 0 auto;
+  padding: clamp(2rem, 6vw, 4.5rem) 1.5rem clamp(3.5rem, 8vw, 6.5rem);
+}
+
+.hero__title {
+  max-width: 11ch;
+  font-family: var(--fonte-titulo);
+  font-size: clamp(2.7rem, 6.2vw, 5rem);
+  font-weight: 800;
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.hero__lead {
+  max-width: 34rem;
+  margin-top: 1.6rem;
+  color: var(--texto-suave);
+  font-size: 1.22rem;
+  line-height: 1.5;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 2.2rem;
+}
+
+.hero__sheet {
+  min-width: 0;
+  transform: rotate(2.2deg);
+  animation: deal 0.7s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+@keyframes deal {
+  from {
+    opacity: 0;
+    transform: translate(70px, -50px) rotate(11deg);
+  }
+}
+
+.paper--sample {
+  padding: 1.5rem;
+}
+
+.sample__head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.sample__portrait {
+  flex-shrink: 0;
+  width: 64px;
+  height: 76px;
+  border: 1.5px solid var(--nanquim);
+  background: var(--papel-2);
+}
+
+.sample__portrait svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: rgba(28, 34, 48, 0.55);
+}
+
+.sample__name {
+  font-family: var(--fonte-titulo);
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.sample__meta {
+  color: var(--nanquim-suave);
+  font-style: italic;
+  font-family: var(--fonte-titulo);
+}
+
+.sample__hp {
+  margin: 1.2rem 0;
+}
+
+.sample__hp-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.45rem;
+}
+
+.paper--sample .stat-rows {
+  margin: 1.1rem 0 1.2rem;
+}
+
+.sample__note {
+  margin-top: 1rem;
+  color: var(--nanquim-suave);
+  font-family: var(--fonte-titulo);
+  font-style: italic;
+  text-align: right;
+}
+
+/* ---------- Início: jornada ---------- */
+
+.section-title {
+  font-family: var(--fonte-titulo);
+  font-size: clamp(1.8rem, 3.6vw, 2.6rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.journey {
+  padding: clamp(3rem, 7vw, 5.5rem) 1.5rem;
+  border-block: 1px solid var(--feltro-linha);
+  background: var(--feltro-2);
+  scroll-margin-top: 1rem;
+}
+
+.journey > * {
+  max-width: calc(var(--largura) - 3rem);
+  margin-inline: auto;
+}
+
+.journey__steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2rem;
+  margin-top: 3rem;
+}
+
+/* A rota tracejada do mapa, passando por trás dos marcos. */
+.journey__steps::before {
+  content: "";
+  position: absolute;
+  top: 1.4rem;
+  left: 1.4rem;
+  /* termina no centro do último marco: largura de uma coluna menos meio marco */
+  right: calc((100% - 6rem) / 4 - 1.4rem);
+  border-top: 2px dashed var(--latao);
+  opacity: 0.55;
+}
+
+.journey__step {
+  position: relative;
+}
+
+.journey__marker {
+  display: grid;
+  place-items: center;
+  width: 2.8rem;
+  height: 2.8rem;
+  border: 2px solid var(--latao);
+  border-radius: 50%;
+  background: var(--feltro-2);
+  color: var(--latao-claro);
+  font-family: var(--fonte-titulo);
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.journey__title {
+  margin-top: 1.1rem;
+  font-family: var(--fonte-titulo);
+  font-size: 1.45rem;
+  font-weight: 700;
+}
+
+.journey__text {
+  margin-top: 0.4rem;
+  color: var(--texto-suave);
+}
+
+.journey__link {
+  display: inline-block;
+  margin-top: 0.8rem;
+  color: var(--latao-claro);
+  font-weight: 700;
+  text-underline-offset: 4px;
+}
+
+/* ---------- Início: serviços ---------- */
+
+.under {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: clamp(2rem, 6vw, 5rem);
+  align-items: start;
+  max-width: var(--largura);
+  margin: 0 auto;
+  padding: clamp(3rem, 7vw, 5.5rem) 1.5rem;
+}
+
+.under__copy p {
+  max-width: 32rem;
+  margin-top: 1.1rem;
+  color: var(--texto-suave);
+}
+
+.under__copy .under__tech {
+  color: var(--texto);
+}
+
+.service {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.95rem 0;
+  border-bottom: 1px solid var(--feltro-linha);
+}
+
+.service:first-child {
+  border-top: 1px solid var(--feltro-linha);
+}
+
+.service__dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--feltro-linha);
+}
+
+.service__dot--up {
+  background: var(--musgo);
+}
+
+.service__dot--down {
+  background: var(--rubi);
+}
+
+.service__name {
+  font-family: var(--fonte-titulo);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.service__stack,
+.service__state {
+  color: var(--texto-suave);
+}
+
+.service__state {
+  min-width: 6.2rem;
+  text-align: right;
+}
+
+.footer {
+  padding: 2rem 1.5rem 3rem;
+  border-top: 1px solid var(--feltro-linha);
+  color: var(--texto-suave);
+  text-align: center;
+}
+
+/* ---------- Páginas internas ---------- */
+
+.page {
+  max-width: var(--largura);
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 7rem;
+}
+
+.page--narrow {
+  max-width: 46rem;
+}
+
+.page--sheet {
+  max-width: 62rem;
+}
+
+.page__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+}
+
+.page__title {
+  font-family: var(--fonte-titulo);
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+
+.page__lead {
+  margin: 0.7rem 0 1.8rem;
+  color: var(--texto-suave);
+  font-size: 1.2rem;
+}
+
+.page__status {
+  color: var(--texto-suave);
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 1rem;
+  color: var(--texto-suave);
+  text-underline-offset: 4px;
+}
+
+.back-link:hover {
+  color: var(--texto);
+}
+
+.campaign-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+  color: var(--texto-suave);
+}
+
+.felt-input {
+  width: 11rem;
+  padding: 0.3rem 0.6rem;
+  border: 1.5px solid var(--feltro-linha);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--texto);
+}
+
+.felt-input:hover,
+.felt-input:focus {
+  border-color: var(--latao);
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 1rem 1.4rem;
+  flex-wrap: wrap;
+  padding: 1.4rem 1.5rem;
+  border: 1.5px dashed var(--feltro-linha);
+  border-radius: 6px;
+}
+
+.notice p {
+  flex: 1 1 18rem;
+}
+
+/* ---------- Lista de personagens ---------- */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 1.3rem;
+}
+
+.tile {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 1rem;
+  height: 100%;
+  padding: 1rem;
+  border-radius: 3px;
+  background: var(--papel);
+  color: var(--nanquim);
+  text-decoration: none;
+  box-shadow: var(--sombra-papel);
+  transition: transform 0.15s;
+  --foco: var(--latao-claro);
+}
+
+.tile:hover {
+  transform: translateY(-3px) rotate(-0.4deg);
+}
+
+.tile--inactive {
+  background: #cfc9b6;
+}
+
+.tile__portrait {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 104px;
+  border: 1.5px solid var(--nanquim);
+  background: var(--papel-2);
+  overflow: hidden;
+}
+
+.tile__portrait .initials {
+  font-size: 2rem;
+}
+
+.tile__body {
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+}
+
+.tile__name {
+  font-family: var(--fonte-titulo);
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.tile__flag {
+  color: var(--rubi);
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.tile__hp {
+  color: var(--nanquim-suave);
+  font-size: 0.92rem;
+}
+
+.tile__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.9rem;
+  font-size: 0.95rem;
+}
+
+/* ---------- Barra de salvar ---------- */
+
+.save-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  padding: 0.9rem max(1.5rem, calc((100vw - 62rem) / 2 + 1.5rem));
+  border-top: 2px solid var(--latao);
+  background: #0b1815;
+}
+
+.save-bar p {
+  flex: 1 1 14rem;
+}
+
+/* ---------- Telas ainda não construídas ---------- */
+
+.blueprint {
+  margin-bottom: 1.8rem;
+  padding: 1.5rem;
+  border: 1.5px dashed var(--feltro-linha);
+  border-radius: 6px;
+}
+
+.blueprint__state {
+  color: var(--texto-suave);
+}
+
+.blueprint__heading {
+  margin: 1.5rem 0 0.5rem;
+  font-family: var(--fonte-titulo);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.blueprint__list {
+  padding-left: 1.2rem;
+  list-style: disc;
+  color: var(--texto-suave);
+}
+
+.blueprint__endpoints {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--latao-claro);
+}
+
+/* ---------- Telas menores ---------- */
+
+@media (max-width: 880px) {
+  .hero,
+  .under {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hero__sheet {
+    max-width: 440px;
+    transform: rotate(1.2deg);
+  }
+  .journey__steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2.2rem;
+  }
+  .journey__steps::before {
+    top: 1.4rem;
+    bottom: 5rem;
+    left: 1.4rem;
+    right: auto;
+    border-top: 0;
+    border-left: 2px dashed var(--latao);
+  }
+  .journey__step {
+    padding-left: 4.2rem;
+  }
+  .journey__marker {
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+  .journey__title {
+    margin-top: 0;
+    padding-top: 0.35rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .service {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .service__stack {
+    display: none;
+  }
+}

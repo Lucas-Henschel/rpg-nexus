@@ -1,0 +1,51 @@
+# Ambiente ISOLADO do S2 para P2 trabalhar sem os demais serviços.
+# O compose oficial do grupo (P1) fica na raiz do monorepo; veja o trecho sugerido no README.
+#
+#   cd services/characters
+#   docker compose -f compose.dev.yaml up --build
+#   docker compose -f compose.dev.yaml exec characters python -m scripts.smoke_s2 --poison
+name: rpg-nexus-characters-dev
+
+x-characters: &characters
+  build:
+    context: ../..
+    dockerfile: services/characters/Dockerfile
+  env_file: .env.example
+  environment:
+    FAULT_CRASH_BEFORE_ACK: ${FAULT_CRASH_BEFORE_ACK:-off}
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    # Portas do lado do computador deslocadas (5673/15673) para não brigar com outro RabbitMQ local.
+    # O serviço fala com o broker pela rede interna do Docker, então isso não muda nada para ele.
+    ports: ["5673:5672", "15673:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  ministack:
+    image: ministackorg/ministack:latest
+    ports: ["4566:4566"]
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
+
+  characters-init:
+    <<: *characters
+    command: ["python", "-m", "scripts.create_resources", "--wait", "60"]
+    depends_on:
+      ministack:
+        condition: service_started
+    restart: "no"
+
+  characters:
+    <<: *characters
+    ports: ["8000:8000"]  # faixa permite `--scale characters=3`
+    restart: unless-stopped    # F2: o contêiner volta sozinho depois do crash injetado
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      characters-init:
+        condition: service_completed_successfully

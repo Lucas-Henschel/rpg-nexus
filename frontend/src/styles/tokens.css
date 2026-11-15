@@ -1,0 +1,27 @@
+/*
+  Ideia visual: a tela é a mesa de jogo à noite (feltro verde-escuro sob a luz de um abajur) e tudo o
+  que pertence ao jogador é papel sobre ela: a ficha, quadriculada como papel de masmorra.
+*/
+:root {
+  --feltro: #10231f;
+  --feltro-2: #17302a;
+  --feltro-linha: #2c4a41;
+  --papel: #ebe4cf;
+  --papel-2: #dfd6ba;
+  --nanquim: #1c2230;
+  --nanquim-suave: #555c6e;
+  --latao: #d9a441;
+  --latao-claro: #f0c877;
+  --rubi: #b8324a;
+  --musgo: #6cc497;
+
+  --texto: #e9e4d2;
+  --texto-suave: #a7b6ab;
+  --foco: var(--latao-claro);
+
+  --fonte-titulo: "Alegreya", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --fonte-texto: "Alegreya Sans", "Gill Sans", "Trebuchet MS", sans-serif;
+
+  --largura: 1180px;
+  --sombra-papel: 0 1px 0 rgba(0, 0, 0, 0.35), 0 24px 48px -24px rgba(0, 0, 0, 0.75);
+}

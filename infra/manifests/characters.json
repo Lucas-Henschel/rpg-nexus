@@ -1,0 +1,124 @@
+{
+  "service": "characters",
+  "owner": "P2",
+  "description": "Recursos exclusivos do S2 Personagens. Nenhum outro serviço lê ou escreve nestas tabelas/prefixos.",
+  "dynamodb": {
+    "tables": [
+      {
+        "name": "characters",
+        "envOverride": "TABLE_CHARACTERS",
+        "billingMode": "PAY_PER_REQUEST",
+        "keySchema": [
+          { "AttributeName": "pk", "KeyType": "HASH" },
+          { "AttributeName": "sk", "KeyType": "RANGE" }
+        ],
+        "attributeDefinitions": [
+          { "AttributeName": "pk", "AttributeType": "S" },
+          { "AttributeName": "sk", "AttributeType": "S" },
+          { "AttributeName": "gsi1pk", "AttributeType": "S" },
+          { "AttributeName": "gsi1sk", "AttributeType": "S" }
+        ],
+        "globalSecondaryIndexes": [
+          {
+            "IndexName": "byCampaign",
+            "KeySchema": [
+              { "AttributeName": "gsi1pk", "KeyType": "HASH" },
+              { "AttributeName": "gsi1sk", "KeyType": "RANGE" }
+            ],
+            "Projection": { "ProjectionType": "ALL" }
+          }
+        ],
+        "itemTypes": {
+          "PROFILE": "pk=CHAR#{characterId}, sk=PROFILE — ficha + contadores de capacidade (slotsUsed/slotsAvailable)",
+          "HOLD": "pk=CHAR#{characterId}, sk=HOLD#{operationId} — reserva de capacidade da Saga (HELD/COMMITTED/RELEASED)"
+        }
+      },
+      {
+        "name": "character_inbox",
+        "envOverride": "TABLE_INBOX",
+        "billingMode": "PAY_PER_REQUEST",
+        "keySchema": [{ "AttributeName": "messageId", "KeyType": "HASH" }],
+        "attributeDefinitions": [{ "AttributeName": "messageId", "AttributeType": "S" }],
+        "ttlAttribute": "expiresAt"
+      },
+      {
+        "name": "character_outbox",
+        "envOverride": "TABLE_OUTBOX",
+        "billingMode": "PAY_PER_REQUEST",
+        "keySchema": [{ "AttributeName": "messageId", "KeyType": "HASH" }],
+        "attributeDefinitions": [
+          { "AttributeName": "messageId", "AttributeType": "S" },
+          { "AttributeName": "pendingKey", "AttributeType": "S" },
+          { "AttributeName": "createdAt", "AttributeType": "S" }
+        ],
+        "globalSecondaryIndexes": [
+          {
+            "IndexName": "pending",
+            "KeySchema": [
+              { "AttributeName": "pendingKey", "KeyType": "HASH" },
+              { "AttributeName": "createdAt", "KeyType": "RANGE" }
+            ],
+            "Projection": { "ProjectionType": "ALL" }
+          }
+        ],
+        "ttlAttribute": "expiresAt"
+      }
+    ]
+  },
+  "s3": {
+    "bucket": "rpg-nexus-assets",
+    "envOverride": "S3_BUCKET",
+    "prefixes": ["characters/"],
+    "objects": "characters/{characterId}/portrait",
+    "cors": {
+      "AllowedMethods": ["GET", "PUT", "HEAD"],
+      "AllowedOrigins": ["http://localhost:5173"],
+      "AllowedHeaders": ["*"],
+      "MaxAgeSeconds": 300
+    }
+  },
+  "rabbitmq": {
+    "exchange": { "name": "rpg.events", "type": "topic", "durable": true },
+    "publishes": ["character.validated.v1", "character.rejected.v1"],
+    "queues": [
+      {
+        "name": "characters.validation-requested.v1",
+        "durable": true,
+        "arguments": {
+          "x-dead-letter-exchange": "",
+          "x-dead-letter-routing-key": "characters.validation-requested.v1.dlq"
+        },
+        "bindings": ["character.validation.requested.v1"]
+      },
+      {
+        "name": "characters.validation-requested.v1.retry",
+        "durable": true,
+        "arguments": {
+          "x-dead-letter-exchange": "",
+          "x-dead-letter-routing-key": "characters.validation-requested.v1"
+        },
+        "bindings": []
+      },
+      { "name": "characters.validation-requested.v1.dlq", "durable": true, "arguments": {}, "bindings": [] },
+      {
+        "name": "characters.acquisition-outcomes.v1",
+        "durable": true,
+        "arguments": {
+          "x-dead-letter-exchange": "",
+          "x-dead-letter-routing-key": "characters.acquisition-outcomes.v1.dlq"
+        },
+        "bindings": ["item.acquired.v1", "acquisition.cancelled.v1"]
+      },
+      {
+        "name": "characters.acquisition-outcomes.v1.retry",
+        "durable": true,
+        "arguments": {
+          "x-dead-letter-exchange": "",
+          "x-dead-letter-routing-key": "characters.acquisition-outcomes.v1"
+        },
+        "bindings": []
+      },
+      { "name": "characters.acquisition-outcomes.v1.dlq", "durable": true, "arguments": {}, "bindings": [] }
+    ]
+  }
+}

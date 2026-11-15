@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:character-validation-requested:v1",
+  "title": "CharacterValidationRequested v1",
+  "description": "A Saga de aquisição (S3 Inventário) pede ao S2 Personagens que valide se o personagem pode receber o item e reserve a capacidade correspondente.",
+  "x-routing": {
+    "exchange": "rpg.events",
+    "routingKey": "character.validation.requested.v1",
+    "producer": "inventory (S3, P3)",
+    "consumers": ["characters (S2, P2) — fila characters.validation-requested.v1"]
+  },
+  "allOf": [{ "$ref": "urn:rpg-nexus:envelope:v1" }],
+  "properties": {
+    "type": { "const": "rpg.character.validation-requested.v1" },
+    "version": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["operationId", "campaignId", "characterId", "itemId", "quantity"],
+      "additionalProperties": true,
+      "properties": {
+        "operationId": { "$ref": "#/$defs/id", "description": "ID da Saga; igual ao correlationId do envelope." },
+        "campaignId": { "$ref": "#/$defs/id" },
+        "characterId": { "$ref": "#/$defs/id" },
+        "itemId": { "$ref": "#/$defs/id" },
+        "quantity": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "deadlineAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?(Z|[+-]\\d{2}:\\d{2})$",
+          "description": "Opcional. Prazo da Saga; após ele o S2 recusa com DEADLINE_EXPIRED em vez de reservar capacidade."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" }
+  }
+}

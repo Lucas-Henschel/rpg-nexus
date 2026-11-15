@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:character-rejected:v1",
+  "title": "CharacterRejected v1",
+  "description": "O S2 recusou a validação. Nenhuma capacidade foi reservada; o S3 deve compensar a reserva de estoque.",
+  "x-routing": {
+    "exchange": "rpg.events",
+    "routingKey": "character.rejected.v1",
+    "producer": "characters (S2, P2)",
+    "consumers": ["inventory (S3, P3)"]
+  },
+  "allOf": [{ "$ref": "urn:rpg-nexus:envelope:v1" }],
+  "properties": {
+    "type": { "const": "rpg.character.rejected.v1" },
+    "version": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["operationId", "campaignId", "characterId", "itemId", "quantity", "reason"],
+      "additionalProperties": true,
+      "properties": {
+        "operationId": { "$ref": "#/$defs/id" },
+        "campaignId": { "$ref": "#/$defs/id" },
+        "characterId": { "$ref": "#/$defs/id" },
+        "itemId": { "$ref": "#/$defs/id" },
+        "quantity": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "CHARACTER_NOT_FOUND",
+            "CHARACTER_INACTIVE",
+            "CAMPAIGN_MISMATCH",
+            "CAPACITY_EXCEEDED",
+            "DEADLINE_EXPIRED",
+            "OPERATION_CLOSED"
+          ]
+        },
+        "detail": { "type": "string", "maxLength": 500 }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" }
+  }
+}
