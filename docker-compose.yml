@@ -1,3 +1,24 @@
+# Base comum do S2 Personagens. Os valores de infraestrutura vêm do .env da raiz e
+# sobrescrevem services/characters/.env.example.
+x-characters: &characters
+  build:
+    context: .
+    dockerfile: services/characters/Dockerfile
+  env_file: services/characters/.env.example
+  environment:
+    AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL:-http://ministack:4566}
+    AWS_REGION: ${AWS_REGION:-us-east-1}
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+    S3_BUCKET: ${RPG_ASSETS_BUCKET:-rpg-assets}
+    # Endereços vistos pelo NAVEGADOR (URLs pré-assinadas do S3 e origem do front).
+    S3_PUBLIC_ENDPOINT_URL: http://localhost:${MINISTACK_PORT:-4566}
+    CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173}
+    RABBITMQ_URL: amqp://${RABBITMQ_USER:-dev}:${RABBITMQ_PASSWORD:-dev}@rabbitmq:5672/
+    FAULT_CRASH_BEFORE_ACK: ${FAULT_CRASH_BEFORE_ACK:-off}
+  networks:
+    - rpg
+
 services:
   rabbitmq:
     image: rabbitmq:4-management-alpine
@@ -70,6 +91,36 @@ services:
     command: ["/work/infra/ministack/init-resources.sh"]
     volumes:
       - .:/work:ro
+    networks:
+      - rpg
+
+  # Cria as tabelas DynamoDB do S2 e aplica o CORS do bucket (idempotente); o bucket é do aws-init.
+  characters-init:
+    <<: *characters
+    restart: "no"
+    command: ["python", "-m", "scripts.create_resources", "--wait", "60"]
+    depends_on:
+      aws-init:
+        condition: service_completed_successfully
+
+  characters:
+    <<: *characters
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${CHARACTERS_PORT:-8000}:8000"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      characters-init:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: apps/frontend
+      args:
+        VITE_CHARACTERS_URL: http://localhost:${CHARACTERS_PORT:-8000}
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
     networks:
       - rpg
 

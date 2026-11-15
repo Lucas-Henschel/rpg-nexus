@@ -1,7 +1,7 @@
 """Cria (de forma idempotente) as tabelas DynamoDB e o bucket S3 do S2 a partir do manifesto.
 
-O provisionamento oficial do grupo é o script de P1 em infra/init/, que lê o mesmo manifesto.
-Este script existe para P2 trabalhar sozinho e para o smoke test em ambiente limpo.
+É executado pelo serviço `characters-init` do docker-compose.yml da raiz. O bucket já é criado
+pelo `aws-init`; aqui ele só é reaproveitado e recebe a configuração de CORS.
 
     python -m scripts.create_resources            # usa AWS_ENDPOINT_URL / AWS_REGION do ambiente
     python -m scripts.create_resources --wait 30  # aguarda o MiniStack ficar disponível

@@ -7,10 +7,13 @@ React + TypeScript + Vite. É um cliente das APIs dos microsserviços, não um q
 Precisa do Node.js 20 ou mais novo.
 
 ```
-cd frontend
+cd apps/frontend
 npm install
 npm run dev
 ```
+
+Ou, pelo Docker, na raiz do monorepo: `docker compose up --build frontend` (o serviço `frontend` do
+`docker-compose.yml` faz o build e serve em `http://localhost:5173`).
 
 Abra `http://localhost:5173`. A porta é fixa porque é a origem liberada no CORS dos serviços.
 

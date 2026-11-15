@@ -18,14 +18,21 @@ Cada serviço fica em sua própria pasta dentro de `services/`, com `Dockerfile`
 endpoint de health check, e é declarado no `docker-compose.yml`. Os projetos são
 independentes: cada um tem suas próprias dependências e lockfile (`package.json`,
 `pom.xml`, `requirements.txt`) e seu Dockerfile usa a própria pasta como contexto,
-podendo ser construído isoladamente com `docker build services/<serviço>`.
+podendo ser construído isoladamente com `docker build services/<serviço>`. A exceção
+é `services/characters`, cujo build usa a raiz como contexto para copiar `contracts/`
+e `infra/manifests/`: `docker build -f services/characters/Dockerfile .`.
+
+| Projeto | Pasta | Serviços no Compose |
+| --- | --- | --- |
+| Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters-init`, `characters` |
+| Front-end (React + Vite) | [`apps/frontend`](apps/frontend/README.md) | `frontend` |
 
 ## Pré-requisitos
 
 - Opcional: Node.js 24 LTS, apenas para desenvolver os projetos JavaScript fora do
   Docker. Veja [Instalação do Node.js](docs/instalacao-node.md).
 - Docker Engine ou Docker Desktop em execução, com Docker Compose v2.
-- Portas locais `5672`, `15672` e `4566` livres, ou portas alternativas no `.env`.
+- Portas locais `5672`, `15672`, `4566`, `8000` e `5173` livres, ou portas alternativas no `.env`.
 
 ## Primeiro uso
 
@@ -47,6 +54,10 @@ bucket caso necessário e termina; repetir a inicialização preserva um bucket
 existente. O RabbitMQ aguarda a conclusão com sucesso de `aws-init`, tornando a
 inicialização uma condição de prontidão da pilha. Uma falha do inicializador faz
 o `docker compose up` falhar.
+
+Em seguida, `characters-init` cria as tabelas DynamoDB do serviço de Personagens e
+aplica o CORS do bucket, e só então `characters` sobe. Com a pilha no ar, abra o
+front-end em [localhost:5173](http://localhost:5173).
 
 ### Logs separados por serviço
 
@@ -92,6 +103,8 @@ resolvidos entre contêineres na rede Compose, e não no host.
 | RabbitMQ AMQP | `amqp://localhost:5672` | `amqp://rabbitmq:5672` |
 | RabbitMQ Management | [localhost:15672](http://localhost:15672) | `http://rabbitmq:15672` |
 | MiniStack S3 / DynamoDB | `http://localhost:4566` | `http://ministack:4566` |
+| Personagens (API) | [localhost:8000/docs](http://localhost:8000/docs) | `http://characters:8000` |
+| Front-end | [localhost:5173](http://localhost:5173) | — |
 
 | Variável em `.env` | Default | Uso |
 | --- | --- | --- |
@@ -104,7 +117,9 @@ resolvidos entre contêineres na rede Compose, e não no host.
 | `AWS_REGION` | `us-east-1` | Região usada na inicialização. |
 | `AWS_ACCESS_KEY_ID` | `test` | Chave fictícia para o MiniStack. |
 | `AWS_SECRET_ACCESS_KEY` | `test` | Segredo fictício para o MiniStack. |
-| `RPG_ASSETS_BUCKET` | `rpg-assets` | Bucket criado pelo inicializador. |
+| `RPG_ASSETS_BUCKET` | `rpg-assets` | Bucket criado pelo inicializador e usado pelo serviço de Personagens. |
+| `CHARACTERS_PORT` | `8000` | Porta da API de Personagens no host; também é o endereço gravado no build do front-end. |
+| `FRONTEND_PORT` | `5173` | Porta do front-end no host; também é a origem liberada no CORS de Personagens e do bucket. |
 
 Mudar uma porta publicada altera somente o endereço no host. A porta interna do
 MiniStack continua `4566`, portanto mantenha `AWS_ENDPOINT_URL=http://ministack:4566`

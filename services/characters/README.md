@@ -154,36 +154,24 @@ curl -s -X POST localhost:8000/characters -H 'Content-Type: application/json' -d
 
 ## 7. Como rodar
 
-### Sozinho (sem os outros serviços)
+O serviço é declarado no `docker-compose.yml` da **raiz do monorepo**, junto com RabbitMQ e
+MiniStack (não há compose próprio do S2). Na raiz:
 
 ```bash
-cd services/characters
-docker compose -f compose.dev.yaml up --build
+cp .env.example .env
+docker compose up --build characters      # sobe só o S2 e o que ele precisa (RabbitMQ, MiniStack, inits)
 # em outro terminal: prova o S2 fazendo o papel do S3 Inventário
-docker compose -f compose.dev.yaml exec characters python -m scripts.smoke_s2 --poison
+docker compose exec characters python -m scripts.smoke_s2 --poison
 ```
+
+`characters-init` cria as tabelas DynamoDB e aplica o CORS do bucket a partir de
+`infra/manifests/characters.json` (tabelas, índices, TTL, CORS, filas e bindings). O build usa a raiz
+como contexto, para copiar `contracts/` e o manifesto.
+
+Endpoints e credenciais de AWS/MiniStack, bucket (`RPG_ASSETS_BUCKET`), usuário do RabbitMQ e origem do
+CORS vêm do `.env` da raiz; `services/characters/.env.example` guarda só as variáveis próprias do S2.
 
 Sem Docker nem AWS (útil para o frontend): `STORE_BACKEND=memory STORAGE_BACKEND=memory MESSAGING_ENABLED=false uvicorn --factory app.main:create_app --port 8000`.
-
-### No compose do grupo (trecho para P1)
-
-O build usa a **raiz do monorepo** como contexto, para copiar `contracts/` e o manifesto:
-
-```yaml
-  characters:
-    build: { context: ., dockerfile: services/characters/Dockerfile }
-    env_file: services/characters/.env.example
-    environment:
-      FAULT_CRASH_BEFORE_ACK: ${FAULT_CRASH_BEFORE_ACK:-off}
-    ports: ["8000:8000"]
-    restart: unless-stopped
-    depends_on:
-      rabbitmq: { condition: service_healthy }
-      infra-init: { condition: service_completed_successfully }
-```
-
-Recursos: `infra/manifests/characters.json` (tabelas, índices, TTL, bucket, CORS, filas e bindings). Se o
-script de P1 já declarar as filas, use `RABBITMQ_DECLARE_TOPOLOGY=false` (o S2 passa a só verificá-las).
 
 ### Testes
 
