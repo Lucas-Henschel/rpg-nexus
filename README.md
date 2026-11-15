@@ -51,11 +51,11 @@ e exclusivas deste ambiente local.
 a infraestrutura e todos os serviços declarados no Compose, com os logs anexados
 ao terminal. O inicializador `aws-init` aguarda o MiniStack saudável, cria o
 bucket caso necessário e termina; repetir a inicialização preserva um bucket
-existente. O RabbitMQ aguarda a conclusão com sucesso de `aws-init`, tornando a
-inicialização uma condição de prontidão da pilha. Depois que o RabbitMQ fica
-saudável, o inicializador `rabbitmq-init` declara o exchange, as filas e as
-ligações de `infra/rabbitmq/definitions.json` e termina. Uma falha de qualquer
-inicializador faz o `docker compose up` falhar.
+existente. Em paralelo, depois que o RabbitMQ fica saudável, o inicializador
+`rabbitmq-init` declara o exchange, as filas e as ligações de
+`infra/rabbitmq/definitions.json` e termina. Os serviços esperam a conclusão com
+sucesso dos inicializadores de que dependem, e uma falha de qualquer um deles faz
+o `docker compose up` falhar.
 
 Em seguida, `characters-init` cria as tabelas DynamoDB do serviço de Personagens e
 aplica o CORS do bucket, e só então `characters` sobe. Com a pilha no ar, abra o
