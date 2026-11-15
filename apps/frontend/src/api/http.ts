@@ -62,3 +62,13 @@ export function jsonBody(body: unknown, headers: Record<string, string> = {}): R
     headers: { "Content-Type": "application/json", ...headers },
   };
 }
+
+/** Texto para mostrar a quem usa: a mensagem do serviço quando ela existe, senão o texto padrão. */
+export function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? error.message : fallback;
+}
+
+/** 412: a versão enviada no If-Match não é mais a atual. */
+export function isConflict(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 412;
+}

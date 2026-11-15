@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { createCharacter } from "../../api/characters";
-import { ApiError } from "../../api/http";
+import { errorMessage } from "../../api/http";
 import { useCampaign } from "../../components/campaign";
+import { cx } from "../../components/cx";
 import { useToast } from "../../components/toast-context";
 import { navigate } from "../../navigation";
 import { Link } from "../../router";
@@ -52,9 +53,7 @@ export function NewCharacterPage() {
       toast("ok", `${created.name} criado.`);
       navigate(`/personagens/${created.id}`);
     } catch (error) {
-      setProblem(
-        error instanceof ApiError ? error.message : "Não foi possível criar o personagem.",
-      );
+      setProblem(errorMessage(error, "Não foi possível criar o personagem."));
       setSaving(false);
     }
   };
@@ -77,7 +76,11 @@ export function NewCharacterPage() {
             return (
               <label
                 key={item.id}
-                className={`template${item.id === templateId ? " template--chosen" : ""}${item.icon === "blank" ? " template--blank" : ""}`}
+                className={cx(
+                  "template",
+                  item.id === templateId && "template--chosen",
+                  item.icon === "blank" && "template--blank",
+                )}
               >
                 <input
                   type="radio"

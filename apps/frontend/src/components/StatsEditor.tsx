@@ -1,29 +1,47 @@
-import { useState, type KeyboardEvent } from "react";
+import { useState } from "react";
 import type { StatMap } from "../api/characters";
 import { signed, toKey, toLabel } from "../labels";
 import { DieIcon } from "./DiceTray";
+import { onEnter } from "./onEnter";
+
+type Kind = "attributes" | "skills";
+
+/** Atributos aparecem em caixas e começam em 10; perícias em linhas pontilhadas e começam em 0. */
+const KINDS: Record<Kind, { start: number; placeholder: string; text: Record<string, string> }> = {
+  attributes: {
+    start: 10,
+    placeholder: "Ex.: Vigor",
+    text: {
+      missing: "Dê um nome para o atributo, começando por uma letra.",
+      empty: "Nenhum atributo ainda.",
+      name: "Nome do atributo",
+      add: "Adicionar atributo",
+    },
+  },
+  skills: {
+    start: 0,
+    placeholder: "Ex.: Furtividade",
+    text: {
+      missing: "Dê um nome para a perícia, começando por uma letra.",
+      empty: "Nenhuma perícia ainda.",
+      name: "Nome da perícia",
+      add: "Adicionar perícia",
+    },
+  },
+};
 
 interface Props {
-  /** "boxes": caixas de atributo; "rows": linhas pontilhadas de perícia. */
-  variant: "boxes" | "rows";
+  kind: Kind;
   stats: StatMap;
   onChange: (next: StatMap) => void;
-  noun: string; // "atributo" | "perícia"
   min?: number;
   max?: number;
   /** Se informado, cada linha ganha um botão de rolagem (usado nas perícias: d20 + valor). */
   onRoll?: (key: string, value: number) => void;
 }
 
-export function StatsEditor({
-  variant,
-  stats,
-  onChange,
-  noun,
-  min = -1000,
-  max = 1000,
-  onRoll,
-}: Props) {
+export function StatsEditor({ kind, stats, onChange, min = -1000, max = 1000, onRoll }: Props) {
+  const { start, placeholder, text } = KINDS[kind];
   const [name, setName] = useState("");
   const [problem, setProblem] = useState("");
   const entries = Object.entries(stats);
@@ -42,9 +60,7 @@ export function StatsEditor({
   const add = () => {
     const key = toKey(name);
     if (!key) {
-      return setProblem(
-        `Dê um nome para ${noun === "perícia" ? "a" : "o"} ${noun}, começando por uma letra.`,
-      );
+      return setProblem(text.missing);
     }
     if (key in stats) {
       return setProblem(`${toLabel(key)} já está na ficha.`);
@@ -52,22 +68,14 @@ export function StatsEditor({
     if (entries.length >= 64) {
       return setProblem("A ficha comporta até 64 entradas.");
     }
-    onChange({ ...stats, [key]: variant === "boxes" ? 10 : 0 });
+    onChange({ ...stats, [key]: start });
     setName("");
     setProblem("");
   };
 
-  const onEnter = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== "Enter") {
-      return;
-    }
-    event.preventDefault(); // não deixa o Enter enviar o formulário de fora
-    add();
-  };
-
   return (
     <div className="stats">
-      {variant === "boxes" ? (
+      {kind === "attributes" ? (
         <ul className="stat-grid">
           {entries.map(([key, value]) => (
             <li key={key} className="stat-box">
@@ -151,24 +159,20 @@ export function StatsEditor({
           ))}
         </ul>
       )}
-      {entries.length === 0 && (
-        <p className="stats__empty">
-          Nenhum{noun === "perícia" ? "a" : ""} {noun} ainda.
-        </p>
-      )}
+      {entries.length === 0 && <p className="stats__empty">{text.empty}</p>}
       {/* div, e não form: este editor também é usado dentro do formulário de criação */}
       <div className="stats__add">
         <input
           className="ink-input"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder={variant === "boxes" ? "Ex.: Vigor" : "Ex.: Furtividade"}
-          aria-label={`Nome d${noun === "perícia" ? "a" : "o"} ${noun}`}
+          placeholder={placeholder}
+          aria-label={text.name}
           maxLength={40}
-          onKeyDown={onEnter}
+          onKeyDown={onEnter(add)}
         />
         <button type="button" className="button button--ghost-ink" onClick={add}>
-          Adicionar {noun}
+          {text.add}
         </button>
       </div>
       {problem && <p className="field-error">{problem}</p>}

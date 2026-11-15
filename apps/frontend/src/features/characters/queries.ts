@@ -1,7 +1,14 @@
-/** Consultas do S2 Personagens. As telas usam estes hooks em vez de chamar a API em efeitos. */
-import { queryOptions, useQuery } from "@tanstack/react-query";
-import { getCharacter, listCharacters, listHolds } from "../../api/characters";
-import { ApiError } from "../../api/http";
+/** Consultas e alterações do S2 Personagens. As telas usam estes hooks em vez de chamar a API. */
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  getCharacter,
+  listCharacters,
+  listHolds,
+  updateCharacter,
+  uploadPortrait,
+  type Character,
+  type CharacterPatch,
+} from "../../api/characters";
 
 export const characterKeys = {
   list: (campaignId: string) => ["characters", "list", campaignId] as const,
@@ -39,6 +46,39 @@ export function useHolds(id: string) {
   });
 }
 
-export function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof ApiError ? error.message : fallback;
+/** Busca de novo a ficha e as reservas, ignorando o cache. Devolve a ficha atual. */
+export function useReloadCharacter(id: string) {
+  const queryClient = useQueryClient();
+  return async (): Promise<Character> => {
+    const [fresh] = await Promise.all([
+      queryClient.fetchQuery({ ...characterQuery(id), staleTime: 0 }),
+      queryClient.refetchQueries({ queryKey: characterKeys.holds(id) }),
+    ]);
+    return fresh;
+  };
+}
+
+/** A resposta do PATCH e do upload já é a ficha nova: ela vai direto para o cache. */
+function useStoreCharacter() {
+  const queryClient = useQueryClient();
+  return (updated: Character) =>
+    queryClient.setQueryData(characterKeys.detail(updated.id), updated);
+}
+
+export function useSaveCharacter(id: string) {
+  const store = useStoreCharacter();
+  return useMutation({
+    // A versão vai junto de cada chamada: é a da ficha que estava na tela no clique.
+    mutationFn: ({ patch, version }: { patch: CharacterPatch; version: number }) =>
+      updateCharacter(id, patch, version),
+    onSuccess: store,
+  });
+}
+
+export function useUploadPortrait(id: string) {
+  const store = useStoreCharacter();
+  return useMutation({
+    mutationFn: (file: File) => uploadPortrait(id, file),
+    onSuccess: store,
+  });
 }

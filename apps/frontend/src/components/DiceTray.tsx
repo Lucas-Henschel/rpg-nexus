@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { formatFormula, parseFormula, roll, rollDie, type RollResult } from "../sheet/dice";
+import { cx } from "./cx";
 import { DiceContext, type RollDice } from "./dice-context";
 
 const TUMBLE_MS = 950;
@@ -71,18 +72,17 @@ function Die({ sides, value, index }: { sides: number; value: number; index: num
     };
   }, [sides, value, index]);
 
-  let mood = "";
-  if (settled && value === sides) {
-    mood = " die--max";
-  } else if (settled && value === 1) {
-    mood = " die--min";
-  }
+  const className = cx(
+    "die",
+    settled && value === sides && "die--max",
+    settled && value === 1 && "die--min",
+  );
   return (
-    <span className={`die${mood}`} style={{ animationDelay: `${index * STAGGER_MS}ms` }}>
+    <span className={className} style={{ animationDelay: `${index * STAGGER_MS}ms` }}>
       <svg viewBox="0 0 100 100" aria-hidden="true">
         <DieShape sides={sides} />
       </svg>
-      <span className={`die__value${sides === 4 ? " die__value--low" : ""}`}>{shown}</span>
+      <span className={cx("die__value", sides === 4 && "die__value--low")}>{shown}</span>
     </span>
   );
 }

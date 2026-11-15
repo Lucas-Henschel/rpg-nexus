@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { portraitUrl, type Character } from "../../api/characters";
+import { errorMessage } from "../../api/http";
 import { CAMPAIGN_PATTERN, useCampaign } from "../../components/campaign";
+import { cx } from "../../components/cx";
 import { HpBar, Initials } from "../../components/Sheet";
 import { toLabel } from "../../labels";
 import { Link } from "../../router";
-import { errorMessage, useCharacters } from "./queries";
+import { useCharacters } from "./queries";
 
 function CharacterTile({ character }: { character: Character }) {
   const portrait = portraitUrl(character);
@@ -14,7 +16,7 @@ function CharacterTile({ character }: { character: Character }) {
   return (
     <Link
       to={`/personagens/${character.id}`}
-      className={`tile${character.active ? "" : " tile--inactive"}`}
+      className={cx("tile", !character.active && "tile--inactive")}
     >
       <span className="tile__portrait">
         {portrait ? <img src={portrait} alt="" /> : <Initials name={character.name} />}

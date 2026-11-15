@@ -1,7 +1,9 @@
 /** Blocos livres da ficha: o conteúdo de cada um fica em block.data e é salvo junto com a ficha. */
-import { useState, type KeyboardEvent } from "react";
+import { useState } from "react";
+import { CurrentOfMax } from "../../components/CurrentOfMax";
 import { useDice } from "../../components/dice-context";
 import { DieIcon } from "../../components/DiceTray";
+import { onEnter } from "../../components/onEnter";
 import { parseFormula } from "../../sheet/dice";
 
 type Data = Record<string, unknown>;
@@ -15,15 +17,12 @@ const asNumber = (value: unknown, fallback: number) =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
 const asString = (value: unknown) => (typeof value === "string" ? value : "");
 
-function onEnter(action: () => void) {
-  return (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== "Enter") {
-      return;
-    }
-    event.preventDefault();
-    action();
-  };
-}
+const COUNTER_LABELS = {
+  less: "Diminuir 1",
+  more: "Aumentar 1",
+  current: "Valor atual",
+  max: "Valor máximo",
+};
 
 export function TextBlock({ data, onChange }: Props) {
   const body = asString(data.body);
@@ -62,41 +61,14 @@ export function CounterBlock({ title, data, onChange }: Props) {
           style={{ width: `${max > 0 ? (current / max) * 100 : 0}%` }}
         />
       </div>
-      <div className="vital__row">
-        <button
-          type="button"
-          className="round-step"
-          onClick={() => set(current - 1)}
-          aria-label="Diminuir 1"
-        >
-          −
-        </button>
-        <input
-          className="ink-input ink-input--number"
-          type="number"
-          min={0}
-          value={current}
-          onChange={(e) => set(e.target.valueAsNumber)}
-          aria-label="Valor atual"
-        />
-        <span>de</span>
-        <input
-          className="ink-input ink-input--number"
-          type="number"
-          min={0}
-          value={max}
-          onChange={(e) => set(current, e.target.valueAsNumber)}
-          aria-label="Valor máximo"
-        />
-        <button
-          type="button"
-          className="round-step"
-          onClick={() => set(current + 1)}
-          aria-label="Aumentar 1"
-        >
-          +
-        </button>
-      </div>
+      <CurrentOfMax
+        current={current}
+        max={max}
+        minMax={0}
+        onCurrent={(value) => set(value)}
+        onMax={(value) => set(current, value)}
+        labels={COUNTER_LABELS}
+      />
     </div>
   );
 }
