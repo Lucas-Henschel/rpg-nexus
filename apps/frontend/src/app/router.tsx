@@ -7,8 +7,10 @@ export function Router({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onChange = () => setPath(window.location.pathname);
     window.addEventListener("popstate", onChange);
+
     return () => window.removeEventListener("popstate", onChange);
   }, []);
+
   return <PathContext.Provider value={path}>{children}</PathContext.Provider>;
 }
 
@@ -30,9 +32,11 @@ export function Link({ to, className, children, ...rest }: LinkProps) {
     ) {
       return;
     }
+
     event.preventDefault();
     navigate(to);
   };
+
   return (
     <a href={to} className={className} onClick={onClick} {...rest}>
       {children}

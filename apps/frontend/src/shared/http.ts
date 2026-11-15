@@ -32,6 +32,7 @@ export async function request<T>(
       `Sem resposta de ${baseUrl}. Confira se o serviço está no ar.`,
     );
   }
+
   const text = await response.text();
   let body: unknown = null;
   if (text) {
@@ -41,6 +42,7 @@ export async function request<T>(
       body = null;
     }
   }
+
   if (!response.ok) {
     // Formato de erro combinado entre os serviços: {"error": {"code", "message", "details"}}
     const error = (
@@ -53,6 +55,7 @@ export async function request<T>(
       error?.details,
     );
   }
+
   return { data: body as T, etag: response.headers.get("ETag"), status: response.status };
 }
 

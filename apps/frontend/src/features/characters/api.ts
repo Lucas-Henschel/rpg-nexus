@@ -84,12 +84,14 @@ export async function listCharacters(campaignId: string): Promise<Character[]> {
     if (cursor) {
       query.set("cursor", cursor);
     }
+
     const page: { items: Character[]; nextCursor: string | null } = (
       await request<{ items: Character[]; nextCursor: string | null }>(base, `/characters?${query}`)
     ).data;
     all.push(...page.items);
     cursor = page.nextCursor;
   } while (cursor);
+
   return all;
 }
 
@@ -109,6 +111,7 @@ export async function updateCharacter(
   version: number,
 ): Promise<Character> {
   const init = { method: "PATCH", ...jsonBody(patch, { "If-Match": `"${version}"` }) };
+
   return (await request<Character>(base, `/characters/${encodeURIComponent(id)}`, init)).data;
 }
 
@@ -120,6 +123,7 @@ export async function listHolds(id: string): Promise<Hold[]> {
 /** Envia o retrato pelo backend, que valida e grava no S3. */
 export async function uploadPortrait(id: string, file: File): Promise<Character> {
   const init = { method: "PUT", body: file, headers: { "Content-Type": file.type } };
+
   return (await request<Character>(base, `/characters/${encodeURIComponent(id)}/portrait`, init))
     .data;
 }
@@ -128,6 +132,8 @@ export function portraitUrl(character: Character): string | null {
   if (!character.portrait) {
     return null;
   }
+
   const stamp = encodeURIComponent(character.portrait.uploadedAt);
+
   return `${base}/characters/${encodeURIComponent(character.id)}/portrait/content?v=${stamp}`;
 }

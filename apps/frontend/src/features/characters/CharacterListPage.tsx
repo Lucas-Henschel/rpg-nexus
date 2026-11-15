@@ -13,6 +13,7 @@ function CharacterTile({ character }: { character: Character }) {
   const top = Object.entries(character.attributes)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
+
   return (
     <Link
       to={`/personagens/${character.id}`}
@@ -53,6 +54,7 @@ export function CharacterListPage() {
       setCampaign(draft.trim());
     }
   };
+
   const draftValid = CAMPAIGN_PATTERN.test(draft.trim());
 
   return (

@@ -140,6 +140,7 @@ const HEALTH_TEXT: Record<Health, string> = {
 
 export function HomePage() {
   const health = useAllServicesHealth();
+
   return (
     <main>
       <section className="hero">

@@ -21,12 +21,15 @@ function PortraitPicker({ character, name }: { character: Character; name: strin
     if (!file) {
       return;
     }
+
     if (!PORTRAIT_TYPES.includes(file.type)) {
       return toast("error", "O retrato precisa ser PNG, JPEG ou WebP.");
     }
+
     if (file.size > PORTRAIT_MAX_BYTES) {
       return toast("error", "O retrato pode ter até 2 MB.");
     }
+
     // A versão da ficha muda com o upload; o rascunho em edição continua como está.
     upload.mutate(file, {
       onSuccess: () => toast("ok", "Retrato enviado."),

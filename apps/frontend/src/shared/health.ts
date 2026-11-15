@@ -6,6 +6,7 @@ export type Health = "checking" | "up" | "down";
 async function ping(url: string): Promise<boolean> {
   try {
     const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
+
     return response.ok;
   } catch {
     return false;
@@ -30,6 +31,7 @@ function toHealth(up: boolean | undefined): Health {
   if (up === undefined) {
     return "checking";
   }
+
   return up ? "up" : "down";
 }
 
@@ -40,6 +42,7 @@ export function useServiceHealth(key: ServiceKey): Health {
 export function useAllServicesHealth(): Record<ServiceKey, Health> {
   const keys = Object.keys(services) as ServiceKey[];
   const results = useQueries({ queries: keys.map(healthQuery) });
+
   return Object.fromEntries(keys.map((key, i) => [key, toHealth(results[i].data)])) as Record<
     ServiceKey,
     Health

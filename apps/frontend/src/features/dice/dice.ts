@@ -22,11 +22,13 @@ export function parseFormula(text: string): DiceFormula | null {
   if (!match) {
     return null;
   }
+
   const count = match[1] ? Number(match[1]) : 1;
   const sides = Number(match[2]);
   if (count < 1 || count > 20 || sides < 2 || sides > 1000) {
     return null;
   }
+
   return { count, sides, bonus: match[3] ? Number(match[3]) : 0 };
 }
 
@@ -41,6 +43,7 @@ export function rollDie(sides: number): number {
   do {
     crypto.getRandomValues(buffer);
   } while (buffer[0] >= limit);
+
   return (buffer[0] % sides) + 1;
 }
 
@@ -48,6 +51,7 @@ let nextId = 1;
 
 export function roll(label: string, formula: DiceFormula): RollResult {
   const dice = Array.from({ length: formula.count }, () => rollDie(formula.sides));
+
   return {
     id: nextId++,
     label,

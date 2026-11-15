@@ -16,6 +16,7 @@ export function patchBlock(
 ): Columns {
   const next = copy(columns);
   next[col][index] = { ...next[col][index], ...changes };
+
   return next;
 }
 
@@ -24,6 +25,7 @@ export function moveBlock(columns: Columns, col: number, index: number, by: numb
   const next = copy(columns);
   const [moved] = next[col].splice(index, 1);
   next[col].splice(index + by, 0, moved);
+
   return next;
 }
 
@@ -32,17 +34,20 @@ export function switchColumn(columns: Columns, col: number, index: number): Colu
   const next = copy(columns);
   const [moved] = next[col].splice(index, 1);
   next[(col + 1) % next.length].push(moved);
+
   return next;
 }
 
 export function removeBlock(columns: Columns, col: number, index: number): Columns {
   const next = copy(columns);
   next[col].splice(index, 1);
+
   return next;
 }
 
 export function addBlock(columns: Columns, col: number, type: BlockType): Columns {
   const next = copy(columns);
   next[col].push(block(type));
+
   return next;
 }

@@ -52,6 +52,7 @@ function BlockBody({ item, draft, edit, character, holds, onData }: BodyProps) {
       );
     default: {
       const Free = FREE_BLOCKS[item.type];
+
       return <Free title={item.title} data={item.data} onChange={onData} />;
     }
   }
@@ -104,6 +105,7 @@ interface Props extends Omit<BodyProps, "onData"> {
 export function SheetBlock({ item, actions, onPatch, ...body }: Props) {
   // Blocos livres têm título editável; os ligados a campos fixos usam o nome do tipo.
   const free = !SINGLETON_BLOCKS.includes(item.type);
+
   return (
     <section className="block">
       <header className="block__head">

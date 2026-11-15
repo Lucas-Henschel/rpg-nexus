@@ -25,6 +25,7 @@ export function SaveBar({ stale, problem, saving, onSave, onDiscard, onReload }:
       </div>
     );
   }
+
   return (
     <div className="save-bar" role="region" aria-label="Alterações não salvas">
       <p>{problem || "Há alterações que ainda não foram salvas."}</p>

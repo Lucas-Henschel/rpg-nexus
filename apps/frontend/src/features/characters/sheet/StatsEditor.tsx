@@ -50,24 +50,30 @@ export function StatsEditor({ kind, stats, onChange, min = -1000, max = 1000, on
     if (Number.isNaN(value)) {
       return;
     }
+
     onChange({ ...stats, [key]: Math.max(min, Math.min(max, Math.trunc(value))) });
   };
+
   const remove = (key: string) => {
     const next = { ...stats };
     delete next[key];
     onChange(next);
   };
+
   const add = () => {
     const key = toKey(name);
     if (!key) {
       return setProblem(text.missing);
     }
+
     if (key in stats) {
       return setProblem(`${toLabel(key)} já está na ficha.`);
     }
+
     if (entries.length >= 64) {
       return setProblem("A ficha comporta até 64 entradas.");
     }
+
     onChange({ ...stats, [key]: start });
     setName("");
     setProblem("");

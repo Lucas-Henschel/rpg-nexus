@@ -49,11 +49,13 @@ export function useHolds(id: string) {
 /** Busca de novo a ficha e as reservas, ignorando o cache. Devolve a ficha atual. */
 export function useReloadCharacter(id: string) {
   const queryClient = useQueryClient();
+
   return async (): Promise<Character> => {
     const [fresh] = await Promise.all([
       queryClient.fetchQuery({ ...characterQuery(id), staleTime: 0 }),
       queryClient.refetchQueries({ queryKey: characterKeys.holds(id) }),
     ]);
+
     return fresh;
   };
 }
@@ -61,12 +63,14 @@ export function useReloadCharacter(id: string) {
 /** A resposta do PATCH e do upload já é a ficha nova: ela vai direto para o cache. */
 function useStoreCharacter() {
   const queryClient = useQueryClient();
+
   return (updated: Character) =>
     queryClient.setQueryData(characterKeys.detail(updated.id), updated);
 }
 
 export function useSaveCharacter(id: string) {
   const store = useStoreCharacter();
+
   return useMutation({
     // A versão vai junto de cada chamada: é a da ficha que estava na tela no clique.
     mutationFn: ({ patch, version }: { patch: CharacterPatch; version: number }) =>
@@ -77,6 +81,7 @@ export function useSaveCharacter(id: string) {
 
 export function useUploadPortrait(id: string) {
   const store = useStoreCharacter();
+
   return useMutation({
     mutationFn: (file: File) => uploadPortrait(id, file),
     onSuccess: store,

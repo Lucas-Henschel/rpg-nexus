@@ -19,12 +19,14 @@ export function Logo() {
 
 export function Header() {
   const path = usePath();
+
   return (
     <header className="topbar">
       <Link to="/" className="logo">
         <Logo />
         <span>RPG Nexus</span>
       </Link>
+
       <nav className="topbar__nav" aria-label="Seções">
         {NAV.map((item) => (
           <Link

@@ -25,6 +25,7 @@ interface Props {
 function ComingSoon({ title, lead, service, planned, endpoints }: Props) {
   const health = useServiceHealth(service);
   const info = services[service];
+
   return (
     <main className="page page--narrow">
       <h1 className="page__title">{title}</h1>

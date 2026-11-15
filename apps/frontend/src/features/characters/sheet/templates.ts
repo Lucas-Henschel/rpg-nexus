@@ -58,6 +58,7 @@ export function defaultSheet(): Sheet {
     title: BLOCK_TITLES[type],
     data: {},
   });
+
   return {
     template: null,
     columns: [
@@ -72,7 +73,9 @@ export function normalizeSheet(sheet: Sheet | null): Sheet {
   if (!sheet) {
     return defaultSheet();
   }
+
   const [first = [], second = [], ...rest] = sheet.columns;
+
   return { template: sheet.template ?? null, columns: [first, [...second, ...rest.flat()]] };
 }
 

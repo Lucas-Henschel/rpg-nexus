@@ -36,11 +36,13 @@ function diffStats(before: StatMap, after: StatMap): Record<string, number | nul
       out[key] = value;
     }
   }
+
   for (const key of Object.keys(before)) {
     if (!(key in after)) {
       out[key] = null;
     }
   }
+
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -49,29 +51,37 @@ export function buildPatch(c: Character, d: Draft): CharacterPatch {
   if (d.name.trim() !== c.name) {
     patch.name = d.name.trim();
   }
+
   if (d.description.trim() !== (c.description ?? "")) {
     patch.description = d.description.trim() || null;
   }
+
   if (d.hpCurrent !== c.hp.current || d.hpMax !== c.hp.max) {
     patch.hp = { current: d.hpCurrent, max: d.hpMax };
   }
+
   if (d.maxItems !== c.capacity.maxItems) {
     patch.maxItems = d.maxItems;
   }
+
   if (d.active !== c.active) {
     patch.active = d.active;
   }
+
   const attributes = diffStats(c.attributes, d.attributes);
   if (attributes) {
     patch.attributes = attributes;
   }
+
   const skills = diffStats(c.skills, d.skills);
   if (skills) {
     patch.skills = skills;
   }
+
   if (JSON.stringify(d.sheet) !== JSON.stringify(normalizeSheet(c.sheet))) {
     patch.sheet = d.sheet;
   }
+
   return patch;
 }
 
@@ -80,17 +90,22 @@ export function validate(d: Draft, slotsUsed: number): string {
   if (!d.name.trim()) {
     return "O personagem precisa de um nome.";
   }
+
   if (!(d.hpMax >= 1)) {
     return "Os pontos de vida máximos começam em 1.";
   }
+
   if (!(d.hpCurrent >= 0) || d.hpCurrent > d.hpMax) {
     return "Os pontos de vida atuais ficam entre 0 e o máximo.";
   }
+
   if (!(d.maxItems >= 0)) {
     return "O tamanho da mochila não pode ser negativo.";
   }
+
   if (d.maxItems < slotsUsed) {
     return `A mochila já tem ${slotsUsed} espaço(s) em uso; não dá para deixá-la menor que isso.`;
   }
+
   return "";
 }

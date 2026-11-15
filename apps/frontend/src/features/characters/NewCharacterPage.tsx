@@ -17,6 +17,7 @@ function TemplateIcon({ icon }: { icon: Template["icon"] }) {
       "M32 16a16 16 0 1 0 0 32 16 16 0 0 0 0-32zM13 42C6 47 4 51 6 53c3 3 16-3 29-13s22-21 20-25c-1-2-5-1-11 2",
     feather: "M52 10C34 12 20 24 16 44l-4 10M16 44c10-2 22-8 30-20M24 34h14M30 26h14",
   };
+
   return (
     <svg className="template__icon" viewBox="0 0 64 64" aria-hidden="true">
       <path d={paths[icon]} />
@@ -38,6 +39,7 @@ export function NewCharacterPage() {
     if (!name.trim()) {
       return setProblem("O personagem precisa de um nome.");
     }
+
     setSaving(true);
     setProblem("");
     try {
@@ -73,6 +75,7 @@ export function NewCharacterPage() {
         <div className="templates" role="radiogroup" aria-label="Modelo da ficha">
           {TEMPLATES.map((item) => {
             const blocks = item.columns.flat().length;
+
             return (
               <label
                 key={item.id}

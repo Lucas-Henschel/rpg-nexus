@@ -57,6 +57,7 @@ function Die({ sides, value, index }: { sides: number; value: number; index: num
     if (prefersReducedMotion()) {
       return;
     }
+
     const flicker = window.setInterval(() => setShown(rollDie(sides)), 70);
     const stop = window.setTimeout(
       () => {
@@ -66,6 +67,7 @@ function Die({ sides, value, index }: { sides: number; value: number; index: num
       },
       TUMBLE_MS + index * STAGGER_MS,
     );
+
     return () => {
       window.clearInterval(flicker);
       window.clearTimeout(stop);
@@ -77,6 +79,7 @@ function Die({ sides, value, index }: { sides: number; value: number; index: num
     settled && value === sides && "die--max",
     settled && value === 1 && "die--min",
   );
+
   return (
     <span className={className} style={{ animationDelay: `${index * STAGGER_MS}ms` }}>
       <svg viewBox="0 0 100 100" aria-hidden="true">
@@ -90,6 +93,7 @@ function Die({ sides, value, index }: { sides: number; value: number; index: num
 function breakdown(result: RollResult): string {
   const parts = result.dice.join(" + ");
   const { bonus } = result.formula;
+
   return bonus === 0 ? parts : `${parts} ${bonus > 0 ? "+" : "−"} ${Math.abs(bonus)}`;
 }
 
@@ -107,6 +111,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
     if (!parsed) {
       return;
     }
+
     timers.current.forEach(window.clearTimeout);
     const result = roll(label, parsed);
     const wait = prefersReducedMotion() ? 0 : TUMBLE_MS + parsed.count * STAGGER_MS;
@@ -129,6 +134,7 @@ export function DiceProvider({ children }: { children: ReactNode }) {
     if (!parsed) {
       return setProblem("Escreva algo como d20, 2d6+3 ou 1d8-1.");
     }
+
     setProblem("");
     rollDice("Rolagem livre", parsed);
   };

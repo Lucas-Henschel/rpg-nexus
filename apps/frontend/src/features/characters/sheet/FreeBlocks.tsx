@@ -26,6 +26,7 @@ const COUNTER_LABELS = {
 
 export function TextBlock({ data, onChange }: Props) {
   const body = asString(data.body);
+
   return (
     <textarea
       className="ink-input block-text"
@@ -46,9 +47,11 @@ export function CounterBlock({ title, data, onChange }: Props) {
     if (Number.isNaN(next) || Number.isNaN(nextMax)) {
       return;
     }
+
     const safeMax = Math.max(0, Math.min(9999, Math.trunc(nextMax)));
     onChange({ current: Math.max(0, Math.min(safeMax, Math.trunc(next))), max: safeMax });
   };
+
   return (
     <div className="counter">
       <div
@@ -83,9 +86,11 @@ export function ListBlock({ data, onChange }: Props) {
     if (!value || items.length >= 100) {
       return;
     }
+
     onChange({ items: [...items, value] });
     setText("");
   };
+
   return (
     <div>
       {items.length > 0 && (
@@ -133,6 +138,7 @@ export function DiceBlock({ data, onChange }: Props) {
   const rolls: NamedRoll[] = Array.isArray(data.rolls)
     ? data.rolls.flatMap((entry) => {
         const item = entry as Partial<NamedRoll> | null;
+
         return item && typeof item.label === "string" && typeof item.expr === "string"
           ? [{ label: item.label, expr: item.expr }]
           : [];
@@ -146,12 +152,15 @@ export function DiceBlock({ data, onChange }: Props) {
     if (!label.trim()) {
       return setProblem("Dê um nome para a rolagem.");
     }
+
     if (!parseFormula(expr)) {
       return setProblem("Escreva os dados como d20, 2d6+3 ou 1d8-1.");
     }
+
     if (rolls.length >= 30) {
       return setProblem("Cada bloco comporta até 30 rolagens.");
     }
+
     onChange({
       rolls: [...rolls, { label: label.trim(), expr: expr.replace(/\s+/g, "").toLowerCase() }],
     });

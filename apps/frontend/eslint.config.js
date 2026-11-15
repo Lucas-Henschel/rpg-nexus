@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import stylistic from "@stylistic/eslint-plugin";
 import prettier from "eslint-config-prettier";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
@@ -18,6 +19,7 @@ export default defineConfig([
       // Desliga as regras de estilo do ESLint: a formatação fica com o Prettier.
       prettier,
     ],
+    plugins: { "@stylistic": stylistic },
     languageOptions: {
       globals: globals.browser,
     },
@@ -27,6 +29,13 @@ export default defineConfig([
       curly: ["error", "all"],
       // Ternário dentro de ternário vira if ou um objeto de consulta.
       "no-nested-ternary": "error",
+      // Linha em branco depois de cada bloco (if, for, switch...) e antes de return, como em
+      // app/App.tsx. Uma variável e o if que testa ela continuam juntos.
+      "@stylistic/padding-line-between-statements": [
+        "error",
+        { blankLine: "always", prev: "block-like", next: "*" },
+        { blankLine: "always", prev: "*", next: "return" },
+      ],
     },
   },
 ]);

@@ -20,6 +20,7 @@ export function matchPath(pattern: string, path: string): Record<string, string>
   if (want.length !== got.length) {
     return null;
   }
+
   const params: Record<string, string> = {};
   for (let i = 0; i < want.length; i++) {
     if (want[i].startsWith(":")) {
@@ -28,5 +29,6 @@ export function matchPath(pattern: string, path: string): Record<string, string>
       return null;
     }
   }
+
   return params;
 }

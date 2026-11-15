@@ -20,10 +20,12 @@ export function CharacterSheetPage({ id }: { id: string }) {
       if (character.isError) {
         void character.refetch();
       }
+
       if (holds.isError) {
         void holds.refetch();
       }
     };
+
     return (
       <main className="page page--narrow">
         <div className="notice">
@@ -38,6 +40,7 @@ export function CharacterSheetPage({ id }: { id: string }) {
       </main>
     );
   }
+
   if (!character.isSuccess || !holds.isSuccess) {
     return (
       <main className="page page--narrow">
@@ -45,6 +48,7 @@ export function CharacterSheetPage({ id }: { id: string }) {
       </main>
     );
   }
+
   return <SheetEditor character={character.data} holds={holds.data} />;
 }
 
@@ -68,6 +72,7 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
     if (problem || !dirty) {
       return;
     }
+
     save.mutate(
       { patch, version: character.version },
       {

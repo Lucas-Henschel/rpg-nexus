@@ -47,7 +47,9 @@ export function toLabel(key: string): string {
   if (KNOWN[key]) {
     return KNOWN[key];
   }
+
   const words = key.replace(/_/g, " ");
+
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 

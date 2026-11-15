@@ -9,6 +9,7 @@ export function onEnter(action: () => void) {
     if (event.key !== "Enter") {
       return;
     }
+
     event.preventDefault();
     action();
   };

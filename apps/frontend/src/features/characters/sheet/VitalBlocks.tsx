@@ -50,6 +50,7 @@ export function BackpackBlock({ maxItems, slotsUsed, holds, onChange }: Backpack
   const reserved = holds
     .filter((hold) => hold.status === "HELD")
     .reduce((sum, hold) => sum + hold.quantity, 0);
+
   return (
     <div className="vital">
       <Backpack
