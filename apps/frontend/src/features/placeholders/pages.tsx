@@ -1,11 +1,18 @@
 /**
  * Áreas dos outros integrantes. Cada página diz o que vai existir ali e quais chamadas a tela vai usar,
  * para quem for implementar ter um ponto de partida. Ao implementar, mova a página para
- * src/features/<area>/ e crie o adaptador em src/api/<area>.ts, como em src/api/characters.ts.
+ * src/features/<area>/ e crie o adaptador em src/features/<area>/api.ts, como em
+ * src/features/characters/api.ts.
  */
-import { useServiceHealth } from "../../api/health";
-import { services, type ServiceKey } from "../../config";
-import { Link } from "../../router";
+import { useServiceHealth, type Health } from "../../shared/health";
+import { services, type ServiceKey } from "../../shared/config";
+import { Link } from "../../app/router";
+
+const HEALTH_TEXT: Record<Health, string> = {
+  checking: "sendo verificado",
+  up: "no ar",
+  down: "fora do ar",
+};
 
 interface Props {
   title: string;
@@ -16,8 +23,9 @@ interface Props {
 }
 
 function ComingSoon({ title, lead, service, planned, endpoints }: Props) {
-  const health = useServiceHealth()[service];
+  const health = useServiceHealth(service);
   const info = services[service];
+
   return (
     <main className="page page--narrow">
       <h1 className="page__title">{title}</h1>
@@ -25,7 +33,7 @@ function ComingSoon({ title, lead, service, planned, endpoints }: Props) {
       <div className="blueprint">
         <p className="blueprint__state">
           Esta tela ainda não foi construída. O serviço de {info.name} ({info.stack}) está{" "}
-          {health === "up" ? "no ar" : health === "down" ? "fora do ar" : "sendo verificado"} em {info.url}.
+          {HEALTH_TEXT[health]} em {info.url}.
         </p>
         <h2 className="blueprint__heading">O que vai aparecer aqui</h2>
         <ul className="blueprint__list">
@@ -55,7 +63,11 @@ export function CampaignsPage() {
       title="Campanhas"
       lead="Onde quem mestra abre a campanha e reúne os personagens que vão jogar."
       service="campaigns"
-      planned={["Lista de campanhas e botão para criar uma nova", "Participantes de cada campanha", "Atividade recente: itens que os personagens conquistaram"]}
+      planned={[
+        "Lista de campanhas e botão para criar uma nova",
+        "Participantes de cada campanha",
+        "Atividade recente: itens que os personagens conquistaram",
+      ]}
       endpoints={["POST /campaigns", "GET /campaigns/{id}", "POST /campaigns/{id}/members"]}
     />
   );
@@ -72,7 +84,13 @@ export function ItemsPage() {
         "Botão para pedir um item e acompanhamento do pedido até a entrega ou o cancelamento",
         "Inventário de cada personagem",
       ]}
-      endpoints={["POST /items", "POST /stocks", "POST /acquisitions (responde 202 com operationId)", "GET /acquisitions/{operationId}", "GET /inventory/{characterId}"]}
+      endpoints={[
+        "POST /items",
+        "POST /stocks",
+        "POST /acquisitions (responde 202 com operationId)",
+        "GET /acquisitions/{operationId}",
+        "GET /inventory/{characterId}",
+      ]}
     />
   );
 }
@@ -83,7 +101,10 @@ export function HistoryPage() {
       title="Histórico"
       lead="A linha do tempo da campanha: quem ganhou o quê, e o que foi cancelado."
       service="actions"
-      planned={["Linha do tempo com cada item entregue e cada pedido cancelado", "Rolagem de dados simples, se sobrar tempo"]}
+      planned={[
+        "Linha do tempo com cada item entregue e cada pedido cancelado",
+        "Rolagem de dados simples, se sobrar tempo",
+      ]}
       endpoints={["GET /campaigns/{id}/history", "POST /rolls"]}
     />
   );

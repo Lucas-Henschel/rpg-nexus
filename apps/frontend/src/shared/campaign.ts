@@ -25,5 +25,6 @@ export function useCampaign(): [string, (id: string) => void] {
       /* armazenamento indisponível: vale só para esta visita */
     }
   };
+
   return [campaign, update];
 }

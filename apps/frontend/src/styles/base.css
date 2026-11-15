@@ -143,7 +143,9 @@ code {
   font-weight: 700;
   line-height: 1.2;
   text-decoration: none;
-  transition: background-color 0.15s, border-color 0.15s;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
 }
 
 .button--small {

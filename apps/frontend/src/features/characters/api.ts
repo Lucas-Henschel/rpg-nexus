@@ -1,12 +1,13 @@
 /** Adaptador tipado do S2 Personagens. As telas nunca chamam fetch direto. */
-import { services } from "../config";
-import { jsonBody, request } from "./http";
+import { services } from "../../shared/config";
+import { jsonBody, request } from "../../shared/http";
 
 const base = services.characters.url;
 
 export type StatMap = Record<string, number>;
 
-export type BlockType = "attributes" | "skills" | "hp" | "backpack" | "text" | "counter" | "dice" | "list";
+export type BlockType =
+  "attributes" | "skills" | "hp" | "backpack" | "text" | "counter" | "dice" | "list";
 
 /** Um bloco da ficha. `data` guarda o conteúdo dos blocos livres (texto, contador, rolagens, lista). */
 export interface SheetBlock {
@@ -80,13 +81,17 @@ export async function listCharacters(campaignId: string): Promise<Character[]> {
   let cursor: string | null = null;
   do {
     const query = new URLSearchParams({ campaignId, limit: "100" });
-    if (cursor) query.set("cursor", cursor);
+    if (cursor) {
+      query.set("cursor", cursor);
+    }
+
     const page: { items: Character[]; nextCursor: string | null } = (
       await request<{ items: Character[]; nextCursor: string | null }>(base, `/characters?${query}`)
     ).data;
     all.push(...page.items);
     cursor = page.nextCursor;
   } while (cursor);
+
   return all;
 }
 
@@ -95,27 +100,40 @@ export async function getCharacter(id: string): Promise<Character> {
 }
 
 export async function createCharacter(input: CharacterInput): Promise<Character> {
-  return (await request<Character>(base, "/characters", { method: "POST", ...jsonBody(input) })).data;
+  return (await request<Character>(base, "/characters", { method: "POST", ...jsonBody(input) }))
+    .data;
 }
 
 /** If-Match com a versão que a tela carregou: o serviço responde 412 se a ficha mudou nesse meio-tempo. */
-export async function updateCharacter(id: string, patch: CharacterPatch, version: number): Promise<Character> {
+export async function updateCharacter(
+  id: string,
+  patch: CharacterPatch,
+  version: number,
+): Promise<Character> {
   const init = { method: "PATCH", ...jsonBody(patch, { "If-Match": `"${version}"` }) };
+
   return (await request<Character>(base, `/characters/${encodeURIComponent(id)}`, init)).data;
 }
 
 export async function listHolds(id: string): Promise<Hold[]> {
-  return (await request<{ items: Hold[] }>(base, `/characters/${encodeURIComponent(id)}/holds`)).data.items;
+  return (await request<{ items: Hold[] }>(base, `/characters/${encodeURIComponent(id)}/holds`))
+    .data.items;
 }
 
 /** Envia o retrato pelo backend, que valida e grava no S3. */
 export async function uploadPortrait(id: string, file: File): Promise<Character> {
   const init = { method: "PUT", body: file, headers: { "Content-Type": file.type } };
-  return (await request<Character>(base, `/characters/${encodeURIComponent(id)}/portrait`, init)).data;
+
+  return (await request<Character>(base, `/characters/${encodeURIComponent(id)}/portrait`, init))
+    .data;
 }
 
 export function portraitUrl(character: Character): string | null {
-  if (!character.portrait) return null;
+  if (!character.portrait) {
+    return null;
+  }
+
   const stamp = encodeURIComponent(character.portrait.uploadedAt);
+
   return `${base}/characters/${encodeURIComponent(character.id)}/portrait/content?v=${stamp}`;
 }

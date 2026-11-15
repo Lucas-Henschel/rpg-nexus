@@ -3,16 +3,10 @@
  * O sorteio é feito no navegador. Quando o serviço de Ações (S4) tiver POST /rolls, troque a chamada
  * de roll() em rollDice por uma requisição a ele; o resto da bandeja não muda.
  */
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { formatFormula, parseFormula, roll, rollDie, type DiceFormula, type RollResult } from "../sheet/dice";
-
-type RollDice = (label: string, formula: string | DiceFormula) => void;
-
-const DiceContext = createContext<RollDice>(() => {});
-
-export function useDice(): RollDice {
-  return useContext(DiceContext);
-}
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { formatFormula, parseFormula, roll, rollDie, type RollResult } from "./dice";
+import { cx } from "../../shared/ui/cx";
+import { DiceContext, type RollDice } from "./dice-context";
 
 const TUMBLE_MS = 950;
 const STAGGER_MS = 90;
@@ -60,26 +54,38 @@ function Die({ sides, value, index }: { sides: number; value: number; index: num
   const [settled, setSettled] = useState(prefersReducedMotion);
 
   useEffect(() => {
-    if (prefersReducedMotion()) return;
+    if (prefersReducedMotion()) {
+      return;
+    }
+
     const flicker = window.setInterval(() => setShown(rollDie(sides)), 70);
-    const stop = window.setTimeout(() => {
-      window.clearInterval(flicker);
-      setShown(value);
-      setSettled(true);
-    }, TUMBLE_MS + index * STAGGER_MS);
+    const stop = window.setTimeout(
+      () => {
+        window.clearInterval(flicker);
+        setShown(value);
+        setSettled(true);
+      },
+      TUMBLE_MS + index * STAGGER_MS,
+    );
+
     return () => {
       window.clearInterval(flicker);
       window.clearTimeout(stop);
     };
   }, [sides, value, index]);
 
-  const mood = !settled ? "" : value === sides ? " die--max" : value === 1 ? " die--min" : "";
+  const className = cx(
+    "die",
+    settled && value === sides && "die--max",
+    settled && value === 1 && "die--min",
+  );
+
   return (
-    <span className={`die${mood}`} style={{ animationDelay: `${index * STAGGER_MS}ms` }}>
+    <span className={className} style={{ animationDelay: `${index * STAGGER_MS}ms` }}>
       <svg viewBox="0 0 100 100" aria-hidden="true">
         <DieShape sides={sides} />
       </svg>
-      <span className={`die__value${sides === 4 ? " die__value--low" : ""}`}>{shown}</span>
+      <span className={cx("die__value", sides === 4 && "die__value--low")}>{shown}</span>
     </span>
   );
 }
@@ -87,6 +93,7 @@ function Die({ sides, value, index }: { sides: number; value: number; index: num
 function breakdown(result: RollResult): string {
   const parts = result.dice.join(" + ");
   const { bonus } = result.formula;
+
   return bonus === 0 ? parts : `${parts} ${bonus > 0 ? "+" : "−"} ${Math.abs(bonus)}`;
 }
 
@@ -101,7 +108,10 @@ export function DiceProvider({ children }: { children: ReactNode }) {
 
   const rollDice = useCallback<RollDice>((label, input) => {
     const parsed = typeof input === "string" ? parseFormula(input) : input;
-    if (!parsed) return;
+    if (!parsed) {
+      return;
+    }
+
     timers.current.forEach(window.clearTimeout);
     const result = roll(label, parsed);
     const wait = prefersReducedMotion() ? 0 : TUMBLE_MS + parsed.count * STAGGER_MS;
@@ -121,7 +131,10 @@ export function DiceProvider({ children }: { children: ReactNode }) {
   const rollTyped = (event: FormEvent) => {
     event.preventDefault();
     const parsed = parseFormula(formula);
-    if (!parsed) return setProblem("Escreva algo como d20, 2d6+3 ou 1d8-1.");
+    if (!parsed) {
+      return setProblem("Escreva algo como d20, 2d6+3 ou 1d8-1.");
+    }
+
     setProblem("");
     rollDice("Rolagem livre", parsed);
   };
@@ -158,14 +171,25 @@ export function DiceProvider({ children }: { children: ReactNode }) {
           <h2 className="dice-panel__title">Dados</h2>
           <div className="dice-panel__quick">
             {QUICK.map((sides) => (
-              <button key={sides} type="button" className="dice-panel__die" onClick={() => rollDice(`d${sides}`, { count: 1, sides, bonus: 0 })}>
+              <button
+                key={sides}
+                type="button"
+                className="dice-panel__die"
+                onClick={() => rollDice(`d${sides}`, { count: 1, sides, bonus: 0 })}
+              >
                 <DieIcon sides={sides} />
                 <span>d{sides}</span>
               </button>
             ))}
           </div>
           <form className="dice-panel__form" onSubmit={rollTyped}>
-            <input className="felt-input" value={formula} onChange={(e) => setFormula(e.target.value)} aria-label="Fórmula da rolagem" spellCheck={false} />
+            <input
+              className="felt-input"
+              value={formula}
+              onChange={(e) => setFormula(e.target.value)}
+              aria-label="Fórmula da rolagem"
+              spellCheck={false}
+            />
             <button type="submit" className="button button--brass button--small">
               Rolar
             </button>
@@ -186,7 +210,12 @@ export function DiceProvider({ children }: { children: ReactNode }) {
         </aside>
       )}
 
-      <button type="button" className="dice-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+      <button
+        type="button"
+        className="dice-toggle"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
         <DieIcon sides={20} />
         <span>{open ? "Fechar dados" : "Dados"}</span>
       </button>
