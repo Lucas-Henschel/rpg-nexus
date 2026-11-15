@@ -3,32 +3,9 @@
  * O sorteio é feito no navegador. Quando o serviço de Ações (S4) tiver POST /rolls, troque a chamada
  * de roll() em rollDice por uma requisição a ele; o resto da bandeja não muda.
  */
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
-import {
-  formatFormula,
-  parseFormula,
-  roll,
-  rollDie,
-  type DiceFormula,
-  type RollResult,
-} from "../sheet/dice";
-
-type RollDice = (label: string, formula: string | DiceFormula) => void;
-
-const DiceContext = createContext<RollDice>(() => {});
-
-export function useDice(): RollDice {
-  return useContext(DiceContext);
-}
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { formatFormula, parseFormula, roll, rollDie, type RollResult } from "../sheet/dice";
+import { DiceContext, type RollDice } from "./dice-context";
 
 const TUMBLE_MS = 950;
 const STAGGER_MS = 90;

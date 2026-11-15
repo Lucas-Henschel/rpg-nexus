@@ -1,6 +1,7 @@
 /** Blocos livres da ficha: o conteúdo de cada um fica em block.data e é salvo junto com a ficha. */
 import { useState, type KeyboardEvent } from "react";
-import { DieIcon, useDice } from "../../components/DiceTray";
+import { useDice } from "../../components/dice-context";
+import { DieIcon } from "../../components/DiceTray";
 import { parseFormula } from "../../sheet/dice";
 
 type Data = Record<string, unknown>;

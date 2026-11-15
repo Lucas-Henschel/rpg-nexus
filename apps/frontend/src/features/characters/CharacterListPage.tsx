@@ -1,15 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { listCharacters, portraitUrl, type Character } from "../../api/characters";
-import { ApiError } from "../../api/http";
+import { useState, type FormEvent } from "react";
+import { portraitUrl, type Character } from "../../api/characters";
 import { CAMPAIGN_PATTERN, useCampaign } from "../../components/campaign";
 import { HpBar, Initials } from "../../components/Sheet";
 import { toLabel } from "../../labels";
 import { Link } from "../../router";
-
-type State =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; characters: Character[] };
+import { errorMessage, useCharacters } from "./queries";
 
 function CharacterTile({ character }: { character: Character }) {
   const portrait = portraitUrl(character);
@@ -48,23 +43,7 @@ function CharacterTile({ character }: { character: Character }) {
 export function CharacterListPage() {
   const [campaign, setCampaign] = useCampaign();
   const [draft, setDraft] = useState(campaign);
-  const [state, setState] = useState<State>({ status: "loading" });
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let alive = true;
-    setState({ status: "loading" });
-    listCharacters(campaign)
-      .then((characters) => alive && setState({ status: "ready", characters }))
-      .catch((error: unknown) => {
-        const message =
-          error instanceof ApiError ? error.message : "Não foi possível carregar os personagens.";
-        if (alive) setState({ status: "error", message });
-      });
-    return () => {
-      alive = false;
-    };
-  }, [campaign, attempt]);
+  const characters = useCharacters(campaign);
 
   const changeCampaign = (event: FormEvent) => {
     event.preventDefault();
@@ -107,24 +86,24 @@ export function CharacterListPage() {
         </Link>
       </header>
 
-      {state.status === "loading" && (
+      {characters.isPending && (
         <p className="page__status">Buscando as fichas da campanha {campaign}…</p>
       )}
 
-      {state.status === "error" && (
+      {characters.isError && (
         <div className="notice">
-          <p>{state.message}</p>
+          <p>{errorMessage(characters.error, "Não foi possível carregar os personagens.")}</p>
           <button
             type="button"
             className="button button--ghost-felt"
-            onClick={() => setAttempt((n) => n + 1)}
+            onClick={() => void characters.refetch()}
           >
             Tentar de novo
           </button>
         </div>
       )}
 
-      {state.status === "ready" && state.characters.length === 0 && (
+      {characters.isSuccess && characters.data.length === 0 && (
         <div className="notice">
           <p>A campanha {campaign} ainda não tem personagens.</p>
           <Link to="/personagens/novo" className="button button--brass">
@@ -133,9 +112,9 @@ export function CharacterListPage() {
         </div>
       )}
 
-      {state.status === "ready" && state.characters.length > 0 && (
+      {characters.isSuccess && characters.data.length > 0 && (
         <ul className="tiles">
-          {state.characters.map((character) => (
+          {characters.data.map((character) => (
             <li key={character.id}>
               <CharacterTile character={character} />
             </li>

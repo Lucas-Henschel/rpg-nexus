@@ -1,3 +1,4 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { DiceProvider } from "./components/DiceTray";
 import { Header } from "./components/Header";
 import { ToastProvider } from "./components/Toast";
@@ -6,7 +7,9 @@ import { CharacterSheetPage } from "./features/characters/CharacterSheetPage";
 import { NewCharacterPage } from "./features/characters/NewCharacterPage";
 import { HomePage } from "./features/home/HomePage";
 import { CampaignsPage, HistoryPage, ItemsPage } from "./features/placeholders/pages";
-import { Link, matchPath, Router, usePath } from "./router";
+import { matchPath, usePath } from "./navigation";
+import { queryClient } from "./queryClient";
+import { Link, Router } from "./router";
 
 function Routes() {
   const path = usePath();
@@ -31,13 +34,15 @@ function Routes() {
 
 export function App() {
   return (
-    <Router>
-      <ToastProvider>
-        <DiceProvider>
-          <Header />
-          <Routes />
-        </DiceProvider>
-      </ToastProvider>
-    </Router>
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <ToastProvider>
+          <DiceProvider>
+            <Header />
+            <Routes />
+          </DiceProvider>
+        </ToastProvider>
+      </Router>
+    </QueryClientProvider>
   );
 }

@@ -1,16 +1,10 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
+import { ToastContext, type ToastKind as Kind } from "./toast-context";
 
-type Kind = "ok" | "error";
 interface ToastState {
   id: number;
   kind: Kind;
   text: string;
-}
-
-const ToastContext = createContext<(kind: Kind, text: string) => void>(() => {});
-
-export function useToast() {
-  return useContext(ToastContext);
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {

@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
-  getCharacter,
-  listHolds,
   PORTRAIT_MAX_BYTES,
   PORTRAIT_TYPES,
   portraitUrl,
@@ -18,8 +17,8 @@ import {
 import { ApiError } from "../../api/http";
 import { Backpack, HpBar, Initials, Paper } from "../../components/Sheet";
 import { StatsEditor } from "../../components/StatsEditor";
-import { useDice } from "../../components/DiceTray";
-import { useToast } from "../../components/Toast";
+import { useDice } from "../../components/dice-context";
+import { useToast } from "../../components/toast-context";
 import { toLabel } from "../../labels";
 import { Link } from "../../router";
 import {
@@ -29,6 +28,7 @@ import {
   SINGLETON_BLOCKS,
 } from "../../sheet/templates";
 import { CounterBlock, DiceBlock, ListBlock, TextBlock } from "./FreeBlocks";
+import { characterKeys, characterQuery, errorMessage, useCharacter, useHolds } from "./queries";
 
 interface Draft {
   name: string;
@@ -98,49 +98,21 @@ const HOLD_TEXT: Record<Hold["status"], string> = {
   RELEASED: "Cancelado, espaço devolvido",
 };
 
+/** Carrega a ficha e as reservas; a edição só começa com os dois em mãos. */
 export function CharacterSheetPage({ id }: { id: string }) {
-  const toast = useToast();
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [character, setCharacter] = useState<Character | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const [holds, setHolds] = useState<Hold[]>([]);
-  const [loadError, setLoadError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [stale, setStale] = useState(false);
-  const [organizing, setOrganizing] = useState(false);
-  const [menuAt, setMenuAt] = useState<number | null>(null);
-  const rollDice = useDice();
+  const character = useCharacter(id);
+  const holds = useHolds(id);
 
-  const load = useCallback(async () => {
-    setLoadError("");
-    try {
-      const [loaded, loadedHolds] = await Promise.all([getCharacter(id), listHolds(id)]);
-      setCharacter(loaded);
-      setDraft(toDraft(loaded));
-      setHolds(loadedHolds);
-      setStale(false);
-    } catch (error) {
-      setLoadError(error instanceof ApiError ? error.message : "Não foi possível abrir a ficha.");
-    }
-  }, [id]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const patch = useMemo(
-    () => (character && draft ? buildPatch(character, draft) : {}),
-    [character, draft],
-  );
-  const dirty = Object.keys(patch).length > 0;
-
-  if (loadError) {
+  if (character.isError || holds.isError) {
+    const retry = () => {
+      if (character.isError) void character.refetch();
+      if (holds.isError) void holds.refetch();
+    };
     return (
       <main className="page page--narrow">
         <div className="notice">
-          <p>{loadError}</p>
-          <button type="button" className="button button--ghost-felt" onClick={() => void load()}>
+          <p>{errorMessage(character.error ?? holds.error, "Não foi possível abrir a ficha.")}</p>
+          <button type="button" className="button button--ghost-felt" onClick={retry}>
             Tentar de novo
           </button>
           <Link to="/personagens" className="button button--ghost-felt">
@@ -150,13 +122,47 @@ export function CharacterSheetPage({ id }: { id: string }) {
       </main>
     );
   }
-  if (!character || !draft) {
+  if (!character.isSuccess || !holds.isSuccess) {
     return (
       <main className="page page--narrow">
         <p className="page__status">Abrindo a ficha…</p>
       </main>
     );
   }
+  return <SheetEditor character={character.data} holds={holds.data} />;
+}
+
+function SheetEditor({ character, holds }: { character: Character; holds: Hold[] }) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState(() => toDraft(character));
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [stale, setStale] = useState(false);
+  const [organizing, setOrganizing] = useState(false);
+  const [menuAt, setMenuAt] = useState<number | null>(null);
+  const rollDice = useDice();
+
+  const patch = useMemo(() => buildPatch(character, draft), [character, draft]);
+  const dirty = Object.keys(patch).length > 0;
+
+  /** Troca a ficha guardada no cache; a tela relê dela. */
+  const setCharacter = (updated: Character) =>
+    queryClient.setQueryData(characterKeys.detail(character.id), updated);
+
+  const reload = async () => {
+    try {
+      const [fresh] = await Promise.all([
+        queryClient.fetchQuery({ ...characterQuery(character.id), staleTime: 0 }),
+        queryClient.refetchQueries({ queryKey: characterKeys.holds(character.id) }),
+      ]);
+      setDraft(toDraft(fresh));
+      setStale(false);
+    } catch (error) {
+      toast("error", errorMessage(error, "Não foi possível recarregar a ficha."));
+    }
+  };
 
   const edit = (changes: Partial<Draft>) => setDraft({ ...draft, ...changes });
   const reserved = holds.filter((h) => h.status === "HELD").reduce((sum, h) => sum + h.quantity, 0);
@@ -540,7 +546,7 @@ export function CharacterSheetPage({ id }: { id: string }) {
                 A ficha foi alterada em outro lugar depois que você abriu. Recarregue para ver a
                 versão atual.
               </p>
-              <button type="button" className="button button--brass" onClick={() => void load()}>
+              <button type="button" className="button button--brass" onClick={() => void reload()}>
                 Recarregar ficha
               </button>
             </>
