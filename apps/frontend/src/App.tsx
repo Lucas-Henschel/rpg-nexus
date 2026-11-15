@@ -13,14 +13,28 @@ import { Link, Router } from "./router";
 
 function Routes() {
   const path = usePath();
-  if (path === "/") return <HomePage />;
-  if (path === "/personagens") return <CharacterListPage />;
-  if (path === "/personagens/novo") return <NewCharacterPage />;
+  if (path === "/") {
+    return <HomePage />;
+  }
+  if (path === "/personagens") {
+    return <CharacterListPage />;
+  }
+  if (path === "/personagens/novo") {
+    return <NewCharacterPage />;
+  }
   const sheet = matchPath("/personagens/:id", path);
-  if (sheet) return <CharacterSheetPage key={sheet.id} id={sheet.id} />;
-  if (path === "/campanhas") return <CampaignsPage />;
-  if (path === "/itens") return <ItemsPage />;
-  if (path === "/historico") return <HistoryPage />;
+  if (sheet) {
+    return <CharacterSheetPage key={sheet.id} id={sheet.id} />;
+  }
+  if (path === "/campanhas") {
+    return <CampaignsPage />;
+  }
+  if (path === "/itens") {
+    return <ItemsPage />;
+  }
+  if (path === "/historico") {
+    return <HistoryPage />;
+  }
   return (
     <main className="page page--narrow">
       <h1 className="page__title">Essa página não existe</h1>

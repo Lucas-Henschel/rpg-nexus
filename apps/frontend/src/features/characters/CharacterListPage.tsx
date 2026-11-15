@@ -47,7 +47,9 @@ export function CharacterListPage() {
 
   const changeCampaign = (event: FormEvent) => {
     event.preventDefault();
-    if (CAMPAIGN_PATTERN.test(draft.trim())) setCampaign(draft.trim());
+    if (CAMPAIGN_PATTERN.test(draft.trim())) {
+      setCampaign(draft.trim());
+    }
   };
   const draftValid = CAMPAIGN_PATTERN.test(draft.trim());
 

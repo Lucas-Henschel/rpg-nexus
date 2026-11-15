@@ -53,7 +53,9 @@ function Die({ sides, value, index }: { sides: number; value: number; index: num
   const [settled, setSettled] = useState(prefersReducedMotion);
 
   useEffect(() => {
-    if (prefersReducedMotion()) return;
+    if (prefersReducedMotion()) {
+      return;
+    }
     const flicker = window.setInterval(() => setShown(rollDie(sides)), 70);
     const stop = window.setTimeout(
       () => {
@@ -69,7 +71,12 @@ function Die({ sides, value, index }: { sides: number; value: number; index: num
     };
   }, [sides, value, index]);
 
-  const mood = !settled ? "" : value === sides ? " die--max" : value === 1 ? " die--min" : "";
+  let mood = "";
+  if (settled && value === sides) {
+    mood = " die--max";
+  } else if (settled && value === 1) {
+    mood = " die--min";
+  }
   return (
     <span className={`die${mood}`} style={{ animationDelay: `${index * STAGGER_MS}ms` }}>
       <svg viewBox="0 0 100 100" aria-hidden="true">
@@ -97,7 +104,9 @@ export function DiceProvider({ children }: { children: ReactNode }) {
 
   const rollDice = useCallback<RollDice>((label, input) => {
     const parsed = typeof input === "string" ? parseFormula(input) : input;
-    if (!parsed) return;
+    if (!parsed) {
+      return;
+    }
     timers.current.forEach(window.clearTimeout);
     const result = roll(label, parsed);
     const wait = prefersReducedMotion() ? 0 : TUMBLE_MS + parsed.count * STAGGER_MS;
@@ -117,7 +126,9 @@ export function DiceProvider({ children }: { children: ReactNode }) {
   const rollTyped = (event: FormEvent) => {
     event.preventDefault();
     const parsed = parseFormula(formula);
-    if (!parsed) return setProblem("Escreva algo como d20, 2d6+3 ou 1d8-1.");
+    if (!parsed) {
+      return setProblem("Escreva algo como d20, 2d6+3 ou 1d8-1.");
+    }
     setProblem("");
     rollDice("Rolagem livre", parsed);
   };

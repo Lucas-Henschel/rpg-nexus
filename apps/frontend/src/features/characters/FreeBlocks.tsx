@@ -17,7 +17,9 @@ const asString = (value: unknown) => (typeof value === "string" ? value : "");
 
 function onEnter(action: () => void) {
   return (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== "Enter") return;
+    if (event.key !== "Enter") {
+      return;
+    }
     event.preventDefault();
     action();
   };
@@ -42,7 +44,9 @@ export function CounterBlock({ title, data, onChange }: Props) {
   const max = Math.max(0, asNumber(data.max, 0));
   const current = Math.max(0, asNumber(data.current, 0));
   const set = (next: number, nextMax = max) => {
-    if (Number.isNaN(next) || Number.isNaN(nextMax)) return;
+    if (Number.isNaN(next) || Number.isNaN(nextMax)) {
+      return;
+    }
     const safeMax = Math.max(0, Math.min(9999, Math.trunc(nextMax)));
     onChange({ current: Math.max(0, Math.min(safeMax, Math.trunc(next))), max: safeMax });
   };
@@ -104,7 +108,9 @@ export function ListBlock({ data, onChange }: Props) {
   const [text, setText] = useState("");
   const add = () => {
     const value = text.trim();
-    if (!value || items.length >= 100) return;
+    if (!value || items.length >= 100) {
+      return;
+    }
     onChange({ items: [...items, value] });
     setText("");
   };
@@ -165,9 +171,15 @@ export function DiceBlock({ data, onChange }: Props) {
   const [problem, setProblem] = useState("");
 
   const add = () => {
-    if (!label.trim()) return setProblem("Dê um nome para a rolagem.");
-    if (!parseFormula(expr)) return setProblem("Escreva os dados como d20, 2d6+3 ou 1d8-1.");
-    if (rolls.length >= 30) return setProblem("Cada bloco comporta até 30 rolagens.");
+    if (!label.trim()) {
+      return setProblem("Dê um nome para a rolagem.");
+    }
+    if (!parseFormula(expr)) {
+      return setProblem("Escreva os dados como d20, 2d6+3 ou 1d8-1.");
+    }
+    if (rolls.length >= 30) {
+      return setProblem("Cada bloco comporta até 30 rolagens.");
+    }
     onChange({
       rolls: [...rolls, { label: label.trim(), expr: expr.replace(/\s+/g, "").toLowerCase() }],
     });

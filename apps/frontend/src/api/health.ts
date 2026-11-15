@@ -24,7 +24,9 @@ export function useServiceHealth(): Record<ServiceKey, Health> {
     const check = () =>
       keys.forEach(async (key) => {
         const ok = await ping(services[key].url);
-        if (alive) setState((prev) => ({ ...prev, [key]: ok ? "up" : "down" }));
+        if (alive) {
+          setState((prev) => ({ ...prev, [key]: ok ? "up" : "down" }));
+        }
       });
     check();
     const timer = setInterval(check, 10_000);

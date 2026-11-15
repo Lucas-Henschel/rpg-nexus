@@ -27,8 +27,9 @@ export function Link({ to, className, children, ...rest }: LinkProps) {
       event.metaKey ||
       event.ctrlKey ||
       event.shiftKey
-    )
+    ) {
       return;
+    }
     event.preventDefault();
     navigate(to);
   };

@@ -29,7 +29,9 @@ export function StatsEditor({
   const entries = Object.entries(stats);
 
   const set = (key: string, value: number) => {
-    if (Number.isNaN(value)) return;
+    if (Number.isNaN(value)) {
+      return;
+    }
     onChange({ ...stats, [key]: Math.max(min, Math.min(max, Math.trunc(value))) });
   };
   const remove = (key: string) => {
@@ -39,19 +41,26 @@ export function StatsEditor({
   };
   const add = () => {
     const key = toKey(name);
-    if (!key)
+    if (!key) {
       return setProblem(
         `Dê um nome para ${noun === "perícia" ? "a" : "o"} ${noun}, começando por uma letra.`,
       );
-    if (key in stats) return setProblem(`${toLabel(key)} já está na ficha.`);
-    if (entries.length >= 64) return setProblem("A ficha comporta até 64 entradas.");
+    }
+    if (key in stats) {
+      return setProblem(`${toLabel(key)} já está na ficha.`);
+    }
+    if (entries.length >= 64) {
+      return setProblem("A ficha comporta até 64 entradas.");
+    }
     onChange({ ...stats, [key]: variant === "boxes" ? 10 : 0 });
     setName("");
     setProblem("");
   };
 
   const onEnter = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== "Enter") return;
+    if (event.key !== "Enter") {
+      return;
+    }
     event.preventDefault(); // não deixa o Enter enviar o formulário de fora
     add();
   };

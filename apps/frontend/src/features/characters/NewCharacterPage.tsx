@@ -34,7 +34,9 @@ export function NewCharacterPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!name.trim()) return setProblem("O personagem precisa de um nome.");
+    if (!name.trim()) {
+      return setProblem("O personagem precisa de um nome.");
+    }
     setSaving(true);
     setProblem("");
     try {

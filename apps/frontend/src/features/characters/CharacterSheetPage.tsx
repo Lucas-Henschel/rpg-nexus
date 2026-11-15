@@ -59,26 +59,68 @@ function toDraft(c: Character): Draft {
 /** Só o que mudou vai no PATCH; chave removida vira null (merge patch). */
 function diffStats(before: StatMap, after: StatMap): Record<string, number | null> | undefined {
   const out: Record<string, number | null> = {};
-  for (const [key, value] of Object.entries(after)) if (before[key] !== value) out[key] = value;
-  for (const key of Object.keys(before)) if (!(key in after)) out[key] = null;
+  for (const [key, value] of Object.entries(after)) {
+    if (before[key] !== value) {
+      out[key] = value;
+    }
+  }
+  for (const key of Object.keys(before)) {
+    if (!(key in after)) {
+      out[key] = null;
+    }
+  }
   return Object.keys(out).length ? out : undefined;
 }
 
 function buildPatch(c: Character, d: Draft): CharacterPatch {
   const patch: CharacterPatch = {};
-  if (d.name.trim() !== c.name) patch.name = d.name.trim();
-  if (d.description.trim() !== (c.description ?? ""))
+  if (d.name.trim() !== c.name) {
+    patch.name = d.name.trim();
+  }
+  if (d.description.trim() !== (c.description ?? "")) {
     patch.description = d.description.trim() || null;
-  if (d.hpCurrent !== c.hp.current || d.hpMax !== c.hp.max)
+  }
+  if (d.hpCurrent !== c.hp.current || d.hpMax !== c.hp.max) {
     patch.hp = { current: d.hpCurrent, max: d.hpMax };
-  if (d.maxItems !== c.capacity.maxItems) patch.maxItems = d.maxItems;
-  if (d.active !== c.active) patch.active = d.active;
+  }
+  if (d.maxItems !== c.capacity.maxItems) {
+    patch.maxItems = d.maxItems;
+  }
+  if (d.active !== c.active) {
+    patch.active = d.active;
+  }
   const attributes = diffStats(c.attributes, d.attributes);
-  if (attributes) patch.attributes = attributes;
+  if (attributes) {
+    patch.attributes = attributes;
+  }
   const skills = diffStats(c.skills, d.skills);
-  if (skills) patch.skills = skills;
-  if (JSON.stringify(d.sheet) !== JSON.stringify(normalizeSheet(c.sheet))) patch.sheet = d.sheet;
+  if (skills) {
+    patch.skills = skills;
+  }
+  if (JSON.stringify(d.sheet) !== JSON.stringify(normalizeSheet(c.sheet))) {
+    patch.sheet = d.sheet;
+  }
   return patch;
+}
+
+/** Primeiro problema que impede salvar o rascunho, ou "" se ele está válido. */
+function validate(d: Draft, slotsUsed: number): string {
+  if (!d.name.trim()) {
+    return "O personagem precisa de um nome.";
+  }
+  if (!(d.hpMax >= 1)) {
+    return "Os pontos de vida máximos começam em 1.";
+  }
+  if (!(d.hpCurrent >= 0) || d.hpCurrent > d.hpMax) {
+    return "Os pontos de vida atuais ficam entre 0 e o máximo.";
+  }
+  if (!(d.maxItems >= 0)) {
+    return "O tamanho da mochila não pode ser negativo.";
+  }
+  if (d.maxItems < slotsUsed) {
+    return `A mochila já tem ${slotsUsed} espaço(s) em uso; não dá para deixá-la menor que isso.`;
+  }
+  return "";
 }
 
 const BLOCK_MENU: { type: BlockType; hint: string }[] = [
@@ -105,8 +147,12 @@ export function CharacterSheetPage({ id }: { id: string }) {
 
   if (character.isError || holds.isError) {
     const retry = () => {
-      if (character.isError) void character.refetch();
-      if (holds.isError) void holds.refetch();
+      if (character.isError) {
+        void character.refetch();
+      }
+      if (holds.isError) {
+        void holds.refetch();
+      }
     };
     return (
       <main className="page page--narrow">
@@ -168,6 +214,7 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
   const reserved = holds.filter((h) => h.status === "HELD").reduce((sum, h) => sum + h.quantity, 0);
   const delivered = Math.max(character.capacity.slotsUsed - reserved, 0);
   const portrait = portraitUrl(character);
+  const portraitAction = portrait ? "Trocar retrato" : "Enviar retrato";
 
   const columns = draft.sheet.columns;
   const present = new Set(columns.flat().map((b) => b.type));
@@ -187,13 +234,10 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
     setColumns(columns.map((c, i) => (i === col ? column : c)));
   };
   const switchColumn = (col: number, index: number) => {
-    const target = (col + 1) % columns.length;
-    const moved = columns[col][index];
-    setColumns(
-      columns.map((c, i) =>
-        i === col ? c.filter((_, j) => j !== index) : i === target ? [...c, moved] : c,
-      ),
-    );
+    const next = columns.map((c) => [...c]);
+    const [moved] = next[col].splice(index, 1);
+    next[(col + 1) % next.length].push(moved);
+    setColumns(next);
   };
   const removeBlock = (col: number, index: number) =>
     setColumns(columns.map((c, i) => (i === col ? c.filter((_, j) => j !== index) : c)));
@@ -306,20 +350,12 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
     }
   };
 
-  const problem = !draft.name.trim()
-    ? "O personagem precisa de um nome."
-    : !(draft.hpMax >= 1)
-      ? "Os pontos de vida máximos começam em 1."
-      : !(draft.hpCurrent >= 0) || draft.hpCurrent > draft.hpMax
-        ? "Os pontos de vida atuais ficam entre 0 e o máximo."
-        : !(draft.maxItems >= 0)
-          ? "O tamanho da mochila não pode ser negativo."
-          : draft.maxItems < character.capacity.slotsUsed
-            ? `A mochila já tem ${character.capacity.slotsUsed} espaço(s) em uso; não dá para deixá-la menor que isso.`
-            : "";
+  const problem = validate(draft, character.capacity.slotsUsed);
 
   const save = async () => {
-    if (problem || !dirty) return;
+    if (problem || !dirty) {
+      return;
+    }
     setSaving(true);
     try {
       const updated = await updateCharacter(character.id, patch, character.version);
@@ -343,10 +379,15 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
   const onPortraitChosen = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file) return;
-    if (!PORTRAIT_TYPES.includes(file.type))
+    if (!file) {
+      return;
+    }
+    if (!PORTRAIT_TYPES.includes(file.type)) {
       return toast("error", "O retrato precisa ser PNG, JPEG ou WebP.");
-    if (file.size > PORTRAIT_MAX_BYTES) return toast("error", "O retrato pode ter até 2 MB.");
+    }
+    if (file.size > PORTRAIT_MAX_BYTES) {
+      return toast("error", "O retrato pode ter até 2 MB.");
+    }
     setUploading(true);
     try {
       const updated = await uploadPortrait(character.id, file);
@@ -391,7 +432,7 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
               onClick={() => fileInput.current?.click()}
               disabled={uploading}
             >
-              {uploading ? "Enviando…" : portrait ? "Trocar retrato" : "Enviar retrato"}
+              {uploading ? "Enviando…" : portraitAction}
             </button>
           </div>
           <div className="sheet__who">

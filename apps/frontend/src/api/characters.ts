@@ -81,7 +81,9 @@ export async function listCharacters(campaignId: string): Promise<Character[]> {
   let cursor: string | null = null;
   do {
     const query = new URLSearchParams({ campaignId, limit: "100" });
-    if (cursor) query.set("cursor", cursor);
+    if (cursor) {
+      query.set("cursor", cursor);
+    }
     const page: { items: Character[]; nextCursor: string | null } = (
       await request<{ items: Character[]; nextCursor: string | null }>(base, `/characters?${query}`)
     ).data;
@@ -123,7 +125,9 @@ export async function uploadPortrait(id: string, file: File): Promise<Character>
 }
 
 export function portraitUrl(character: Character): string | null {
-  if (!character.portrait) return null;
+  if (!character.portrait) {
+    return null;
+  }
   const stamp = encodeURIComponent(character.portrait.uploadedAt);
   return `${base}/characters/${encodeURIComponent(character.id)}/portrait/content?v=${stamp}`;
 }

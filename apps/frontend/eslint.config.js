@@ -21,5 +21,12 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    // Vêm depois do prettier para não serem desligadas por ele. Compatíveis com a formatação.
+    rules: {
+      // Todo if/else/for com chaves: nada de `if (x) return y;` numa linha só.
+      curly: ["error", "all"],
+      // Ternário dentro de ternário vira if ou um objeto de consulta.
+      "no-nested-ternary": "error",
+    },
   },
 ]);

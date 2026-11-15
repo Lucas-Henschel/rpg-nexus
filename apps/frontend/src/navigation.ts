@@ -17,11 +17,16 @@ export function usePath(): string {
 export function matchPath(pattern: string, path: string): Record<string, string> | null {
   const want = pattern.split("/").filter(Boolean);
   const got = path.split("/").filter(Boolean);
-  if (want.length !== got.length) return null;
+  if (want.length !== got.length) {
+    return null;
+  }
   const params: Record<string, string> = {};
   for (let i = 0; i < want.length; i++) {
-    if (want[i].startsWith(":")) params[want[i].slice(1)] = decodeURIComponent(got[i]);
-    else if (want[i] !== got[i]) return null;
+    if (want[i].startsWith(":")) {
+      params[want[i].slice(1)] = decodeURIComponent(got[i]);
+    } else if (want[i] !== got[i]) {
+      return null;
+    }
   }
   return params;
 }

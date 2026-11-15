@@ -3,9 +3,15 @@
  * para quem for implementar ter um ponto de partida. Ao implementar, mova a página para
  * src/features/<area>/ e crie o adaptador em src/api/<area>.ts, como em src/api/characters.ts.
  */
-import { useServiceHealth } from "../../api/health";
+import { useServiceHealth, type Health } from "../../api/health";
 import { services, type ServiceKey } from "../../config";
 import { Link } from "../../router";
+
+const HEALTH_TEXT: Record<Health, string> = {
+  checking: "sendo verificado",
+  up: "no ar",
+  down: "fora do ar",
+};
 
 interface Props {
   title: string;
@@ -25,8 +31,7 @@ function ComingSoon({ title, lead, service, planned, endpoints }: Props) {
       <div className="blueprint">
         <p className="blueprint__state">
           Esta tela ainda não foi construída. O serviço de {info.name} ({info.stack}) está{" "}
-          {health === "up" ? "no ar" : health === "down" ? "fora do ar" : "sendo verificado"} em{" "}
-          {info.url}.
+          {HEALTH_TEXT[health]} em {info.url}.
         </p>
         <h2 className="blueprint__heading">O que vai aparecer aqui</h2>
         <ul className="blueprint__list">

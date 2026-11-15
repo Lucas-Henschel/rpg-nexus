@@ -69,7 +69,9 @@ export function defaultSheet(): Sheet {
 
 /** A tela trabalha sempre com duas colunas; fichas salvas com outro formato são acomodadas nelas. */
 export function normalizeSheet(sheet: Sheet | null): Sheet {
-  if (!sheet) return defaultSheet();
+  if (!sheet) {
+    return defaultSheet();
+  }
   const [first = [], second = [], ...rest] = sheet.columns;
   return { template: sheet.template ?? null, columns: [first, [...second, ...rest.flat()]] };
 }

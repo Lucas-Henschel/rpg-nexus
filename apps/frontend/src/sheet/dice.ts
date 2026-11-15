@@ -1,4 +1,5 @@
 /** Rolagens no formato NdM+K (ex.: "d20", "2d6+3", "1d8-1"). */
+import { signed } from "../labels";
 
 export interface DiceFormula {
   count: number;
@@ -18,15 +19,19 @@ const PATTERN = /^(\d{0,2})d(\d{1,4})([+-]\d{1,4})?$/;
 
 export function parseFormula(text: string): DiceFormula | null {
   const match = PATTERN.exec(text.replace(/\s+/g, "").toLowerCase());
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   const count = match[1] ? Number(match[1]) : 1;
   const sides = Number(match[2]);
-  if (count < 1 || count > 20 || sides < 2 || sides > 1000) return null;
+  if (count < 1 || count > 20 || sides < 2 || sides > 1000) {
+    return null;
+  }
   return { count, sides, bonus: match[3] ? Number(match[3]) : 0 };
 }
 
 export function formatFormula({ count, sides, bonus }: DiceFormula): string {
-  return `${count}d${sides}${bonus > 0 ? `+${bonus}` : bonus < 0 ? bonus : ""}`;
+  return `${count}d${sides}${bonus === 0 ? "" : signed(bonus)}`;
 }
 
 /** Sorteio sem viés, com o gerador criptográfico do navegador. */
