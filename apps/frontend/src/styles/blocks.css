@@ -1,0 +1,352 @@
+/* ---------- Ficha em blocos ---------- */
+
+.sheet__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.4rem;
+  padding-top: 0.8rem;
+  border-top: 1.5px solid var(--nanquim);
+}
+
+.sheet__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 8fr);
+  gap: 0 2.4rem;
+  margin-top: 0.4rem;
+}
+
+.sheet__column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 1.9rem;
+  align-content: start;
+  padding-top: 1rem;
+}
+
+.block {
+  min-width: 0;
+}
+
+.block__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1.5px solid var(--nanquim);
+}
+
+.block__title {
+  flex: 1 1 8rem;
+  min-width: 0;
+  font-family: var(--fonte-titulo);
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.block__title--input {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.block__title--input:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.block__tools {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+
+.block__tools button {
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border: 1.5px solid rgba(28, 34, 48, 0.4);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.5);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.block__tools button:hover:not(:disabled) {
+  border-color: var(--nanquim);
+  background: var(--nanquim);
+  color: var(--papel);
+}
+
+.block .vital__row:first-child {
+  margin-top: 0;
+}
+
+.block .holds {
+  margin-top: 0.9rem;
+}
+
+.block .hold {
+  grid-template-columns: minmax(0, 1fr) auto;
+  font-size: 0.97rem;
+}
+
+.block-text {
+  line-height: 1.55;
+}
+
+.block-list {
+  display: grid;
+  margin-bottom: 0.2rem;
+}
+
+.block-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(28, 34, 48, 0.18);
+}
+
+.block-list li:hover .stat-row__remove,
+.block-list li:focus-within .stat-row__remove {
+  opacity: 1;
+}
+
+.counter__bar {
+  height: 12px;
+  border: 1.5px solid var(--nanquim);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.counter__fill {
+  height: 100%;
+  background: var(--nanquim);
+  transition: width 0.2s;
+}
+
+/* ---------- Rolagens dentro da ficha ---------- */
+
+.roll-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--nanquim);
+  font-weight: 700;
+}
+
+.roll-button .die-icon {
+  width: 1.45rem;
+  height: 1.45rem;
+}
+
+.roll-button:hover {
+  color: #8a5a00;
+}
+
+.roll-button:hover .die-icon {
+  transform: rotate(30deg);
+}
+
+.roll-button--text {
+  padding: 0.15rem 0.5rem 0.15rem 0.3rem;
+  border: 1.5px solid rgba(28, 34, 48, 0.4);
+}
+
+.roll-button--text:hover {
+  border-color: #8a5a00;
+}
+
+.roll-formula {
+  font-family: var(--fonte-titulo);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.stats__add--roll {
+  max-width: none;
+}
+
+.roll-input {
+  width: 6.5rem;
+  flex-shrink: 0;
+}
+
+/* ---------- Adicionar bloco ---------- */
+
+.add-block__button {
+  width: 100%;
+  padding: 0.7rem;
+  border: 1.5px dashed rgba(28, 34, 48, 0.5);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nanquim);
+  font-weight: 700;
+}
+
+.add-block__button:hover {
+  border-style: solid;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.add-block__menu {
+  display: grid;
+  margin-top: 0.4rem;
+  border: 1.5px solid var(--nanquim);
+  border-radius: 4px;
+  background: #f4efdf;
+}
+
+.add-block__menu button {
+  display: grid;
+  gap: 0.05rem;
+  width: 100%;
+  padding: 0.5rem 0.8rem;
+  border: 0;
+  border-bottom: 1px solid rgba(28, 34, 48, 0.15);
+  background: none;
+  text-align: left;
+}
+
+.add-block__menu li:last-child button {
+  border-bottom: 0;
+}
+
+.add-block__menu button:hover:not(:disabled) {
+  background: rgba(217, 164, 65, 0.25);
+}
+
+.add-block__menu span {
+  color: var(--nanquim-suave);
+  font-size: 0.93rem;
+}
+
+/* ---------- Escolha do modelo ---------- */
+
+.templates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
+  gap: 1.2rem;
+}
+
+.template {
+  --foco: var(--latao-claro);
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  min-height: 15.5rem;
+  padding: 1.2rem 1.1rem;
+  border-radius: 3px;
+  background-color: var(--papel);
+  background-image:
+    linear-gradient(rgba(28, 34, 48, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(28, 34, 48, 0.055) 1px, transparent 1px);
+  background-size: 28px 28px;
+  color: var(--nanquim);
+  box-shadow: var(--sombra-papel);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.template:hover {
+  transform: translateY(-3px);
+}
+
+.template input {
+  position: absolute;
+  opacity: 0;
+}
+
+.template:has(input:focus-visible) {
+  outline: 2px solid var(--foco);
+  outline-offset: 3px;
+}
+
+.template--chosen {
+  outline: 3px solid var(--latao);
+  outline-offset: 3px;
+  transform: translateY(-3px) rotate(-0.6deg);
+}
+
+.template--blank {
+  background: transparent;
+  border: 2px dashed var(--feltro-linha);
+  color: var(--texto);
+  box-shadow: none;
+}
+
+.template--blank .template__summary,
+.template--blank .template__meta {
+  color: var(--texto-suave);
+}
+
+.template__icon {
+  width: 3.2rem;
+  height: 3.2rem;
+  margin-bottom: 0.4rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.template__name {
+  font-family: var(--fonte-titulo);
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.template__summary {
+  color: var(--nanquim-suave);
+}
+
+.template__meta {
+  align-self: end;
+  margin-top: 0.5rem;
+  color: var(--nanquim-suave);
+  font-size: 0.92rem;
+  font-style: italic;
+  font-family: var(--fonte-titulo);
+}
+
+.create-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 2.2rem;
+}
+
+.create-bar__name {
+  display: grid;
+  gap: 0.3rem;
+  flex: 1 1 16rem;
+  max-width: 26rem;
+  color: var(--texto-suave);
+}
+
+.create-bar__name .felt-input {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  font-size: 1.1rem;
+}
+
+@media (max-width: 760px) {
+  .sheet__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stats__add--roll {
+    flex-wrap: wrap;
+  }
+}

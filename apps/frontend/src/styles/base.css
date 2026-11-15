@@ -1,0 +1,239 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  overflow-x: clip;
+  min-height: 100vh;
+  background:
+    radial-gradient(1100px 620px at 72% -160px, rgba(240, 200, 119, 0.13), transparent 62%),
+    var(--feltro);
+  background-repeat: no-repeat;
+  color: var(--texto);
+  font-family: var(--fonte-texto);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p,
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.88em;
+}
+
+/* ---------- Barra do topo ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  flex-wrap: wrap;
+  max-width: var(--largura);
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--fonte-titulo);
+  font-weight: 800;
+  font-size: 1.45rem;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.logo__mark {
+  width: 1.7rem;
+  height: 1.7rem;
+  color: var(--latao);
+}
+
+.topbar__nav {
+  display: flex;
+  gap: 0.25rem 1.6rem;
+  flex-wrap: wrap;
+}
+
+.topbar__link {
+  padding: 0.3rem 0;
+  color: var(--texto-suave);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.topbar__link:hover {
+  color: var(--texto);
+}
+
+.topbar__link[aria-current="page"] {
+  color: var(--texto);
+  border-bottom-color: var(--latao);
+}
+
+/* ---------- Botões ---------- */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.25rem;
+  border: 1.5px solid transparent;
+  border-radius: 6px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+
+.button--small {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.95rem;
+}
+
+.button--brass {
+  background: var(--latao);
+  color: var(--feltro);
+}
+
+.button--brass:hover:not(:disabled) {
+  background: var(--latao-claro);
+}
+
+.button--ghost-felt {
+  border-color: var(--feltro-linha);
+  background: transparent;
+  color: var(--texto);
+}
+
+.button--ghost-felt:hover:not(:disabled) {
+  border-color: var(--latao);
+}
+
+.button--ink {
+  background: var(--nanquim);
+  color: var(--papel);
+}
+
+.button--ink:hover:not(:disabled) {
+  background: #2b3447;
+}
+
+.button--ghost-ink {
+  border-color: rgba(28, 34, 48, 0.45);
+  background: transparent;
+  color: var(--nanquim);
+  padding: 0.4rem 0.9rem;
+  font-size: 0.97rem;
+}
+
+.button--ghost-ink:hover {
+  border-color: var(--nanquim);
+}
+
+.text-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- Aviso rápido ---------- */
+
+.toast-region {
+  position: fixed;
+  left: 50%;
+  bottom: 5.5rem;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+}
+
+.toast {
+  padding: 0.7rem 1.1rem;
+  border-radius: 6px;
+  border-left: 4px solid var(--musgo);
+  background: #0b1815;
+  color: var(--texto);
+  box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.8);
+}
+
+.toast--error {
+  border-left-color: var(--rubi);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,0 +1,21 @@
+[project]
+name = "rpg-nexus-characters"
+version = "1.0.0"
+description = "S2 — Microsserviço de Personagens do RPG Nexus (Sistemas Distribuídos, FURB)"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = ["ignore::DeprecationWarning:botocore.*"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "BLE", "S"]
+ignore = ["S101", "S104", "S108", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "E501"]

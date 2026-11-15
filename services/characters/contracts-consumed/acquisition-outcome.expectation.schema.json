@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:expectation:characters:acquisition-outcome:v1",
+  "title": "Expectativa do S2 sobre ItemAcquired v1 / AcquisitionCancelled v1",
+  "type": "object",
+  "required": ["payload"],
+  "properties": {
+    "type": { "enum": ["rpg.item.acquired.v1", "rpg.acquisition.cancelled.v1"] },
+    "payload": {
+      "type": "object",
+      "required": ["operationId", "characterId"],
+      "additionalProperties": true,
+      "properties": {
+        "operationId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+        "characterId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+        "quantity": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}
