@@ -12,8 +12,10 @@ pytest.importorskip("moto")
 import boto3  # noqa: E402
 from moto import mock_aws  # noqa: E402
 
+from app.adapters.dynamodb_read_model import DynamoDBReadModel  # noqa: E402
 from app.adapters.dynamodb_store import DynamoDBCharacterStore  # noqa: E402
 from app.application.handlers import MessageHandlers, Outcome  # noqa: E402
+from app.application.read_model import Projector, RosterQuery  # noqa: E402
 from app.domain.models import Character, HitPoints, HoldStatus  # noqa: E402
 
 from .conftest import REPO_ROOT, outcome_event, validation_request  # noqa: E402
@@ -119,3 +121,50 @@ def test_save_profile_com_versao_e_capacidade(dynamo, clock):
     assert (updated.name, updated.max_items, updated.slots_available, updated.version) == ("Nova", 5, 4, 2)
     with pytest.raises(ConcurrencyConflict):
         dynamo.save_profile(updated.evolve(version=3), expected_version=1, max_items_delta=0)
+
+
+# --- CQRS: modelo de leitura em tabela própria ------------------------------------------------------
+
+
+def test_modelo_de_leitura_no_dynamodb_acompanha_a_saga_e_recusa_projecao_antiga(dynamo, clock):
+    read_model = DynamoDBReadModel(region="us-east-1", endpoint_url=None, table="character_read_model", client=dynamo._client)
+    read_model.ping()
+    dynamo.create_character(_character(clock, max_items=3))
+    projector = Projector(dynamo, read_model, clock=clock)
+    dispatch = projector.after(MessageHandlers(dynamo, clock=clock).dispatch)
+
+    dispatch(validation_request(operation_id="op-1", message_id=str(uuid.uuid4())))
+    clock.advance(seconds=1)
+    dispatch(validation_request(operation_id="op-2", message_id=str(uuid.uuid4())))
+    clock.advance(seconds=1)
+    dispatch(outcome_event("cancelled", "op-2", message_id=str(uuid.uuid4())))
+
+    roster = RosterQuery(read_model).by_campaign("c1")
+    (summary,) = roster.items
+    assert (summary.name, summary.slots_used, summary.slots_available) == ("Lyra", 1, 2)
+    assert (summary.holds_held, summary.holds_released) == (1, 1)
+    assert roster.totals["holdsHeld"] == 1
+    assert RosterQuery(read_model).by_campaign("outra").items == []
+
+    antigo = summary.__class__(**{**summary.__dict__, "name": "Antigo", "projected_at": summary.projected_at.replace(year=2020)})
+    assert read_model.put_summary(antigo) is False
+    assert RosterQuery(read_model).by_campaign("c1").items[0].name == "Lyra"
+
+
+def test_outbox_guarda_e_devolve_o_contexto_de_trace(dynamo, clock):
+    from app.application.ports import InboxRecord, OutboxRecord
+
+    traceparent = "00-" + "ab" * 16 + "-" + "cd" * 8 + "-01"
+    inbox = InboxRecord(str(uuid.uuid4()), "rpg.test.v1", "op", "REJECTED", clock())
+    outbox = OutboxRecord(
+        message_id=str(uuid.uuid4()),
+        type="rpg.character.rejected.v1",
+        routing_key="character.rejected.v1",
+        correlation_id="op",
+        envelope={"payload": {}},
+        created_at=clock(),
+        trace_context={"traceparent": traceparent},
+    )
+    dynamo.record_outcome(inbox, outbox)
+    (claimed,) = dynamo.claim_outbox(10, 30, "replica-a", clock())
+    assert claimed.trace_context == {"traceparent": traceparent}

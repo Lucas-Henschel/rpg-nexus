@@ -11,6 +11,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
+from app.application.read_model import CharacterSummary
 from app.domain.models import CapacityHold, Character
 
 Id = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
@@ -263,3 +264,43 @@ class PortraitUrlOut(BaseModel):
     url: str
     expiresIn: int
     contentType: str
+
+
+# --- Modelo de leitura (CQRS) ---------------------------------------------------------------------
+
+
+class CharacterSummaryOut(BaseModel):
+    characterId: str
+    name: str
+    active: bool
+    hp: dict[str, int]
+    capacity: dict[str, int]
+    holds: dict[str, int]
+    hasPortrait: bool
+    profileVersion: int
+    updatedAt: datetime
+    projectedAt: datetime
+
+    @classmethod
+    def from_summary(cls, s: CharacterSummary) -> CharacterSummaryOut:
+        return cls(
+            characterId=s.character_id,
+            name=s.name,
+            active=s.active,
+            hp={"current": s.hp_current, "max": s.hp_max},
+            capacity={"maxItems": s.max_items, "slotsUsed": s.slots_used, "slotsAvailable": s.slots_available},
+            holds={"held": s.holds_held, "committed": s.holds_committed, "released": s.holds_released},
+            hasPortrait=s.has_portrait,
+            profileVersion=s.profile_version,
+            updatedAt=s.updated_at,
+            projectedAt=s.projected_at,
+        )
+
+
+class RosterOut(BaseModel):
+    """Painel da campanha, lido do modelo de leitura (consistência eventual em relação à escrita)."""
+
+    campaignId: str
+    source: str = "read-model"
+    totals: dict[str, int]
+    items: list[CharacterSummaryOut]

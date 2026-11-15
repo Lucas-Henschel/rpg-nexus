@@ -20,6 +20,7 @@ from app.messaging.envelope import Envelope, build_envelope  # noqa: E402
 from app.messaging.events import (  # noqa: E402
     ACQUISITION_CANCELLED,
     CHARACTER_VALIDATION_REQUESTED,
+    CHARACTER_VALIDATION_REQUESTED_V2,
     ITEM_ACQUIRED,
 )
 
@@ -103,6 +104,36 @@ def validation_request(
             correlation_id=op,
             payload=payload,
             occurred_at=occurred_at or datetime(2026, 11, 11, 12, 0, tzinfo=UTC),
+            message_id=message_id,
+        )
+    )
+
+
+def validation_request_v2(
+    character_id: str = "p1",
+    campaign_id: str = "c1",
+    operation_id: str | None = None,
+    expires_at: str | None = "2026-11-11T12:05:00Z",
+    message_id: str | None = None,
+) -> Envelope:
+    """Pedido na versão 2 do evento: prazo obrigatório no campo ``expiresAt``."""
+    op = operation_id or str(uuid.uuid4())
+    payload: dict[str, Any] = {
+        "operationId": op,
+        "campaignId": campaign_id,
+        "characterId": character_id,
+        "itemId": "sword",
+        "quantity": 1,
+    }
+    if expires_at:
+        payload["expiresAt"] = expires_at
+    return Envelope.model_validate(
+        build_envelope(
+            event_type=CHARACTER_VALIDATION_REQUESTED_V2.type,
+            version=2,
+            correlation_id=op,
+            payload=payload,
+            occurred_at=datetime(2026, 11, 11, 12, 0, tzinfo=UTC),
             message_id=message_id,
         )
     )

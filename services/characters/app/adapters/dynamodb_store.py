@@ -447,6 +447,7 @@ class DynamoDBCharacterStore:
                         "pendingKey": PENDING,
                         "createdAt": _ts(outbox.created_at),
                         "attempts": 0,
+                        "traceContext": outbox.trace_context or None,
                     }
                 ),
                 "ConditionExpression": "attribute_not_exists(messageId)",
@@ -554,6 +555,7 @@ class DynamoDBCharacterStore:
             status=d.get("status", PENDING),
             attempts=int(d.get("attempts", 0)),
             published_at=_parse_ts(d["publishedAt"]) if d.get("publishedAt") else None,
+            trace_context=d.get("traceContext") or {},
         )
 
     def claim_outbox(self, limit: int, lease_seconds: int, owner: str, now: datetime) -> list[OutboxRecord]:

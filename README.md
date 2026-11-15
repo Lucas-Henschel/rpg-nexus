@@ -24,7 +24,7 @@ e `infra/manifests/`: `docker build -f services/characters/Dockerfile .`.
 
 | Projeto | Pasta | Serviços no Compose |
 | --- | --- | --- |
-| Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters-init`, `characters` |
+| Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters-init`, `characters`, `characters-worker` |
 | Front-end (React + Vite) | [`apps/frontend`](apps/frontend/README.md) | `frontend` |
 
 ## Pré-requisitos
@@ -81,6 +81,15 @@ prefixo. Para ver cada serviço separadamente, suba a pilha em segundo plano com
 | `docker compose down` | Encerra a pilha, preservando os volumes. |
 | `docker compose down --volumes` | **Destrutivo:** encerra a pilha e remove os volumes (mensagens, objetos S3, dados DynamoDB). |
 
+### Serviços opcionais (perfis)
+
+Dois serviços só sobem quando o perfil é pedido, e não mudam o `docker compose up` padrão:
+
+| Perfil | Serviço | O que faz | Detalhes |
+| --- | --- | --- | --- |
+| `autoscale` | `autoscaler` | Ajusta as réplicas de `characters-worker` pelo tamanho da fila. | [infra/autoscaler](infra/autoscaler/README.md) |
+| `iac` | `terraform` | Recria do zero as tabelas DynamoDB e o bucket S3 no MiniStack. | [infra/terraform](infra/terraform/README.md) |
+
 ## Higiene Git e reprodução
 
 Cada projeto versiona seu próprio lockfile (ex.: `package-lock.json`, instalado
@@ -105,6 +114,7 @@ resolvidos entre contêineres na rede Compose, e não no host.
 | MiniStack S3 / DynamoDB | `http://localhost:4566` | `http://ministack:4566` |
 | Personagens (API) | [localhost:8000/docs](http://localhost:8000/docs) | `http://characters:8000` |
 | Front-end | [localhost:5173](http://localhost:5173) | — |
+| Jaeger (traces) | [localhost:16686](http://localhost:16686) | OTLP/HTTP em `http://jaeger:4318` |
 
 | Variável em `.env` | Default | Uso |
 | --- | --- | --- |
@@ -119,6 +129,9 @@ resolvidos entre contêineres na rede Compose, e não no host.
 | `AWS_SECRET_ACCESS_KEY` | `test` | Segredo fictício para o MiniStack. |
 | `RPG_ASSETS_BUCKET` | `rpg-assets` | Bucket criado pelo inicializador e usado pelo serviço de Personagens. |
 | `CHARACTERS_PORT` | `8000` | Porta da API de Personagens no host; também é o endereço gravado no build do front-end. |
+| `TRACING_ENABLED` | `true` | Liga o envio de spans ao Jaeger nos serviços. |
+| `JAEGER_UI_PORT` | `16686` | Porta da interface do Jaeger no host. |
+| `OTLP_HTTP_PORT` | `4318` | Porta OTLP/HTTP do Jaeger no host, para serviços rodando fora do Docker. |
 | `FRONTEND_PORT` | `5173` | Porta do front-end no host; também é a origem liberada no CORS de Personagens e do bucket. |
 
 Mudar uma porta publicada altera somente o endereço no host. A porta interna do

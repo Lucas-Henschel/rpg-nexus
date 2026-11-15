@@ -25,6 +25,11 @@ com esquemas separados por versão; produtores e consumidores usam o par
 `type`/`version` para rotear e validar mensagens. Mantenha a versão anterior até
 migrar seus consumidores e processar as mensagens pendentes.
 
+## Rastreamento (tracing)
+
+O contexto de trace **não** faz parte do envelope. Ele viaja nos headers AMQP da mensagem, no padrão W3C
+Trace Context (`traceparent` e `tracestate`).
+
 ## Validação
 
 Com Node.js instalado, dentro de `contracts/`:

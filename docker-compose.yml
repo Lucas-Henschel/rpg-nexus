@@ -16,6 +16,11 @@ x-characters: &characters
     CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173}
     RABBITMQ_URL: amqp://${RABBITMQ_USER:-dev}:${RABBITMQ_PASSWORD:-dev}@rabbitmq:5672/
     FAULT_CRASH_BEFORE_ACK: ${FAULT_CRASH_BEFORE_ACK:-off}
+    CONSUMER_SIMULATED_DELAY_MS: ${CONSUMER_SIMULATED_DELAY_MS:-0}
+    # Tracing distribuído: spans vão para o Jaeger por OTLP/HTTP.
+    TRACING_ENABLED: ${TRACING_ENABLED:-true}
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    JAEGER_QUERY_URL: http://jaeger:16686
   networks:
     - rpg
 
@@ -113,6 +118,94 @@ services:
         condition: service_healthy
       characters-init:
         condition: service_completed_successfully
+      jaeger:
+        condition: service_started
+
+  # Réplicas do S2 que só consomem as filas (sem porta no host, por isso podem escalar).
+  # Manual: docker compose up -d --scale characters-worker=3   |   automático: perfil "autoscale".
+  characters-worker:
+    <<: *characters
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      characters-init:
+        condition: service_completed_successfully
+      jaeger:
+        condition: service_started
+
+  # Bônus (tracing distribuído): recebe os spans de todos os serviços (OTLP) e mostra os traces.
+  #   UI: http://localhost:16686   |   serviços na rede Compose: OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "127.0.0.1:${JAEGER_UI_PORT:-16686}:16686"
+      - "127.0.0.1:${OTLP_HTTP_PORT:-4318}:4318"
+    networks:
+      - rpg
+
+  # Bônus (autoescala): ajusta o número de réplicas de characters-worker pelo tamanho da fila.
+  #   docker compose --profile autoscale up -d autoscaler
+  autoscaler:
+    image: docker:27-cli
+    profiles: ["autoscale"]
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_API_URL: http://rabbitmq:15672
+      RABBITMQ_USER: ${RABBITMQ_USER:-dev}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev}
+      AUTOSCALE_QUEUE: ${AUTOSCALE_QUEUE:-characters.validation-requested.v1}
+      AUTOSCALE_SERVICE: characters-worker
+      AUTOSCALE_MIN_REPLICAS: ${AUTOSCALE_MIN_REPLICAS:-1}
+      AUTOSCALE_MAX_REPLICAS: ${AUTOSCALE_MAX_REPLICAS:-4}
+      AUTOSCALE_MESSAGES_PER_REPLICA: ${AUTOSCALE_MESSAGES_PER_REPLICA:-100}
+      AUTOSCALE_INTERVAL_SECONDS: ${AUTOSCALE_INTERVAL_SECONDS:-5}
+      AUTOSCALE_SCALE_DOWN_AFTER: ${AUTOSCALE_SCALE_DOWN_AFTER:-3}
+    working_dir: /work
+    entrypoint: ["/bin/sh", "/work/infra/autoscaler/autoscale.sh"]
+    volumes:
+      - .:/work:ro
+      # O autoscaler fala com o Docker do host para criar e remover réplicas.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - rpg
+
+  # Bônus (infraestrutura como código): recria do zero as tabelas DynamoDB e o bucket S3 no MiniStack.
+  #   docker compose --profile iac run --rm terraform
+  terraform:
+    image: hashicorp/terraform:1.9
+    profiles: ["iac"]
+    restart: "no"
+    depends_on:
+      ministack:
+        condition: service_healthy
+    environment:
+      TF_IN_AUTOMATION: "1"
+      TF_DATA_DIR: /state/.terraform
+      TF_VAR_aws_endpoint_url: ${AWS_ENDPOINT_URL:-http://ministack:4566}
+      TF_VAR_aws_region: ${AWS_REGION:-us-east-1}
+      TF_VAR_aws_access_key_id: ${AWS_ACCESS_KEY_ID:-test}
+      TF_VAR_aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY:-test}
+      TF_VAR_assets_bucket: ${RPG_ASSETS_BUCKET:-rpg-assets}
+      TF_VAR_cors_allowed_origin: http://localhost:${FRONTEND_PORT:-5173}
+    working_dir: /infra
+    # "init" a cada execução (baixa o provider só na primeira; fica no volume) e depois o comando pedido.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - terraform init -input=false -backend-config=path=/state/terraform.tfstate && exec terraform "$$@"
+      - --
+    command: ["apply", "-input=false", "-auto-approve"]
+    volumes:
+      - ./infra/terraform:/infra
+      - terraform-state:/state
+    networks:
+      - rpg
 
   frontend:
     build:
@@ -131,3 +224,4 @@ networks:
 volumes:
   rabbitmq-data:
   ministack-data:
+  terraform-state:

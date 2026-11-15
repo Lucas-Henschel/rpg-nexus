@@ -25,6 +25,7 @@ from app.application.ports import (
     Page,
     PresignedRequest,
 )
+from app.application.read_model import CharacterSummary
 from app.domain.models import CapacityHold, Character, HoldStatus
 
 
@@ -216,6 +217,30 @@ class InMemoryCharacterStore:
             published = sum(1 for r in self._outbox.values() if r.status == "PUBLISHED")
         oldest = min((r.created_at for r in pending), default=None)
         return OutboxStats(pending=len(pending), oldest_pending_at=oldest, extra={"published": published})
+
+
+class InMemoryReadModel:
+    """Modelo de leitura (CQRS) em memória; mesma regra do DynamoDB: projeção mais antiga não sobrescreve."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._summaries: dict[tuple[str, str], CharacterSummary] = {}
+
+    def ping(self) -> None:
+        return None
+
+    def put_summary(self, summary: CharacterSummary) -> bool:
+        key = (summary.campaign_id, summary.character_id)
+        with self._lock:
+            current = self._summaries.get(key)
+            if current is not None and current.projected_at > summary.projected_at:
+                return False
+            self._summaries[key] = summary
+            return True
+
+    def list_campaign(self, campaign_id: str) -> list[CharacterSummary]:
+        with self._lock:
+            return [s for (campaign, _), s in self._summaries.items() if campaign == campaign_id]
 
 
 class InMemoryObjectStorage:
