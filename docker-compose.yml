@@ -94,6 +94,26 @@ services:
     networks:
       - rpg
 
+  # Declares the exchange, queues and bindings from infra/rabbitmq/definitions.json.
+  # Services that use RabbitMQ should wait for it with condition: service_completed_successfully.
+  rabbitmq-init:
+    image: curlimages/curl:8.11.1
+    restart: "no"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
+      RABBITMQ_USER: ${RABBITMQ_USER:-dev}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev}
+    working_dir: /work
+    entrypoint: ["/bin/sh"]
+    command: ["/work/infra/rabbitmq/load-definitions.sh"]
+    volumes:
+      - .:/work:ro
+    networks:
+      - rpg
+
   # Cria as tabelas DynamoDB do S2 e aplica o CORS do bucket (idempotente); o bucket é do aws-init.
   characters-init:
     <<: *characters
@@ -109,8 +129,8 @@ services:
     ports:
       - "127.0.0.1:${CHARACTERS_PORT:-8000}:8000"
     depends_on:
-      rabbitmq:
-        condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
       characters-init:
         condition: service_completed_successfully
 
