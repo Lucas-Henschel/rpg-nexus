@@ -34,11 +34,16 @@ export function newBlockId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-export function block(type: BlockType, title = BLOCK_TITLES[type], data: Record<string, unknown> = {}): SheetBlock {
+export function block(
+  type: BlockType,
+  title = BLOCK_TITLES[type],
+  data: Record<string, unknown> = {},
+): SheetBlock {
   return { id: newBlockId(), type, title, data };
 }
 
-const counter = (title: string, current: number, max: number) => block("counter", title, { current, max });
+const counter = (title: string, current: number, max: number) =>
+  block("counter", title, { current, max });
 const rolls = (title: string, list: [string, string][]) =>
   block("dice", title, { rolls: list.map(([label, expr]) => ({ label, expr })) });
 const list = (title: string, items: string[] = []) => block("list", title, { items });
@@ -47,8 +52,19 @@ const text = (title: string, body = "") => block("text", title, { body });
 /** Ficha de quem foi criado antes dos blocos existirem, ou que voltou ao padrão. */
 export function defaultSheet(): Sheet {
   // ids fixos: a ficha padrão precisa sair idêntica toda vez, para a tela saber se algo mudou
-  const fixed = (type: BlockType): SheetBlock => ({ id: type, type, title: BLOCK_TITLES[type], data: {} });
-  return { template: null, columns: [[fixed("hp"), fixed("backpack")], [fixed("attributes"), fixed("skills")]] };
+  const fixed = (type: BlockType): SheetBlock => ({
+    id: type,
+    type,
+    title: BLOCK_TITLES[type],
+    data: {},
+  });
+  return {
+    template: null,
+    columns: [
+      [fixed("hp"), fixed("backpack")],
+      [fixed("attributes"), fixed("skills")],
+    ],
+  };
 }
 
 /** A tela trabalha sempre com duas colunas; fichas salvas com outro formato são acomodadas nelas. */
@@ -75,7 +91,14 @@ export const TEMPLATES: Template[] = [
     name: "Fantasia clássica",
     summary: "Seis atributos, perícias de aventureiro, magias e ataques com d20.",
     icon: "sword",
-    attributes: { forca: 10, destreza: 10, constituicao: 10, inteligencia: 10, sabedoria: 10, carisma: 10 },
+    attributes: {
+      forca: 10,
+      destreza: 10,
+      constituicao: 10,
+      inteligencia: 10,
+      sabedoria: 10,
+      carisma: 10,
+    },
     skills: { atletismo: 0, furtividade: 0, percepcao: 0, persuasao: 0, sobrevivencia: 0 },
     hpMax: 20,
     maxItems: 10,
@@ -98,7 +121,14 @@ export const TEMPLATES: Template[] = [
     summary: "Sanidade que acaba, pistas acumuladas e perícias de quem procura o que não devia.",
     icon: "eye",
     attributes: { forca: 1, agilidade: 1, intelecto: 2, presenca: 1, vigor: 1 },
-    skills: { investigacao: 0, ocultismo: 0, percepcao: 0, medicina: 0, pontaria: 0, intimidacao: 0 },
+    skills: {
+      investigacao: 0,
+      ocultismo: 0,
+      percepcao: 0,
+      medicina: 0,
+      pontaria: 0,
+      intimidacao: 0,
+    },
     hpMax: 12,
     maxItems: 6,
     columns: [
@@ -140,7 +170,8 @@ export const TEMPLATES: Template[] = [
   {
     id: "narrativo",
     name: "Regras leves",
-    summary: "Três atributos e dados de seis lados. Para one-shots e mesas que preferem contar a história.",
+    summary:
+      "Três atributos e dados de seis lados. Para one-shots e mesas que preferem contar a história.",
     icon: "feather",
     attributes: { corpo: 2, mente: 2, espirito: 2 },
     skills: {},
@@ -165,6 +196,8 @@ export const TEMPLATES: Template[] = [
 export function sheetFromTemplate(template: Template): Sheet {
   return {
     template: template.id,
-    columns: template.columns.map((column) => column.map((b) => ({ ...structuredClone(b), id: newBlockId() }))),
+    columns: template.columns.map((column) =>
+      column.map((b) => ({ ...structuredClone(b), id: newBlockId() })),
+    ),
   };
 }

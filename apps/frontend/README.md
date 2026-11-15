@@ -22,14 +22,14 @@ Os endereços dos serviços vêm de variáveis `VITE_*`. Os padrões já apontam
 
 ## O que já funciona
 
-| Área | Estado | Serviço |
-|---|---|---|
-| Início | pronto; mostra se cada serviço está no ar (`GET /health`) | todos |
-| Personagens | pronto: listar por campanha, criar a partir de um modelo ou em branco, ficha livre em blocos, atributos, perícias, pontos de vida, mochila, retrato (S3), itens pedidos | S2 (P2) |
-| Dados | pronto: bandeja de dados com animação, em qualquer tela; sorteio no navegador | (S4 depois, com `POST /rolls`) |
-| Campanhas | página de espera com o que falta construir | S1 (P1) |
-| Itens | página de espera | S3 (P3) |
-| Histórico | página de espera | S4 (P4) |
+| Área        | Estado                                                                                                                                                                  | Serviço                        |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Início      | pronto; mostra se cada serviço está no ar (`GET /health`)                                                                                                               | todos                          |
+| Personagens | pronto: listar por campanha, criar a partir de um modelo ou em branco, ficha livre em blocos, atributos, perícias, pontos de vida, mochila, retrato (S3), itens pedidos | S2 (P2)                        |
+| Dados       | pronto: bandeja de dados com animação, em qualquer tela; sorteio no navegador                                                                                           | (S4 depois, com `POST /rolls`) |
+| Campanhas   | página de espera com o que falta construir                                                                                                                              | S1 (P1)                        |
+| Itens       | página de espera                                                                                                                                                        | S3 (P3)                        |
+| Histórico   | página de espera                                                                                                                                                        | S4 (P4)                        |
 
 Enquanto o serviço de Campanhas não existe, a campanha é um código digitado na tela de Personagens
 (padrão `c1`), guardado no navegador.

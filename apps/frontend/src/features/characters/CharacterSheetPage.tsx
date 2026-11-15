@@ -22,7 +22,12 @@ import { useDice } from "../../components/DiceTray";
 import { useToast } from "../../components/Toast";
 import { toLabel } from "../../labels";
 import { Link } from "../../router";
-import { block as newBlock, BLOCK_TITLES, normalizeSheet, SINGLETON_BLOCKS } from "../../sheet/templates";
+import {
+  block as newBlock,
+  BLOCK_TITLES,
+  normalizeSheet,
+  SINGLETON_BLOCKS,
+} from "../../sheet/templates";
 import { CounterBlock, DiceBlock, ListBlock, TextBlock } from "./FreeBlocks";
 
 interface Draft {
@@ -62,8 +67,10 @@ function diffStats(before: StatMap, after: StatMap): Record<string, number | nul
 function buildPatch(c: Character, d: Draft): CharacterPatch {
   const patch: CharacterPatch = {};
   if (d.name.trim() !== c.name) patch.name = d.name.trim();
-  if (d.description.trim() !== (c.description ?? "")) patch.description = d.description.trim() || null;
-  if (d.hpCurrent !== c.hp.current || d.hpMax !== c.hp.max) patch.hp = { current: d.hpCurrent, max: d.hpMax };
+  if (d.description.trim() !== (c.description ?? ""))
+    patch.description = d.description.trim() || null;
+  if (d.hpCurrent !== c.hp.current || d.hpMax !== c.hp.max)
+    patch.hp = { current: d.hpCurrent, max: d.hpMax };
   if (d.maxItems !== c.capacity.maxItems) patch.maxItems = d.maxItems;
   if (d.active !== c.active) patch.active = d.active;
   const attributes = diffStats(c.attributes, d.attributes);
@@ -122,7 +129,10 @@ export function CharacterSheetPage({ id }: { id: string }) {
     void load();
   }, [load]);
 
-  const patch = useMemo(() => (character && draft ? buildPatch(character, draft) : {}), [character, draft]);
+  const patch = useMemo(
+    () => (character && draft ? buildPatch(character, draft) : {}),
+    [character, draft],
+  );
   const dirty = Object.keys(patch).length > 0;
 
   if (loadError) {
@@ -159,7 +169,11 @@ export function CharacterSheetPage({ id }: { id: string }) {
   const setColumns = (next: SheetBlock[][]) => edit({ sheet: { ...draft.sheet, columns: next } });
 
   const patchBlock = (col: number, index: number, changes: Partial<SheetBlock>) =>
-    setColumns(columns.map((column, c) => (c === col ? column.map((b, i) => (i === index ? { ...b, ...changes } : b)) : column)));
+    setColumns(
+      columns.map((column, c) =>
+        c === col ? column.map((b, i) => (i === index ? { ...b, ...changes } : b)) : column,
+      ),
+    );
   const moveBlock = (col: number, index: number, by: number) => {
     const column = [...columns[col]];
     const [moved] = column.splice(index, 1);
@@ -169,9 +183,14 @@ export function CharacterSheetPage({ id }: { id: string }) {
   const switchColumn = (col: number, index: number) => {
     const target = (col + 1) % columns.length;
     const moved = columns[col][index];
-    setColumns(columns.map((c, i) => (i === col ? c.filter((_, j) => j !== index) : i === target ? [...c, moved] : c)));
+    setColumns(
+      columns.map((c, i) =>
+        i === col ? c.filter((_, j) => j !== index) : i === target ? [...c, moved] : c,
+      ),
+    );
   };
-  const removeBlock = (col: number, index: number) => setColumns(columns.map((c, i) => (i === col ? c.filter((_, j) => j !== index) : c)));
+  const removeBlock = (col: number, index: number) =>
+    setColumns(columns.map((c, i) => (i === col ? c.filter((_, j) => j !== index) : c)));
   const addBlock = (col: number, type: BlockType) => {
     setColumns(columns.map((c, i) => (i === col ? [...c, newBlock(type)] : c)));
     setMenuAt(null);
@@ -184,13 +203,37 @@ export function CharacterSheetPage({ id }: { id: string }) {
           <div className="vital">
             <HpBar current={draft.hpCurrent} max={draft.hpMax} />
             <div className="vital__row">
-              <button type="button" className="round-step" onClick={() => edit({ hpCurrent: Math.max(0, draft.hpCurrent - 1) })} aria-label="Tirar 1 ponto de vida">
+              <button
+                type="button"
+                className="round-step"
+                onClick={() => edit({ hpCurrent: Math.max(0, draft.hpCurrent - 1) })}
+                aria-label="Tirar 1 ponto de vida"
+              >
                 −
               </button>
-              <input className="ink-input ink-input--number" type="number" min={0} value={draft.hpCurrent} onChange={(e) => edit({ hpCurrent: e.target.valueAsNumber })} aria-label="Pontos de vida atuais" />
+              <input
+                className="ink-input ink-input--number"
+                type="number"
+                min={0}
+                value={draft.hpCurrent}
+                onChange={(e) => edit({ hpCurrent: e.target.valueAsNumber })}
+                aria-label="Pontos de vida atuais"
+              />
               <span>de</span>
-              <input className="ink-input ink-input--number" type="number" min={1} value={draft.hpMax} onChange={(e) => edit({ hpMax: e.target.valueAsNumber })} aria-label="Pontos de vida máximos" />
-              <button type="button" className="round-step" onClick={() => edit({ hpCurrent: Math.min(draft.hpMax, draft.hpCurrent + 1) })} aria-label="Devolver 1 ponto de vida">
+              <input
+                className="ink-input ink-input--number"
+                type="number"
+                min={1}
+                value={draft.hpMax}
+                onChange={(e) => edit({ hpMax: e.target.valueAsNumber })}
+                aria-label="Pontos de vida máximos"
+              />
+              <button
+                type="button"
+                className="round-step"
+                onClick={() => edit({ hpCurrent: Math.min(draft.hpMax, draft.hpCurrent + 1) })}
+                aria-label="Devolver 1 ponto de vida"
+              >
                 +
               </button>
             </div>
@@ -199,10 +242,21 @@ export function CharacterSheetPage({ id }: { id: string }) {
       case "backpack":
         return (
           <div className="vital">
-            <Backpack maxItems={draft.maxItems >= 0 ? draft.maxItems : 0} delivered={delivered} reserved={reserved} />
+            <Backpack
+              maxItems={draft.maxItems >= 0 ? draft.maxItems : 0}
+              delivered={delivered}
+              reserved={reserved}
+            />
             <label className="vital__row">
               <span>Espaços</span>
-              <input className="ink-input ink-input--number" type="number" min={0} max={1000} value={draft.maxItems} onChange={(e) => edit({ maxItems: e.target.valueAsNumber })} />
+              <input
+                className="ink-input ink-input--number"
+                type="number"
+                min={0}
+                max={1000}
+                value={draft.maxItems}
+                onChange={(e) => edit({ maxItems: e.target.valueAsNumber })}
+              />
             </label>
             {holds.length > 0 && (
               <ul className="holds">
@@ -217,7 +271,14 @@ export function CharacterSheetPage({ id }: { id: string }) {
           </div>
         );
       case "attributes":
-        return <StatsEditor variant="boxes" noun="atributo" stats={draft.attributes} onChange={(attributes) => edit({ attributes })} />;
+        return (
+          <StatsEditor
+            variant="boxes"
+            noun="atributo"
+            stats={draft.attributes}
+            onChange={(attributes) => edit({ attributes })}
+          />
+        );
       case "skills":
         return (
           <StatsEditor
@@ -263,7 +324,10 @@ export function CharacterSheetPage({ id }: { id: string }) {
       if (error instanceof ApiError && error.status === 412) {
         setStale(true);
       } else {
-        toast("error", error instanceof ApiError ? error.message : "Não foi possível salvar as alterações.");
+        toast(
+          "error",
+          error instanceof ApiError ? error.message : "Não foi possível salvar as alterações.",
+        );
       }
     } finally {
       setSaving(false);
@@ -274,7 +338,8 @@ export function CharacterSheetPage({ id }: { id: string }) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!PORTRAIT_TYPES.includes(file.type)) return toast("error", "O retrato precisa ser PNG, JPEG ou WebP.");
+    if (!PORTRAIT_TYPES.includes(file.type))
+      return toast("error", "O retrato precisa ser PNG, JPEG ou WebP.");
     if (file.size > PORTRAIT_MAX_BYTES) return toast("error", "O retrato pode ter até 2 MB.");
     setUploading(true);
     try {
@@ -282,7 +347,10 @@ export function CharacterSheetPage({ id }: { id: string }) {
       setCharacter(updated); // a versão mudou; o rascunho em edição continua como está
       toast("ok", "Retrato enviado.");
     } catch (error) {
-      toast("error", error instanceof ApiError ? error.message : "Não foi possível enviar o retrato.");
+      toast(
+        "error",
+        error instanceof ApiError ? error.message : "Não foi possível enviar o retrato.",
+      );
     } finally {
       setUploading(false);
     }
@@ -297,9 +365,26 @@ export function CharacterSheetPage({ id }: { id: string }) {
       <Paper>
         <header className="sheet__identity">
           <div className="portrait">
-            <div className="portrait__frame">{portrait ? <img src={portrait} alt={`Retrato de ${character.name}`} /> : <Initials name={draft.name} />}</div>
-            <input ref={fileInput} type="file" accept={PORTRAIT_TYPES.join(",")} hidden onChange={onPortraitChosen} />
-            <button type="button" className="text-button" onClick={() => fileInput.current?.click()} disabled={uploading}>
+            <div className="portrait__frame">
+              {portrait ? (
+                <img src={portrait} alt={`Retrato de ${character.name}`} />
+              ) : (
+                <Initials name={draft.name} />
+              )}
+            </div>
+            <input
+              ref={fileInput}
+              type="file"
+              accept={PORTRAIT_TYPES.join(",")}
+              hidden
+              onChange={onPortraitChosen}
+            />
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => fileInput.current?.click()}
+              disabled={uploading}
+            >
               {uploading ? "Enviando…" : portrait ? "Trocar retrato" : "Enviar retrato"}
             </button>
           </div>
@@ -323,15 +408,28 @@ export function CharacterSheetPage({ id }: { id: string }) {
             <div className="sheet__meta">
               <span>Campanha {character.campaignId}</span>
               <label className="switch">
-                <input type="checkbox" checked={draft.active} onChange={(e) => edit({ active: e.target.checked })} />
-                <span>{draft.active ? "Ativo: pode receber itens" : "Inativo: não recebe itens"}</span>
+                <input
+                  type="checkbox"
+                  checked={draft.active}
+                  onChange={(e) => edit({ active: e.target.checked })}
+                />
+                <span>
+                  {draft.active ? "Ativo: pode receber itens" : "Inativo: não recebe itens"}
+                </span>
               </label>
             </div>
           </div>
         </header>
 
         <div className="sheet__toolbar">
-          <button type="button" className="text-button" onClick={() => { setOrganizing(!showTools); setMenuAt(null); }}>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => {
+              setOrganizing(!showTools);
+              setMenuAt(null);
+            }}
+          >
             {showTools ? "Concluir organização" : "Organizar ficha"}
           </button>
         </div>
@@ -358,16 +456,34 @@ export function CharacterSheetPage({ id }: { id: string }) {
                       )}
                       {showTools && (
                         <span className="block__tools">
-                          <button type="button" onClick={() => moveBlock(col, index, -1)} disabled={index === 0} aria-label="Mover bloco para cima">
+                          <button
+                            type="button"
+                            onClick={() => moveBlock(col, index, -1)}
+                            disabled={index === 0}
+                            aria-label="Mover bloco para cima"
+                          >
                             ↑
                           </button>
-                          <button type="button" onClick={() => moveBlock(col, index, 1)} disabled={index === column.length - 1} aria-label="Mover bloco para baixo">
+                          <button
+                            type="button"
+                            onClick={() => moveBlock(col, index, 1)}
+                            disabled={index === column.length - 1}
+                            aria-label="Mover bloco para baixo"
+                          >
                             ↓
                           </button>
-                          <button type="button" onClick={() => switchColumn(col, index)} aria-label="Mover bloco para a outra coluna">
+                          <button
+                            type="button"
+                            onClick={() => switchColumn(col, index)}
+                            aria-label="Mover bloco para a outra coluna"
+                          >
                             ⇄
                           </button>
-                          <button type="button" onClick={() => removeBlock(col, index)} aria-label="Remover bloco">
+                          <button
+                            type="button"
+                            onClick={() => removeBlock(col, index)}
+                            aria-label="Remover bloco"
+                          >
                             ×
                           </button>
                         </span>
@@ -382,7 +498,12 @@ export function CharacterSheetPage({ id }: { id: string }) {
 
               {showTools && (
                 <div className="add-block">
-                  <button type="button" className="add-block__button" onClick={() => setMenuAt(menuAt === col ? null : col)} aria-expanded={menuAt === col}>
+                  <button
+                    type="button"
+                    className="add-block__button"
+                    onClick={() => setMenuAt(menuAt === col ? null : col)}
+                    aria-expanded={menuAt === col}
+                  >
                     Adicionar bloco
                   </button>
                   {menuAt === col && (
@@ -391,7 +512,11 @@ export function CharacterSheetPage({ id }: { id: string }) {
                         const taken = SINGLETON_BLOCKS.includes(type) && present.has(type);
                         return (
                           <li key={type}>
-                            <button type="button" disabled={taken} onClick={() => addBlock(col, type)}>
+                            <button
+                              type="button"
+                              disabled={taken}
+                              onClick={() => addBlock(col, type)}
+                            >
                               <strong>{BLOCK_TITLES[type]}</strong>
                               <span>{taken ? "Já está na ficha" : hint}</span>
                             </button>
@@ -411,7 +536,10 @@ export function CharacterSheetPage({ id }: { id: string }) {
         <div className="save-bar" role="region" aria-label="Alterações não salvas">
           {stale ? (
             <>
-              <p>A ficha foi alterada em outro lugar depois que você abriu. Recarregue para ver a versão atual.</p>
+              <p>
+                A ficha foi alterada em outro lugar depois que você abriu. Recarregue para ver a
+                versão atual.
+              </p>
               <button type="button" className="button button--brass" onClick={() => void load()}>
                 Recarregar ficha
               </button>
@@ -419,10 +547,20 @@ export function CharacterSheetPage({ id }: { id: string }) {
           ) : (
             <>
               <p>{problem || "Há alterações que ainda não foram salvas."}</p>
-              <button type="button" className="button button--ghost-felt" onClick={() => setDraft(toDraft(character))} disabled={saving}>
+              <button
+                type="button"
+                className="button button--ghost-felt"
+                onClick={() => setDraft(toDraft(character))}
+                disabled={saving}
+              >
                 Descartar
               </button>
-              <button type="button" className="button button--brass" onClick={() => void save()} disabled={saving || Boolean(problem)}>
+              <button
+                type="button"
+                className="button button--brass"
+                onClick={() => void save()}
+                disabled={saving || Boolean(problem)}
+              >
                 {saving ? "Salvando…" : "Salvar alterações"}
               </button>
             </>

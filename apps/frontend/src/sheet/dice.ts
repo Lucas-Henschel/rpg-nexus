@@ -43,5 +43,11 @@ let nextId = 1;
 
 export function roll(label: string, formula: DiceFormula): RollResult {
   const dice = Array.from({ length: formula.count }, () => rollDie(formula.sides));
-  return { id: nextId++, label, formula, dice, total: dice.reduce((sum, value) => sum + value, 0) + formula.bonus };
+  return {
+    id: nextId++,
+    label,
+    formula,
+    dice,
+    total: dice.reduce((sum, value) => sum + value, 0) + formula.bonus,
+  };
 }

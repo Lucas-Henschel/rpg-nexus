@@ -10,7 +10,8 @@ interface Props {
   onChange: (data: Data) => void;
 }
 
-const asNumber = (value: unknown, fallback: number) => (typeof value === "number" && Number.isFinite(value) ? value : fallback);
+const asNumber = (value: unknown, fallback: number) =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
 const asString = (value: unknown) => (typeof value === "string" ? value : "");
 
 function onEnter(action: () => void) {
@@ -46,17 +47,48 @@ export function CounterBlock({ title, data, onChange }: Props) {
   };
   return (
     <div className="counter">
-      <div className="counter__bar" role="img" aria-label={`${title || "Contador"}: ${current} de ${max}`}>
-        <div className="counter__fill" style={{ width: `${max > 0 ? (current / max) * 100 : 0}%` }} />
+      <div
+        className="counter__bar"
+        role="img"
+        aria-label={`${title || "Contador"}: ${current} de ${max}`}
+      >
+        <div
+          className="counter__fill"
+          style={{ width: `${max > 0 ? (current / max) * 100 : 0}%` }}
+        />
       </div>
       <div className="vital__row">
-        <button type="button" className="round-step" onClick={() => set(current - 1)} aria-label="Diminuir 1">
+        <button
+          type="button"
+          className="round-step"
+          onClick={() => set(current - 1)}
+          aria-label="Diminuir 1"
+        >
           −
         </button>
-        <input className="ink-input ink-input--number" type="number" min={0} value={current} onChange={(e) => set(e.target.valueAsNumber)} aria-label="Valor atual" />
+        <input
+          className="ink-input ink-input--number"
+          type="number"
+          min={0}
+          value={current}
+          onChange={(e) => set(e.target.valueAsNumber)}
+          aria-label="Valor atual"
+        />
         <span>de</span>
-        <input className="ink-input ink-input--number" type="number" min={0} value={max} onChange={(e) => set(current, e.target.valueAsNumber)} aria-label="Valor máximo" />
-        <button type="button" className="round-step" onClick={() => set(current + 1)} aria-label="Aumentar 1">
+        <input
+          className="ink-input ink-input--number"
+          type="number"
+          min={0}
+          value={max}
+          onChange={(e) => set(current, e.target.valueAsNumber)}
+          aria-label="Valor máximo"
+        />
+        <button
+          type="button"
+          className="round-step"
+          onClick={() => set(current + 1)}
+          aria-label="Aumentar 1"
+        >
           +
         </button>
       </div>
@@ -65,7 +97,9 @@ export function CounterBlock({ title, data, onChange }: Props) {
 }
 
 export function ListBlock({ data, onChange }: Props) {
-  const items = Array.isArray(data.items) ? data.items.filter((item): item is string => typeof item === "string") : [];
+  const items = Array.isArray(data.items)
+    ? data.items.filter((item): item is string => typeof item === "string")
+    : [];
   const [text, setText] = useState("");
   const add = () => {
     const value = text.trim();
@@ -80,7 +114,12 @@ export function ListBlock({ data, onChange }: Props) {
           {items.map((item, index) => (
             <li key={`${index}-${item}`}>
               <span>{item}</span>
-              <button type="button" className="stat-row__remove" onClick={() => onChange({ items: items.filter((_, i) => i !== index) })} aria-label={`Remover ${item}`}>
+              <button
+                type="button"
+                className="stat-row__remove"
+                onClick={() => onChange({ items: items.filter((_, i) => i !== index) })}
+                aria-label={`Remover ${item}`}
+              >
                 ×
               </button>
             </li>
@@ -88,7 +127,15 @@ export function ListBlock({ data, onChange }: Props) {
         </ul>
       )}
       <div className="stats__add">
-        <input className="ink-input" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onEnter(add)} placeholder="Novo item da lista" aria-label="Novo item da lista" maxLength={120} />
+        <input
+          className="ink-input"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={onEnter(add)}
+          placeholder="Novo item da lista"
+          aria-label="Novo item da lista"
+          maxLength={120}
+        />
         <button type="button" className="button button--ghost-ink" onClick={add}>
           Adicionar
         </button>
@@ -107,7 +154,9 @@ export function DiceBlock({ data, onChange }: Props) {
   const rolls: NamedRoll[] = Array.isArray(data.rolls)
     ? data.rolls.flatMap((entry) => {
         const item = entry as Partial<NamedRoll> | null;
-        return item && typeof item.label === "string" && typeof item.expr === "string" ? [{ label: item.label, expr: item.expr }] : [];
+        return item && typeof item.label === "string" && typeof item.expr === "string"
+          ? [{ label: item.label, expr: item.expr }]
+          : [];
       })
     : [];
   const [label, setLabel] = useState("");
@@ -118,7 +167,9 @@ export function DiceBlock({ data, onChange }: Props) {
     if (!label.trim()) return setProblem("Dê um nome para a rolagem.");
     if (!parseFormula(expr)) return setProblem("Escreva os dados como d20, 2d6+3 ou 1d8-1.");
     if (rolls.length >= 30) return setProblem("Cada bloco comporta até 30 rolagens.");
-    onChange({ rolls: [...rolls, { label: label.trim(), expr: expr.replace(/\s+/g, "").toLowerCase() }] });
+    onChange({
+      rolls: [...rolls, { label: label.trim(), expr: expr.replace(/\s+/g, "").toLowerCase() }],
+    });
     setLabel("");
     setExpr("");
     setProblem("");
@@ -133,11 +184,20 @@ export function DiceBlock({ data, onChange }: Props) {
               <span className="stat-row__name">{item.label}</span>
               <span className="stat-row__dots" aria-hidden="true" />
               <span className="roll-formula">{item.expr}</span>
-              <button type="button" className="roll-button roll-button--text" onClick={() => rollDice(item.label, item.expr)}>
+              <button
+                type="button"
+                className="roll-button roll-button--text"
+                onClick={() => rollDice(item.label, item.expr)}
+              >
                 <DieIcon sides={20} />
                 Rolar
               </button>
-              <button type="button" className="stat-row__remove" onClick={() => onChange({ rolls: rolls.filter((_, i) => i !== index) })} aria-label={`Remover ${item.label}`}>
+              <button
+                type="button"
+                className="stat-row__remove"
+                onClick={() => onChange({ rolls: rolls.filter((_, i) => i !== index) })}
+                aria-label={`Remover ${item.label}`}
+              >
                 ×
               </button>
             </li>
@@ -145,8 +205,25 @@ export function DiceBlock({ data, onChange }: Props) {
         </ul>
       )}
       <div className="stats__add stats__add--roll">
-        <input className="ink-input" value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={onEnter(add)} placeholder="Ex.: Ataque de espada" aria-label="Nome da rolagem" maxLength={60} />
-        <input className="ink-input roll-input" value={expr} onChange={(e) => setExpr(e.target.value)} onKeyDown={onEnter(add)} placeholder="1d20+5" aria-label="Dados da rolagem" maxLength={12} spellCheck={false} />
+        <input
+          className="ink-input"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          onKeyDown={onEnter(add)}
+          placeholder="Ex.: Ataque de espada"
+          aria-label="Nome da rolagem"
+          maxLength={60}
+        />
+        <input
+          className="ink-input roll-input"
+          value={expr}
+          onChange={(e) => setExpr(e.target.value)}
+          onKeyDown={onEnter(add)}
+          placeholder="1d20+5"
+          aria-label="Dados da rolagem"
+          maxLength={12}
+          spellCheck={false}
+        />
         <button type="button" className="button button--ghost-ink" onClick={add}>
           Adicionar
         </button>

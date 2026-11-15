@@ -15,7 +15,9 @@ async function ping(url: string): Promise<boolean> {
 /** Consulta GET /health de cada serviço a cada 10 s. */
 export function useServiceHealth(): Record<ServiceKey, Health> {
   const keys = Object.keys(services) as ServiceKey[];
-  const [state, setState] = useState(() => Object.fromEntries(keys.map((k) => [k, "checking"])) as Record<ServiceKey, Health>);
+  const [state, setState] = useState(
+    () => Object.fromEntries(keys.map((k) => [k, "checking"])) as Record<ServiceKey, Health>,
+  );
 
   useEffect(() => {
     let alive = true;

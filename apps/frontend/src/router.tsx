@@ -1,5 +1,12 @@
 /** Roteador pequeno sobre a History API — evita uma dependência só para sete rotas. */
-import { createContext, useContext, useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 
 const PathContext = createContext("/");
 
@@ -45,7 +52,14 @@ interface LinkProps {
 
 export function Link({ to, className, children, ...rest }: LinkProps) {
   const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey
+    )
+      return;
     event.preventDefault();
     navigate(to);
   };

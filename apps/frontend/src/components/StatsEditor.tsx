@@ -15,7 +15,15 @@ interface Props {
   onRoll?: (key: string, value: number) => void;
 }
 
-export function StatsEditor({ variant, stats, onChange, noun, min = -1000, max = 1000, onRoll }: Props) {
+export function StatsEditor({
+  variant,
+  stats,
+  onChange,
+  noun,
+  min = -1000,
+  max = 1000,
+  onRoll,
+}: Props) {
   const [name, setName] = useState("");
   const [problem, setProblem] = useState("");
   const entries = Object.entries(stats);
@@ -31,7 +39,10 @@ export function StatsEditor({ variant, stats, onChange, noun, min = -1000, max =
   };
   const add = () => {
     const key = toKey(name);
-    if (!key) return setProblem(`Dê um nome para ${noun === "perícia" ? "a" : "o"} ${noun}, começando por uma letra.`);
+    if (!key)
+      return setProblem(
+        `Dê um nome para ${noun === "perícia" ? "a" : "o"} ${noun}, começando por uma letra.`,
+      );
     if (key in stats) return setProblem(`${toLabel(key)} já está na ficha.`);
     if (entries.length >= 64) return setProblem("A ficha comporta até 64 entradas.");
     onChange({ ...stats, [key]: variant === "boxes" ? 10 : 0 });
@@ -60,14 +71,27 @@ export function StatsEditor({ variant, stats, onChange, noun, min = -1000, max =
                 onChange={(e) => set(key, e.target.valueAsNumber)}
               />
               <span className="stat-box__steps">
-                <button type="button" onClick={() => set(key, value - 1)} aria-label={`Diminuir ${toLabel(key)}`}>
+                <button
+                  type="button"
+                  onClick={() => set(key, value - 1)}
+                  aria-label={`Diminuir ${toLabel(key)}`}
+                >
                   −
                 </button>
-                <button type="button" onClick={() => set(key, value + 1)} aria-label={`Aumentar ${toLabel(key)}`}>
+                <button
+                  type="button"
+                  onClick={() => set(key, value + 1)}
+                  aria-label={`Aumentar ${toLabel(key)}`}
+                >
                   +
                 </button>
               </span>
-              <button type="button" className="stat-box__remove" onClick={() => remove(key)} aria-label={`Remover ${toLabel(key)}`}>
+              <button
+                type="button"
+                className="stat-box__remove"
+                onClick={() => remove(key)}
+                aria-label={`Remover ${toLabel(key)}`}
+              >
                 ×
               </button>
             </li>
@@ -80,25 +104,49 @@ export function StatsEditor({ variant, stats, onChange, noun, min = -1000, max =
               <span className="stat-row__name">{toLabel(key)}</span>
               <span className="stat-row__dots" aria-hidden="true" />
               {onRoll && (
-                <button type="button" className="roll-button" onClick={() => onRoll(key, value)} aria-label={`Rolar ${toLabel(key)}: d20 ${signed(value)}`}>
+                <button
+                  type="button"
+                  className="roll-button"
+                  onClick={() => onRoll(key, value)}
+                  aria-label={`Rolar ${toLabel(key)}: d20 ${signed(value)}`}
+                >
                   <DieIcon sides={20} />
                 </button>
               )}
-              <button type="button" className="stat-row__step" onClick={() => set(key, value - 1)} aria-label={`Diminuir ${toLabel(key)}`}>
+              <button
+                type="button"
+                className="stat-row__step"
+                onClick={() => set(key, value - 1)}
+                aria-label={`Diminuir ${toLabel(key)}`}
+              >
                 −
               </button>
               <output className="stat-row__value">{signed(value)}</output>
-              <button type="button" className="stat-row__step" onClick={() => set(key, value + 1)} aria-label={`Aumentar ${toLabel(key)}`}>
+              <button
+                type="button"
+                className="stat-row__step"
+                onClick={() => set(key, value + 1)}
+                aria-label={`Aumentar ${toLabel(key)}`}
+              >
                 +
               </button>
-              <button type="button" className="stat-row__remove" onClick={() => remove(key)} aria-label={`Remover ${toLabel(key)}`}>
+              <button
+                type="button"
+                className="stat-row__remove"
+                onClick={() => remove(key)}
+                aria-label={`Remover ${toLabel(key)}`}
+              >
                 ×
               </button>
             </li>
           ))}
         </ul>
       )}
-      {entries.length === 0 && <p className="stats__empty">Nenhum{noun === "perícia" ? "a" : ""} {noun} ainda.</p>}
+      {entries.length === 0 && (
+        <p className="stats__empty">
+          Nenhum{noun === "perícia" ? "a" : ""} {noun} ainda.
+        </p>
+      )}
       {/* div, e não form: este editor também é usado dentro do formulário de criação */}
       <div className="stats__add">
         <input

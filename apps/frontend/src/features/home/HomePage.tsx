@@ -5,14 +5,22 @@ import { services, type ServiceKey } from "../../config";
 import { signed, toLabel } from "../../labels";
 import { Link } from "../../router";
 
-const SAMPLE_ATTRIBUTES: Record<string, number> = { forca: 9, destreza: 17, constituicao: 12, inteligencia: 13, sabedoria: 11, carisma: 15 };
+const SAMPLE_ATTRIBUTES: Record<string, number> = {
+  forca: 9,
+  destreza: 17,
+  constituicao: 12,
+  inteligencia: 13,
+  sabedoria: 11,
+  carisma: 15,
+};
 const SAMPLE_SKILLS: Record<string, number> = { furtividade: 5, enganacao: 4, percepcao: 2 };
 
 /** Ficha de exemplo do topo da página. Os números mudam só aqui, nada é salvo. */
 function SampleSheet() {
   const [attributes, setAttributes] = useState(SAMPLE_ATTRIBUTES);
   const [hp, setHp] = useState(14);
-  const bump = (key: string, by: number) => setAttributes((prev) => ({ ...prev, [key]: prev[key] + by }));
+  const bump = (key: string, by: number) =>
+    setAttributes((prev) => ({ ...prev, [key]: prev[key] + by }));
 
   return (
     <Paper className="paper--sample">
@@ -32,11 +40,19 @@ function SampleSheet() {
         <span className="sheet-label">Pontos de vida</span>
         <HpBar current={hp} max={22} />
         <span className="sample__hp-controls">
-          <button type="button" onClick={() => setHp((v) => Math.max(0, v - 1))} aria-label="Tirar 1 ponto de vida">
+          <button
+            type="button"
+            onClick={() => setHp((v) => Math.max(0, v - 1))}
+            aria-label="Tirar 1 ponto de vida"
+          >
             −
           </button>
           <strong>{hp} / 22</strong>
-          <button type="button" onClick={() => setHp((v) => Math.min(22, v + 1))} aria-label="Devolver 1 ponto de vida">
+          <button
+            type="button"
+            onClick={() => setHp((v) => Math.min(22, v + 1))}
+            aria-label="Devolver 1 ponto de vida"
+          >
             +
           </button>
         </span>
@@ -48,10 +64,18 @@ function SampleSheet() {
             <span className="stat-box__name">{toLabel(key)}</span>
             <span className="stat-box__value">{value}</span>
             <span className="stat-box__steps">
-              <button type="button" onClick={() => bump(key, -1)} aria-label={`Diminuir ${toLabel(key)}`}>
+              <button
+                type="button"
+                onClick={() => bump(key, -1)}
+                aria-label={`Diminuir ${toLabel(key)}`}
+              >
                 −
               </button>
-              <button type="button" onClick={() => bump(key, 1)} aria-label={`Aumentar ${toLabel(key)}`}>
+              <button
+                type="button"
+                onClick={() => bump(key, 1)}
+                aria-label={`Aumentar ${toLabel(key)}`}
+              >
                 +
               </button>
             </span>
@@ -76,38 +100,43 @@ function SampleSheet() {
   );
 }
 
-const JOURNEY: { title: string; text: string; to: string; action: string; service: ServiceKey }[] = [
-  {
-    title: "Monte a ficha",
-    text: "Dê nome ao personagem, escolha os atributos e as perícias que a sua mesa usa e envie um retrato.",
-    to: "/personagens/novo",
-    action: "Criar personagem",
-    service: "characters",
-  },
-  {
-    title: "Reúna a campanha",
-    text: "Quem mestra abre a campanha e chama os personagens que vão jogar nela.",
-    to: "/campanhas",
-    action: "Ver campanhas",
-    service: "campaigns",
-  },
-  {
-    title: "Dispute o item raro",
-    text: "Dez unidades no estoque, cem pedidos no mesmo segundo. Dez personagens levam, e ninguém leva em dobro.",
-    to: "/itens",
-    action: "Ver itens",
-    service: "inventory",
-  },
-  {
-    title: "Releia a história",
-    text: "Cada item entregue e cada pedido cancelado fica registrado na linha do tempo da campanha.",
-    to: "/historico",
-    action: "Ver histórico",
-    service: "actions",
-  },
-];
+const JOURNEY: { title: string; text: string; to: string; action: string; service: ServiceKey }[] =
+  [
+    {
+      title: "Monte a ficha",
+      text: "Dê nome ao personagem, escolha os atributos e as perícias que a sua mesa usa e envie um retrato.",
+      to: "/personagens/novo",
+      action: "Criar personagem",
+      service: "characters",
+    },
+    {
+      title: "Reúna a campanha",
+      text: "Quem mestra abre a campanha e chama os personagens que vão jogar nela.",
+      to: "/campanhas",
+      action: "Ver campanhas",
+      service: "campaigns",
+    },
+    {
+      title: "Dispute o item raro",
+      text: "Dez unidades no estoque, cem pedidos no mesmo segundo. Dez personagens levam, e ninguém leva em dobro.",
+      to: "/itens",
+      action: "Ver itens",
+      service: "inventory",
+    },
+    {
+      title: "Releia a história",
+      text: "Cada item entregue e cada pedido cancelado fica registrado na linha do tempo da campanha.",
+      to: "/historico",
+      action: "Ver histórico",
+      service: "actions",
+    },
+  ];
 
-const HEALTH_TEXT: Record<Health, string> = { checking: "verificando", up: "no ar", down: "fora do ar" };
+const HEALTH_TEXT: Record<Health, string> = {
+  checking: "verificando",
+  up: "no ar",
+  down: "fora do ar",
+};
 
 export function HomePage() {
   const health = useServiceHealth();
@@ -117,8 +146,8 @@ export function HomePage() {
         <div className="hero__copy">
           <h1 className="hero__title">A mesa inteira quer a mesma espada.</h1>
           <p className="hero__lead">
-            O RPG Nexus guarda a ficha de cada personagem, organiza a campanha e decide quem fica com o último item do
-            estoque quando todo mundo pede ao mesmo tempo.
+            O RPG Nexus guarda a ficha de cada personagem, organiza a campanha e decide quem fica
+            com o último item do estoque quando todo mundo pede ao mesmo tempo.
           </p>
           <div className="hero__actions">
             <Link to="/personagens/novo" className="button button--brass">
@@ -154,10 +183,13 @@ export function HomePage() {
         <div className="under__copy">
           <h2 className="section-title">Por baixo da mesa</h2>
           <p>
-            Quatro serviços independentes, cada um com o próprio banco de dados, conversam por mensagens. Se um deles
-            cai no meio de uma aquisição, o item volta para o estoque e a vaga volta para a mochila.
+            Quatro serviços independentes, cada um com o próprio banco de dados, conversam por
+            mensagens. Se um deles cai no meio de uma aquisição, o item volta para o estoque e a
+            vaga volta para a mochila.
           </p>
-          <p className="under__tech">Mensagens pelo RabbitMQ, dados no DynamoDB e retratos no S3.</p>
+          <p className="under__tech">
+            Mensagens pelo RabbitMQ, dados no DynamoDB e retratos no S3.
+          </p>
         </div>
         <ul className="under__services">
           {(Object.keys(services) as ServiceKey[]).map((key) => (

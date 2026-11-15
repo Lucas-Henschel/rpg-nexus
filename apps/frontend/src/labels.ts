@@ -22,7 +22,14 @@ const KNOWN: Record<string, string> = {
   prestidigitacao: "Prestidigitação",
 };
 
-export const CLASSIC_ATTRIBUTES = ["forca", "destreza", "constituicao", "inteligencia", "sabedoria", "carisma"];
+export const CLASSIC_ATTRIBUTES = [
+  "forca",
+  "destreza",
+  "constituicao",
+  "inteligencia",
+  "sabedoria",
+  "carisma",
+];
 
 export function toKey(typed: string): string {
   return typed

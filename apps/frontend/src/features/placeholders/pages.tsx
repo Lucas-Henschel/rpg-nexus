@@ -25,7 +25,8 @@ function ComingSoon({ title, lead, service, planned, endpoints }: Props) {
       <div className="blueprint">
         <p className="blueprint__state">
           Esta tela ainda não foi construída. O serviço de {info.name} ({info.stack}) está{" "}
-          {health === "up" ? "no ar" : health === "down" ? "fora do ar" : "sendo verificado"} em {info.url}.
+          {health === "up" ? "no ar" : health === "down" ? "fora do ar" : "sendo verificado"} em{" "}
+          {info.url}.
         </p>
         <h2 className="blueprint__heading">O que vai aparecer aqui</h2>
         <ul className="blueprint__list">
@@ -55,7 +56,11 @@ export function CampaignsPage() {
       title="Campanhas"
       lead="Onde quem mestra abre a campanha e reúne os personagens que vão jogar."
       service="campaigns"
-      planned={["Lista de campanhas e botão para criar uma nova", "Participantes de cada campanha", "Atividade recente: itens que os personagens conquistaram"]}
+      planned={[
+        "Lista de campanhas e botão para criar uma nova",
+        "Participantes de cada campanha",
+        "Atividade recente: itens que os personagens conquistaram",
+      ]}
       endpoints={["POST /campaigns", "GET /campaigns/{id}", "POST /campaigns/{id}/members"]}
     />
   );
@@ -72,7 +77,13 @@ export function ItemsPage() {
         "Botão para pedir um item e acompanhamento do pedido até a entrega ou o cancelamento",
         "Inventário de cada personagem",
       ]}
-      endpoints={["POST /items", "POST /stocks", "POST /acquisitions (responde 202 com operationId)", "GET /acquisitions/{operationId}", "GET /inventory/{characterId}"]}
+      endpoints={[
+        "POST /items",
+        "POST /stocks",
+        "POST /acquisitions (responde 202 com operationId)",
+        "GET /acquisitions/{operationId}",
+        "GET /inventory/{characterId}",
+      ]}
     />
   );
 }
@@ -83,7 +94,10 @@ export function HistoryPage() {
       title="Histórico"
       lead="A linha do tempo da campanha: quem ganhou o quê, e o que foi cancelado."
       service="actions"
-      planned={["Linha do tempo com cada item entregue e cada pedido cancelado", "Rolagem de dados simples, se sobrar tempo"]}
+      planned={[
+        "Linha do tempo com cada item entregue e cada pedido cancelado",
+        "Rolagem de dados simples, se sobrar tempo",
+      ]}
       endpoints={["GET /campaigns/{id}/history", "POST /rolls"]}
     />
   );
