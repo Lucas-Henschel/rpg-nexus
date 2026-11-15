@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
-import type { Character, Hold } from "../../api/characters";
-import { errorMessage, isConflict } from "../../api/http";
-import { Paper } from "../../components/Sheet";
-import { useToast } from "../../components/toast-context";
-import { Link } from "../../router";
+import type { Character, Hold } from "./api";
+import { errorMessage, isConflict } from "../../shared/http";
+import { Paper } from "../../shared/ui/Sheet";
+import { useToast } from "../../shared/ui/toast-context";
+import { Link } from "../../app/router";
 import { useCharacter, useHolds, useReloadCharacter, useSaveCharacter } from "./queries";
-import { SaveBar } from "./SaveBar";
-import { buildPatch, toDraft, validate, type Draft } from "./sheetDraft";
-import { SheetColumns } from "./SheetColumns";
-import { SheetIdentity } from "./SheetIdentity";
+import { SaveBar } from "./sheet/SaveBar";
+import { buildPatch, toDraft, validate, type Draft } from "./sheet/sheetDraft";
+import { SheetColumns } from "./sheet/SheetColumns";
+import { SheetIdentity } from "./sheet/SheetIdentity";
 
 /** Carrega a ficha e as reservas; a edição só começa com os dois em mãos. */
 export function CharacterSheetPage({ id }: { id: string }) {

@@ -1,6 +1,6 @@
 /** Rascunho da ficha em edição: de onde ele nasce, o que vai no PATCH e quando pode ser salvo. */
-import type { Character, CharacterPatch, Sheet, StatMap } from "../../api/characters";
-import { normalizeSheet } from "../../sheet/templates";
+import type { Character, CharacterPatch, Sheet, StatMap } from "../api";
+import { normalizeSheet } from "./templates";
 
 export interface Draft {
   name: string;

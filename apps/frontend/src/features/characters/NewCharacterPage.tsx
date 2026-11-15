@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from "react";
-import { createCharacter } from "../../api/characters";
-import { errorMessage } from "../../api/http";
-import { useCampaign } from "../../components/campaign";
-import { cx } from "../../components/cx";
-import { useToast } from "../../components/toast-context";
-import { navigate } from "../../navigation";
-import { Link } from "../../router";
-import { sheetFromTemplate, TEMPLATES, type Template } from "../../sheet/templates";
+import { createCharacter } from "./api";
+import { errorMessage } from "../../shared/http";
+import { useCampaign } from "../../shared/campaign";
+import { cx } from "../../shared/ui/cx";
+import { useToast } from "../../shared/ui/toast-context";
+import { navigate } from "../../app/navigation";
+import { Link } from "../../app/router";
+import { sheetFromTemplate, TEMPLATES, type Template } from "./sheet/templates";
 
 function TemplateIcon({ icon }: { icon: Template["icon"] }) {
   const paths: Record<Template["icon"], string> = {

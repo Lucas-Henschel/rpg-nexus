@@ -1,6 +1,6 @@
 /** Adaptador tipado do S2 Personagens. As telas nunca chamam fetch direto. */
-import { services } from "../config";
-import { jsonBody, request } from "./http";
+import { services } from "../../shared/config";
+import { jsonBody, request } from "../../shared/http";
 
 const base = services.characters.url;
 

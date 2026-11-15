@@ -1,5 +1,5 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { services, type ServiceKey } from "../config";
+import { services, type ServiceKey } from "./config";
 
 export type Health = "checking" | "up" | "down";
 

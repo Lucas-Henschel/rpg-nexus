@@ -1,10 +1,10 @@
 /** Blocos livres da ficha: o conteúdo de cada um fica em block.data e é salvo junto com a ficha. */
 import { useState } from "react";
-import { CurrentOfMax } from "../../components/CurrentOfMax";
-import { useDice } from "../../components/dice-context";
-import { DieIcon } from "../../components/DiceTray";
-import { onEnter } from "../../components/onEnter";
-import { parseFormula } from "../../sheet/dice";
+import { CurrentOfMax } from "../../../shared/ui/CurrentOfMax";
+import { useDice } from "../../dice/dice-context";
+import { DieIcon } from "../../dice/DiceTray";
+import { onEnter } from "../../../shared/ui/onEnter";
+import { parseFormula } from "../../dice/dice";
 
 type Data = Record<string, unknown>;
 interface Props {

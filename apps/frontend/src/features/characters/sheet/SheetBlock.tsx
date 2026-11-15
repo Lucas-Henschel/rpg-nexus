@@ -1,9 +1,9 @@
 /** Um bloco da ficha: cabeçalho com título e ferramentas de organização, e o conteúdo do tipo dele. */
-import type { Character, Hold, SheetBlock as Block } from "../../api/characters";
-import { useDice } from "../../components/dice-context";
-import { StatsEditor } from "../../components/StatsEditor";
-import { toLabel } from "../../labels";
-import { BLOCK_TITLES, SINGLETON_BLOCKS } from "../../sheet/templates";
+import type { Character, Hold, SheetBlock as Block } from "../api";
+import { useDice } from "../../dice/dice-context";
+import { StatsEditor } from "./StatsEditor";
+import { toLabel } from "../../../shared/labels";
+import { BLOCK_TITLES, SINGLETON_BLOCKS } from "./templates";
 import { CounterBlock, DiceBlock, ListBlock, TextBlock } from "./FreeBlocks";
 import type { Draft } from "./sheetDraft";
 import { BackpackBlock, HpBlock } from "./VitalBlocks";

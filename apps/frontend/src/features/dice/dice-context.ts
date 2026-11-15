@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { DiceFormula } from "../sheet/dice";
+import type { DiceFormula } from "./dice";
 
 export type RollDice = (label: string, formula: string | DiceFormula) => void;
 

@@ -1,7 +1,7 @@
 /** As duas colunas de blocos da ficha e o modo "Organizar ficha" (mover, remover e adicionar). */
 import { useState } from "react";
-import type { BlockType, Character, Hold } from "../../api/characters";
-import { BLOCK_TITLES, SINGLETON_BLOCKS } from "../../sheet/templates";
+import type { BlockType, Character, Hold } from "../api";
+import { BLOCK_TITLES, SINGLETON_BLOCKS } from "./templates";
 import { SheetBlock } from "./SheetBlock";
 import type { Draft } from "./sheetDraft";
 import {

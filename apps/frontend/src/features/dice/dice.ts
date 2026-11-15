@@ -1,5 +1,5 @@
 /** Rolagens no formato NdM+K (ex.: "d20", "2d6+3", "1d8-1"). */
-import { signed } from "../labels";
+import { signed } from "../../shared/labels";
 
 export interface DiceFormula {
   count: number;

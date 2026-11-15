@@ -2,7 +2,7 @@
  * Modelos de ficha. São pontos de partida genéricos: depois de criar, tudo pode ser mudado na ficha.
  * Nenhum modelo aplica regras de um sistema comercial; eles só sugerem blocos e nomes.
  */
-import type { BlockType, Sheet, SheetBlock, StatMap } from "../api/characters";
+import type { BlockType, Sheet, SheetBlock, StatMap } from "../api";
 
 export interface Template {
   id: string;

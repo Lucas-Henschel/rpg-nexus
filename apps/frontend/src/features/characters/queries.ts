@@ -8,7 +8,7 @@ import {
   uploadPortrait,
   type Character,
   type CharacterPatch,
-} from "../../api/characters";
+} from "./api";
 
 export const characterKeys = {
   list: (campaignId: string) => ["characters", "list", campaignId] as const,

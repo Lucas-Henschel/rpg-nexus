@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useAllServicesHealth, type Health } from "../../api/health";
-import { Backpack, HpBar, Paper } from "../../components/Sheet";
-import { services, type ServiceKey } from "../../config";
-import { signed, toLabel } from "../../labels";
-import { Link } from "../../router";
+import { useAllServicesHealth, type Health } from "../../shared/health";
+import { Backpack, HpBar, Paper } from "../../shared/ui/Sheet";
+import { services, type ServiceKey } from "../../shared/config";
+import { signed, toLabel } from "../../shared/labels";
+import { Link } from "../../app/router";
 
 const SAMPLE_ATTRIBUTES: Record<string, number> = {
   forca: 9,

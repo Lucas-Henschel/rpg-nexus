@@ -1,5 +1,5 @@
-import { usePath } from "../navigation";
-import { Link } from "../router";
+import { usePath } from "./navigation";
+import { Link } from "./router";
 
 const NAV = [
   { to: "/personagens", label: "Personagens" },

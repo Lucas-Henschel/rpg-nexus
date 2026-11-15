@@ -4,8 +4,8 @@
  * de roll() em rollDice por uma requisição a ele; o resto da bandeja não muda.
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { formatFormula, parseFormula, roll, rollDie, type RollResult } from "../sheet/dice";
-import { cx } from "./cx";
+import { formatFormula, parseFormula, roll, rollDie, type RollResult } from "./dice";
+import { cx } from "../../shared/ui/cx";
 import { DiceContext, type RollDice } from "./dice-context";
 
 const TUMBLE_MS = 950;

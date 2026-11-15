@@ -1,7 +1,7 @@
 /** Blocos ligados a campos fixos do personagem: pontos de vida e mochila. */
-import type { Hold } from "../../api/characters";
-import { CurrentOfMax } from "../../components/CurrentOfMax";
-import { Backpack, HpBar } from "../../components/Sheet";
+import type { Hold } from "../api";
+import { CurrentOfMax } from "../../../shared/ui/CurrentOfMax";
+import { Backpack, HpBar } from "../../../shared/ui/Sheet";
 
 const HP_LABELS = {
   less: "Tirar 1 ponto de vida",

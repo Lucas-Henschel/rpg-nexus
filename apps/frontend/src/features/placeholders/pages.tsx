@@ -1,11 +1,12 @@
 /**
  * Áreas dos outros integrantes. Cada página diz o que vai existir ali e quais chamadas a tela vai usar,
  * para quem for implementar ter um ponto de partida. Ao implementar, mova a página para
- * src/features/<area>/ e crie o adaptador em src/api/<area>.ts, como em src/api/characters.ts.
+ * src/features/<area>/ e crie o adaptador em src/features/<area>/api.ts, como em
+ * src/features/characters/api.ts.
  */
-import { useServiceHealth, type Health } from "../../api/health";
-import { services, type ServiceKey } from "../../config";
-import { Link } from "../../router";
+import { useServiceHealth, type Health } from "../../shared/health";
+import { services, type ServiceKey } from "../../shared/config";
+import { Link } from "../../app/router";
 
 const HEALTH_TEXT: Record<Health, string> = {
   checking: "sendo verificado",

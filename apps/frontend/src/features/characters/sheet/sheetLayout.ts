@@ -1,6 +1,6 @@
 /** Operações nas colunas de blocos da ficha. Todas devolvem colunas novas e não mexem nas recebidas. */
-import type { BlockType, SheetBlock } from "../../api/characters";
-import { block } from "../../sheet/templates";
+import type { BlockType, SheetBlock } from "../api";
+import { block } from "./templates";
 
 export type Columns = SheetBlock[][];
 

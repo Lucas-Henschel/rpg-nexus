@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from "react";
-import { portraitUrl, type Character } from "../../api/characters";
-import { errorMessage } from "../../api/http";
-import { CAMPAIGN_PATTERN, useCampaign } from "../../components/campaign";
-import { cx } from "../../components/cx";
-import { HpBar, Initials } from "../../components/Sheet";
-import { toLabel } from "../../labels";
-import { Link } from "../../router";
+import { portraitUrl, type Character } from "./api";
+import { errorMessage } from "../../shared/http";
+import { CAMPAIGN_PATTERN, useCampaign } from "../../shared/campaign";
+import { cx } from "../../shared/ui/cx";
+import { HpBar, Initials } from "../../shared/ui/Sheet";
+import { toLabel } from "../../shared/labels";
+import { Link } from "../../app/router";
 import { useCharacters } from "./queries";
 
 function CharacterTile({ character }: { character: Character }) {

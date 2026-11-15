@@ -1,8 +1,8 @@
 import { useState } from "react";
-import type { StatMap } from "../api/characters";
-import { signed, toKey, toLabel } from "../labels";
-import { DieIcon } from "./DiceTray";
-import { onEnter } from "./onEnter";
+import type { StatMap } from "../api";
+import { signed, toKey, toLabel } from "../../../shared/labels";
+import { DieIcon } from "../../dice/DiceTray";
+import { onEnter } from "../../../shared/ui/onEnter";
 
 type Kind = "attributes" | "skills";
 

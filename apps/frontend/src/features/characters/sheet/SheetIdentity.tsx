@@ -1,15 +1,10 @@
 /** Topo da ficha: retrato, nome, história e se o personagem está ativo. */
 import { useRef, type ChangeEvent } from "react";
-import {
-  PORTRAIT_MAX_BYTES,
-  PORTRAIT_TYPES,
-  portraitUrl,
-  type Character,
-} from "../../api/characters";
-import { errorMessage } from "../../api/http";
-import { Initials } from "../../components/Sheet";
-import { useToast } from "../../components/toast-context";
-import { useUploadPortrait } from "./queries";
+import { PORTRAIT_MAX_BYTES, PORTRAIT_TYPES, portraitUrl, type Character } from "../api";
+import { errorMessage } from "../../../shared/http";
+import { Initials } from "../../../shared/ui/Sheet";
+import { useToast } from "../../../shared/ui/toast-context";
+import { useUploadPortrait } from "../queries";
 import type { Draft } from "./sheetDraft";
 
 /** O retrato é enviado na hora, separado do botão de salvar. */
