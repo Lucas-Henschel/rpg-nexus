@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useServiceHealth, type Health } from "../../api/health";
+import { useAllServicesHealth, type Health } from "../../api/health";
 import { Backpack, HpBar, Paper } from "../../components/Sheet";
 import { services, type ServiceKey } from "../../config";
 import { signed, toLabel } from "../../labels";
@@ -139,7 +139,7 @@ const HEALTH_TEXT: Record<Health, string> = {
 };
 
 export function HomePage() {
-  const health = useServiceHealth();
+  const health = useAllServicesHealth();
   return (
     <main>
       <section className="hero">

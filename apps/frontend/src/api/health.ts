@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { services, type ServiceKey } from "../config";
 
 export type Health = "checking" | "up" | "down";
@@ -12,30 +12,36 @@ async function ping(url: string): Promise<boolean> {
   }
 }
 
-/** Consulta GET /health de cada serviço a cada 10 s. */
-export function useServiceHealth(): Record<ServiceKey, Health> {
+/**
+ * GET /health a cada 10 s. A chave é por serviço: telas que olham o mesmo serviço dividem a mesma
+ * consulta, em vez de cada uma ligar o próprio timer.
+ */
+function healthQuery(key: ServiceKey) {
+  return {
+    queryKey: ["health", key],
+    queryFn: () => ping(services[key].url),
+    refetchInterval: 10_000,
+    // Abrir outra tela no meio do intervalo reaproveita o resultado em vez de consultar de novo.
+    staleTime: 10_000,
+  };
+}
+
+function toHealth(up: boolean | undefined): Health {
+  if (up === undefined) {
+    return "checking";
+  }
+  return up ? "up" : "down";
+}
+
+export function useServiceHealth(key: ServiceKey): Health {
+  return toHealth(useQuery(healthQuery(key)).data);
+}
+
+export function useAllServicesHealth(): Record<ServiceKey, Health> {
   const keys = Object.keys(services) as ServiceKey[];
-  const [state, setState] = useState(
-    () => Object.fromEntries(keys.map((k) => [k, "checking"])) as Record<ServiceKey, Health>,
-  );
-
-  useEffect(() => {
-    let alive = true;
-    const check = () =>
-      keys.forEach(async (key) => {
-        const ok = await ping(services[key].url);
-        if (alive) {
-          setState((prev) => ({ ...prev, [key]: ok ? "up" : "down" }));
-        }
-      });
-    check();
-    const timer = setInterval(check, 10_000);
-    return () => {
-      alive = false;
-      clearInterval(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return state;
+  const results = useQueries({ queries: keys.map(healthQuery) });
+  return Object.fromEntries(keys.map((key, i) => [key, toHealth(results[i].data)])) as Record<
+    ServiceKey,
+    Health
+  >;
 }

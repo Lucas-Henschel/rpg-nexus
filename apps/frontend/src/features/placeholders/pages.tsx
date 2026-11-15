@@ -22,7 +22,7 @@ interface Props {
 }
 
 function ComingSoon({ title, lead, service, planned, endpoints }: Props) {
-  const health = useServiceHealth()[service];
+  const health = useServiceHealth(service);
   const info = services[service];
   return (
     <main className="page page--narrow">
