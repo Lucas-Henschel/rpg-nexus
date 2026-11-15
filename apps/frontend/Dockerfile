@@ -21,6 +21,7 @@ ENV VITE_CHARACTERS_URL=$VITE_CHARACTERS_URL \
 
 RUN npm run build
 
+RUN chown -R node:node /app
 USER node
 
 EXPOSE 5173
