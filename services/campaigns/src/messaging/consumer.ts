@@ -3,6 +3,7 @@ import amqp from "amqp-connection-manager";
 import type { ConsumeMessage } from "amqplib";
 import type { FastifyBaseLogger } from "fastify";
 import type { Outcome } from "./handle-delivery.js";
+import { markError, traceHeaders, withConsumerSpan } from "../tracing/spans.js";
 import { RETRY_HEADER } from "./retry.js";
 
 export interface ConsumerOptions {
@@ -28,46 +29,56 @@ export function startConsumer({ url, queue, retryQueue, prefetch, handle, log }:
 
   async function onMessage(message: ConsumeMessage) {
     const { headers, messageId, contentType } = message.properties;
-    const outcome = await handle(message.content, headers);
+    const attributes = messageId ? { "messaging.message.id": messageId } : {};
 
-    switch (outcome.kind) {
-      case "ack":
-        if (outcome.result === "unknown-campaign") {
-          log.warn({ messageId, campaignId: outcome.campaignId }, "campaigns.activity.unknown_campaign");
-        } else {
-          log.info(
-            { 
-              messageId, 
-              campaignId: outcome.campaignId, 
-              result: outcome.result 
-            }, 
-            "campaigns.activity.processed"
-          );
-        }
+    // O span do processamento continua o trace de quem publicou (traceparent nos headers).
+    await withConsumerSpan(queue, headers, attributes, async (span) => {
+      const outcome = await handle(message.content, headers);
 
-        channel.ack(message);
-        break;
+      span.setAttribute("campaigns.outcome", outcome.kind === "ack" ? outcome.result : outcome.kind);
 
-      case "retry":
-        // Vai para a fila de retry, que devolve a mensagem para cá quando a espera (expiration) acaba.
-        log.warn({ messageId, attempt: outcome.attempt, reason: outcome.reason }, "campaigns.activity.retry");
+      switch (outcome.kind) {
+        case "ack":
+          if (outcome.result === "unknown-campaign") {
+            log.warn({ messageId, campaignId: outcome.campaignId }, "campaigns.activity.unknown_campaign");
+          } else {
+            log.info(
+              {
+                messageId,
+                campaignId: outcome.campaignId,
+                result: outcome.result,
+              },
+              "campaigns.activity.processed",
+            );
+          }
 
-        await channel.publish("", retryQueue, message.content, {
-          persistent: true,
-          expiration: String(outcome.delayMs),
-          headers: { ...headers, [RETRY_HEADER]: outcome.attempt },
-          contentType,
-          messageId,
-        });
-        channel.ack(message);
-        break;
+          channel.ack(message);
+          break;
 
-      case "dead-letter":
-        // Sem requeue: a fila manda a mensagem para a .dlq.
-        log.error({ messageId, reason: outcome.reason }, "campaigns.activity.dead_letter");
-        channel.nack(message, false, false);
-        break;
-    }
+        case "retry":
+          // Vai para a fila de retry, que devolve a mensagem para cá quando a espera (expiration) acaba.
+          // O traceparent é trocado pelo deste span, para a nova tentativa aparecer no mesmo trace.
+          log.warn({ messageId, attempt: outcome.attempt, reason: outcome.reason }, "campaigns.activity.retry");
+          markError(span, outcome.reason);
+
+          await channel.publish("", retryQueue, message.content, {
+            persistent: true,
+            expiration: String(outcome.delayMs),
+            headers: { ...headers, ...traceHeaders(), [RETRY_HEADER]: outcome.attempt },
+            contentType,
+            messageId,
+          });
+          channel.ack(message);
+          break;
+
+        case "dead-letter":
+          // Sem requeue: a fila manda a mensagem para a .dlq.
+          log.error({ messageId, reason: outcome.reason }, "campaigns.activity.dead_letter");
+          markError(span, outcome.reason);
+          channel.nack(message, false, false);
+          break;
+      }
+    });
   }
 
   channel.consume(queue, (message) => {

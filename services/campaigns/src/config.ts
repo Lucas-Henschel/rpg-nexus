@@ -31,6 +31,10 @@ const EnvSchema = z.object({
   RETRY_MAX_DELAY_MS: count(15000),
 
   CONTRACTS_DIR: z.string().default("../../contracts"),
+
+  // Tracing (OpenTelemetry). O endereço do Jaeger vem de OTEL_EXPORTER_OTLP_ENDPOINT, lido pelo exportador.
+  TRACING_ENABLED: z.stringbool().default(false),
+  SERVICE_NAME: z.string().default("campaigns"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

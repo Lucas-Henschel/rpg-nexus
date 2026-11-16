@@ -21,16 +21,24 @@ describe("loadEnv", () => {
       RETRY_BASE_DELAY_MS: 1000,
       RETRY_MAX_DELAY_MS: 15000,
       INBOX_TTL_DAYS: 7,
+      TRACING_ENABLED: false,
+      SERVICE_NAME: "campaigns",
     });
     expect(env.AWS_ENDPOINT_URL).toBeUndefined();
   });
 
   it("lê as variáveis de ambiente", () => {
-    const env = loadEnv({ PORT: "4000", CORS_ORIGINS: "http://a, http://b", INBOX_TTL_DAYS: "3" });
+    const env = loadEnv({
+      PORT: "4000",
+      CORS_ORIGINS: "http://a, http://b",
+      INBOX_TTL_DAYS: "3",
+      TRACING_ENABLED: "true",
+    });
 
     expect(env.PORT).toBe(4000);
     expect(env.CORS_ORIGINS).toEqual(["http://a", "http://b"]);
     expect(env.INBOX_TTL_DAYS).toBe(3);
+    expect(env.TRACING_ENABLED).toBe(true);
   });
 
   it("recusa número inválido citando a variável", () => {

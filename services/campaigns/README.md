@@ -28,6 +28,7 @@ src/
   http/                  rotas, formatos aceitos (schemas.ts) e tratamento de erros
   messaging/             consumo do RabbitMQ: validação, decisão de retry e o consumidor
   scripts/               create-tables e publish-item-acquired
+  tracing/               OpenTelemetry: setup, spans HTTP, de mensagens e do DynamoDB
 ```
 
 Rotas e consumidor só falam com o **serviço**; o serviço é quem usa os repositórios.
@@ -100,8 +101,28 @@ e o `CONTRACTS_DIR` são trocados pelos da rede Compose.
 | `RABBITMQ_PREFETCH` | `16` | mensagens em processamento ao mesmo tempo, por réplica |
 | `MAX_RETRIES`, `RETRY_BASE_DELAY_MS`, `RETRY_MAX_DELAY_MS` | `3`, `1000`, `15000` | tentativas e espera do retry |
 | `CONTRACTS_DIR` | `../../contracts` | pasta dos JSON Schemas |
+| `TRACING_ENABLED`, `SERVICE_NAME` | `false`, `campaigns` | liga o envio de spans e dá o nome do serviço no Jaeger (no Compose vem `true`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | endereço OTLP do Jaeger |
 
-## 7. Desenvolvimento e testes
+## 7. Tracing (OpenTelemetry)
+
+O S1 manda spans para o Jaeger ([localhost:16686](http://localhost:16686)), no mesmo formato do S2
+(W3C Trace Context), então uma operação aparece num trace só quando passa pelos dois serviços.
+
+| O que vira span | Como |
+| --- | --- |
+| Cada requisição HTTP (`POST /campaigns`, `GET /campaigns/:campaignId`...), menos `/health` e `/ready` | plugin `@fastify/otel` |
+| Cada comando do DynamoDB (`DynamoDB PutItem`, `DynamoDB TransactWriteItems`...) | middleware no cliente da AWS |
+| O consumo de cada mensagem (`campaigns.activity.v1 process`), filho de quem publicou | `traceparent` lido dos headers AMQP |
+| A publicação do script `publish-item-acquired` (`item.acquired.v1 publish`) | `traceparent` escrito nos headers AMQP |
+
+Uma nova tentativa (fila de retry) continua no mesmo trace; retry e DLQ marcam o span como erro.
+O código fica em `src/tracing/`: `setup.ts` liga e desliga, `http.ts` cuida das rotas,
+`spans.ts` do RabbitMQ e `dynamodb.ts` dos comandos do banco. Para ver na demonstração: publique uma aquisição (seção 9), abra o
+Jaeger, escolha o serviço `publish-item-acquired` e clique no trace. Ele mostra a publicação e, abaixo,
+o consumo no S1 e no S2, cada um com suas chamadas ao DynamoDB.
+
+## 8. Desenvolvimento e testes
 
 ```sh
 npm ci
@@ -118,7 +139,7 @@ docker stop ms-test
 Para rodar fora do Docker com a pilha do Compose no ar: `cp .env.example .env`, `npm run build`,
 `npm run create-tables` e `npm start` (com as variáveis do `.env` carregadas no shell).
 
-## 8. Demonstração: idempotência
+## 9. Demonstração: idempotência
 
 Com a pilha no ar (`docker compose up --build --detach --wait` na raiz):
 

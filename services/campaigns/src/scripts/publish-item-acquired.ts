@@ -3,10 +3,13 @@
 //   node dist/scripts/publish-item-acquired.js --campaign c1 --character ch1 --item sword
 //
 // Repetir com o mesmo --message-id (ou o mesmo --operation) mostra que a aquisição conta uma vez só.
+// Com TRACING_ENABLED=true, a publicação vira o primeiro span do trace no Jaeger (no lugar do S3).
 import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
 import amqp from "amqplib";
 import { loadEnv } from "../config.js";
+import { startTracing, stopTracing } from "../tracing/setup.js";
+import { traceHeaders, withProducerSpan } from "../tracing/spans.js";
 
 const { values } = parseArgs({
   options: {
@@ -43,16 +46,27 @@ const event = {
 };
 
 const env = loadEnv();
+
+if (env.TRACING_ENABLED) {
+  startTracing("publish-item-acquired");
+}
+
 const connection = await amqp.connect(env.RABBITMQ_URL);
 const channel = await connection.createConfirmChannel();
 
 // A routing key faz parte do contrato do evento (x-routing em contracts/).
-channel.publish(env.RABBITMQ_EXCHANGE, "item.acquired.v1", Buffer.from(JSON.stringify(event)), {
-  persistent: true,
-  contentType: "application/json",
-  messageId: event.messageId,
+const routingKey = "item.acquired.v1";
+
+await withProducerSpan(routingKey, { "messaging.message.id": event.messageId }, async () => {
+  channel.publish(env.RABBITMQ_EXCHANGE, routingKey, Buffer.from(JSON.stringify(event)), {
+    persistent: true,
+    contentType: "application/json",
+    messageId: event.messageId,
+    headers: traceHeaders(),
+  });
+  await channel.waitForConfirms();
 });
-await channel.waitForConfirms();
 await connection.close();
+await stopTracing();
 
 console.log(JSON.stringify(event, null, 2));

@@ -10,8 +10,15 @@ import { createActivityRepository } from "./repositories/activity-repository.js"
 import { createCampaignRepository } from "./repositories/campaign-repository.js";
 import { createMemberRepository } from "./repositories/member-repository.js";
 import { createCampaignService } from "./services/campaigns.js";
+import { startTracing, stopTracing } from "./tracing/setup.js";
 
 const env = loadEnv();
+
+// Antes de montar o app e os clientes, para o tracing enxergar tudo desde o início.
+if (env.TRACING_ENABLED) {
+  startTracing(env.SERVICE_NAME);
+}
+
 // As tabelas já existem: quem cria é o script create-tables (contêiner campaigns-init).
 const db = createDb(env);
 
@@ -48,6 +55,7 @@ async function shutdown(signal: string) {
   app.log.info({ signal }, "shutdown");
   await consumer.close();
   await app.close();
+  await stopTracing();
   process.exit(0);
 }
 
