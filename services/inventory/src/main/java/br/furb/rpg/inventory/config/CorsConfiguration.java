@@ -11,11 +11,13 @@ class CorsConfiguration implements WebMvcConfigurer {
     private final String[] origins;
 
     CorsConfiguration(@Value("${CORS_ORIGINS:http://localhost:5173}") String configured) {
-        origins=Arrays.stream(configured.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toArray(String[]::new);
+        origins = Arrays.stream(configured.split(",")).map(String::trim).filter(s -> !s.isEmpty())
+                .toArray(String[]::new);
     }
 
-    @Override public void addCorsMappings(CorsRegistry registry) {
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**").allowedOrigins(origins).allowedMethods("GET", "POST", "OPTIONS")
-            .allowedHeaders("Content-Type", "Idempotency-Key");
+                .allowedHeaders("Content-Type", "Idempotency-Key");
     }
 }
