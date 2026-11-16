@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:external-validation-requested:v1",
+  "title": "ExternalValidationRequested v1",
+  "description": "O personagem foi aprovado pelo S2 e a Saga de aquisição (S3 Inventário) pede ao S4 Ações a validação na dependência externa instável.",
+  "x-routing": {
+    "exchange": "rpg.events",
+    "routingKey": "external.validation.requested.v1",
+    "producer": "inventory (S3, P3)",
+    "consumers": ["actions (S4, P4) — fila actions.validation-requested.v1"]
+  },
+  "type": "object",
+  "allOf": [{ "$ref": "urn:rpg-nexus:envelope:v1" }],
+  "properties": {
+    "type": { "const": "rpg.external.validation-requested.v1" },
+    "version": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["operationId", "campaignId", "characterId", "itemId", "quantity"],
+      "additionalProperties": true,
+      "properties": {
+        "operationId": { "$ref": "#/$defs/id", "description": "ID da Saga; igual ao correlationId do envelope." },
+        "campaignId": { "$ref": "#/$defs/id" },
+        "characterId": { "$ref": "#/$defs/id" },
+        "itemId": { "$ref": "#/$defs/id" },
+        "quantity": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "deadlineAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?(Z|[+-]\\d{2}:\\d{2})$",
+          "description": "Opcional. Prazo da Saga. Uma resposta depois dele chega tarde (F7): o S3 a registra e ignora, sem concluir a aquisição."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" }
+  }
+}

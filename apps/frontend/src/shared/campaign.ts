@@ -12,8 +12,8 @@ function read(): string {
 }
 
 /**
- * Campanha em uso. Enquanto o serviço de Campanhas (P1) não entra, a pessoa digita o código;
- * depois isto vira um seletor alimentado por GET /campaigns.
+ * Campanha em uso, lembrada entre visitas. A pessoa escolhe no CampaignPicker (lista de
+ * GET /campaigns) ou ao abrir uma campanha; sem o serviço de Campanhas, digita o código.
  */
 export function useCampaign(): [string, (id: string) => void] {
   const [campaign, setCampaign] = useState(read);

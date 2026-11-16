@@ -1,0 +1,29 @@
+# Logs do docker compose, um painel por serviço. Guia: docs/logs-por-servico.md
+#
+#   docker compose up --build --detach --wait
+#   dekit mprocs        (ou `mprocs`, se instalou o mprocs)
+#
+# Serviço novo no Compose: copie um bloco e troque o nome do serviço no fim do `cmd`.
+procs:
+  campaigns:
+    cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "campaigns"]
+  characters:
+    cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "characters"]
+  frontend:
+    cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "frontend"]
+  rabbitmq:
+    cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "rabbitmq"]
+  ministack:
+    cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "ministack"]
+  # Os contêineres que preparam o ambiente e terminam; com prefixo, para saber de qual é cada linha.
+  inicializadores:
+    cmd:
+      - docker
+      - compose
+      - logs
+      - --tail
+      - "200"
+      - aws-init
+      - rabbitmq-init
+      - campaigns-init
+      - characters-init

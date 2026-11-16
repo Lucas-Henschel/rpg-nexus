@@ -57,22 +57,6 @@ function ComingSoon({ title, lead, service, planned, endpoints }: Props) {
   );
 }
 
-export function CampaignsPage() {
-  return (
-    <ComingSoon
-      title="Campanhas"
-      lead="Onde quem mestra abre a campanha e reúne os personagens que vão jogar."
-      service="campaigns"
-      planned={[
-        "Lista de campanhas e botão para criar uma nova",
-        "Participantes de cada campanha",
-        "Atividade recente: itens que os personagens conquistaram",
-      ]}
-      endpoints={["POST /campaigns", "GET /campaigns/{id}", "POST /campaigns/{id}/members"]}
-    />
-  );
-}
-
 export function ItemsPage() {
   return (
     <ComingSoon
