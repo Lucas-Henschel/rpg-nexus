@@ -19,27 +19,40 @@ function testApp({ busConnected = true, pingDatabase = async () => {} } = {}) {
 it("corpo inválido vira 422 VALIDATION_ERROR com o campo", async () => {
   const app = testApp();
 
-  app.withTypeProvider<ZodTypeProvider>().post(
-    "/echo",
-    { schema: { body: z.object({ name: z.string().min(1) }) } },
-    async (request) => request.body,
-  );
+  app
+    .withTypeProvider<ZodTypeProvider>()
+    .post(
+      "/echo",
+      { schema: { body: z.object({ name: z.string().min(1) }) } },
+      async (request) => request.body,
+    );
 
   const res = await app.inject({ method: "POST", url: "/echo", payload: {} });
 
   expect(res.statusCode).toBe(422);
   expect(res.json()).toMatchObject({
-    error: { code: "VALIDATION_ERROR", message: "requisição inválida", details: [{ field: "name" }] },
+    error: {
+      code: "VALIDATION_ERROR",
+      message: "requisição inválida",
+      details: [{ field: "name" }],
+    },
   });
 });
 
 it("JSON malformado ou corpo vazio → 400 INVALID_REQUEST, não 500", async () => {
   const app = testApp();
   const post = (payload: string) =>
-    app.inject({ method: "POST", url: "/campaigns", headers: { "content-type": "application/json" }, payload });
+    app.inject({
+      method: "POST",
+      url: "/campaigns",
+      headers: { "content-type": "application/json" },
+      payload,
+    });
 
   for (const res of [await post("{bad"), await post("")]) {
     expect(res.statusCode).toBe(400);
-    expect(res.json()).toMatchObject({ error: { code: "INVALID_REQUEST", message: "requisição inválida" } });
+    expect(res.json()).toMatchObject({
+      error: { code: "INVALID_REQUEST", message: "requisição inválida" },
+    });
   }
 });

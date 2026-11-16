@@ -24,7 +24,9 @@ const { values } = parseArgs({
 });
 
 if (!values.campaign || !values.character || !values.item) {
-  console.error("uso: publish-item-acquired --campaign <id> --character <id> --item <id> [--quantity 1] [--item-name <nome>] [--operation <id>] [--message-id <uuid>]");
+  console.error(
+    "uso: publish-item-acquired --campaign <id> --character <id> --item <id> [--quantity 1] [--item-name <nome>] [--operation <id>] [--message-id <uuid>]",
+  );
   process.exit(1);
 }
 

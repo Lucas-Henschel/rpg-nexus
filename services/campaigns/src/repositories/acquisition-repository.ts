@@ -35,7 +35,11 @@ export function createAcquisitionRepository(db: Db, inboxTtlDays: number) {
               {
                 Put: {
                   TableName: db.tables.operations,
-                  Item: { operationId: event.operationId, messageId: event.messageId, processedAt: now },
+                  Item: {
+                    operationId: event.operationId,
+                    messageId: event.messageId,
+                    processedAt: now,
+                  },
                   ConditionExpression: "attribute_not_exists(operationId)",
                 },
               },
@@ -60,7 +64,8 @@ export function createAcquisitionRepository(db: Db, inboxTtlDays: number) {
                 Update: {
                   TableName: db.tables.members,
                   Key: { campaignId: event.campaignId, characterId: event.characterId },
-                  UpdateExpression: "SET joinedAt = if_not_exists(joinedAt, :now) ADD itemsAcquired :quantity",
+                  UpdateExpression:
+                    "SET joinedAt = if_not_exists(joinedAt, :now) ADD itemsAcquired :quantity",
                   ExpressionAttributeValues: { ":now": now, ":quantity": event.quantity },
                 },
               },
@@ -72,7 +77,8 @@ export function createAcquisitionRepository(db: Db, inboxTtlDays: number) {
           throw error;
         }
 
-        const failed = (index: number) => error.CancellationReasons?.[index]?.Code === "ConditionalCheckFailed";
+        const failed = (index: number) =>
+          error.CancellationReasons?.[index]?.Code === "ConditionalCheckFailed";
 
         if (failed(0) || failed(2)) {
           return "duplicate";

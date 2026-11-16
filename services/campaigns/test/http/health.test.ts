@@ -32,7 +32,10 @@ it("GET /ready → 503 degraded quando o barramento está desconectado", async (
   const res = await testApp({ busConnected: false }).inject({ method: "GET", url: "/ready" });
 
   expect(res.statusCode).toBe(503);
-  expect(res.json()).toEqual({ status: "degraded", checks: { dynamodb: "ok", rabbitmq: "disconnected" } });
+  expect(res.json()).toEqual({
+    status: "degraded",
+    checks: { dynamodb: "ok", rabbitmq: "disconnected" },
+  });
 });
 
 it("GET /ready → 503 com o nome do erro quando o DynamoDB falha", async () => {

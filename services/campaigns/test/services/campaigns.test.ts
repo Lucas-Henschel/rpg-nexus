@@ -20,7 +20,11 @@ describe("create", () => {
   });
 
   it("com código, usa o código informado", async () => {
-    const campaign = await testService().create({ name: "Um", gameMaster: "Ana", campaignId: "c1" });
+    const campaign = await testService().create({
+      name: "Um",
+      gameMaster: "Ana",
+      campaignId: "c1",
+    });
 
     expect(campaign).toMatchObject({ campaignId: "c1", gameMaster: "Ana" });
   });
@@ -44,7 +48,9 @@ describe("get", () => {
   });
 
   it("campanha inexistente lança CampaignNotFound com o código", async () => {
-    const error = await testService().get("nao-existe").catch((e: unknown) => e);
+    const error = await testService()
+      .get("nao-existe")
+      .catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(CampaignNotFound);
     expect(error).toMatchObject({ campaignId: "nao-existe" });
@@ -68,9 +74,9 @@ describe("addMember", () => {
     const save = vi.spyOn(repositories.members, "save");
     const service = createCampaignService(repositories, () => NOW);
 
-    await expect(service.addMember("nao-existe", { characterId: "ch1", characterName: "Lyra" })).rejects.toBeInstanceOf(
-      CampaignNotFound,
-    );
+    await expect(
+      service.addMember("nao-existe", { characterId: "ch1", characterName: "Lyra" }),
+    ).rejects.toBeInstanceOf(CampaignNotFound);
     expect(save).not.toHaveBeenCalled();
   });
 });
@@ -89,7 +95,9 @@ describe("recordAcquisition", () => {
       quantity: 1,
     };
 
-    expect(await createCampaignService(repositories, () => NOW).recordAcquisition(acquisition)).toBe("applied");
+    expect(
+      await createCampaignService(repositories, () => NOW).recordAcquisition(acquisition),
+    ).toBe("applied");
     expect(record).toHaveBeenCalledWith(acquisition, NOW);
   });
 });

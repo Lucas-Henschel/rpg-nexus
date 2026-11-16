@@ -39,13 +39,21 @@ it("o consumo continua o trace de quem publicou, lido do traceparent dos headers
   const headers = traceHeaders(trace.setSpan(context.active(), publisher));
   publisher.end();
 
-  await withConsumerSpan("campaigns.activity.v1", headers, { "messaging.message.id": "m1" }, async () => {});
+  await withConsumerSpan(
+    "campaigns.activity.v1",
+    headers,
+    { "messaging.message.id": "m1" },
+    async () => {},
+  );
 
   const [consumed] = await finished("campaigns.activity.v1 process");
 
   expect(consumed?.spanContext().traceId).toBe(publisher.spanContext().traceId);
   expect(consumed?.parentSpanContext?.spanId).toBe(publisher.spanContext().spanId);
-  expect(consumed?.attributes).toMatchObject({ "messaging.system": "rabbitmq", "messaging.message.id": "m1" });
+  expect(consumed?.attributes).toMatchObject({
+    "messaging.system": "rabbitmq",
+    "messaging.message.id": "m1",
+  });
 });
 
 it("sem traceparent, o consumo abre um trace novo", async () => {
@@ -56,18 +64,27 @@ it("sem traceparent, o consumo abre um trace novo", async () => {
 
 it("cada comando do DynamoDB vira um span filho, com erro quando falha", async () => {
   const client = createDynamoClient(
-    loadEnv({ AWS_ENDPOINT_URL: "http://127.0.0.1:9", AWS_ACCESS_KEY_ID: "x", AWS_SECRET_ACCESS_KEY: "x" }),
+    loadEnv({
+      AWS_ENDPOINT_URL: "http://127.0.0.1:9",
+      AWS_ACCESS_KEY_ID: "x",
+      AWS_SECRET_ACCESS_KEY: "x",
+    }),
   );
 
   await withConsumerSpan("fila", undefined, {}, () =>
-    client.send(new GetItemCommand({ TableName: "t", Key: { id: { S: "1" } } })).catch(() => undefined),
+    client
+      .send(new GetItemCommand({ TableName: "t", Key: { id: { S: "1" } } }))
+      .catch(() => undefined),
   );
 
   const [dynamo] = await finished("DynamoDB GetItem");
   const [consumed] = await finished("fila process");
 
   expect(dynamo?.parentSpanContext?.spanId).toBe(consumed?.spanContext().spanId);
-  expect(dynamo?.attributes).toMatchObject({ "db.system": "dynamodb", "aws.dynamodb.table_names": ["t"] });
+  expect(dynamo?.attributes).toMatchObject({
+    "db.system": "dynamodb",
+    "aws.dynamodb.table_names": ["t"],
+  });
   expect(dynamo?.status.code).toBe(2); // ERROR
 });
 
@@ -80,7 +97,11 @@ it("cada requisição HTTP vira um span 'MÉTODO /rota'; /health e /ready não",
     logger: false,
   });
 
-  await app.inject({ method: "POST", url: "/campaigns", payload: { name: "Um", campaignId: "c1" } });
+  await app.inject({
+    method: "POST",
+    url: "/campaigns",
+    payload: { name: "Um", campaignId: "c1" },
+  });
   await app.inject({ method: "GET", url: "/health" });
 
   const names = (await exported()).map((span) => span.name);

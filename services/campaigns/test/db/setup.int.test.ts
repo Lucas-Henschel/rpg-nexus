@@ -17,7 +17,9 @@ it("cria as cinco tabelas com suas chaves, com TTL na inbox", async () => {
 
   await ensureTables(client, tables);
 
-  expect(await keysOf(tables.campaigns)).toEqual([{ AttributeName: "campaignId", KeyType: "HASH" }]);
+  expect(await keysOf(tables.campaigns)).toEqual([
+    { AttributeName: "campaignId", KeyType: "HASH" },
+  ]);
   expect(await keysOf(tables.members)).toEqual([
     { AttributeName: "campaignId", KeyType: "HASH" },
     { AttributeName: "characterId", KeyType: "RANGE" },
@@ -26,7 +28,9 @@ it("cria as cinco tabelas com suas chaves, com TTL na inbox", async () => {
     { AttributeName: "campaignId", KeyType: "HASH" },
     { AttributeName: "activityKey", KeyType: "RANGE" },
   ]);
-  expect(await keysOf(tables.operations)).toEqual([{ AttributeName: "operationId", KeyType: "HASH" }]);
+  expect(await keysOf(tables.operations)).toEqual([
+    { AttributeName: "operationId", KeyType: "HASH" },
+  ]);
   expect(await keysOf(tables.inbox)).toEqual([{ AttributeName: "messageId", KeyType: "HASH" }]);
 
   const ttl = await client.send(new DescribeTimeToLiveCommand({ TableName: tables.inbox }));
@@ -44,5 +48,7 @@ it("rodar de novo não dá erro", async () => {
 it("duas réplicas subindo ao mesmo tempo não dão erro", async () => {
   const tables = uniqueTables();
 
-  await expect(Promise.all([ensureTables(client, tables), ensureTables(client, tables)])).resolves.toBeDefined();
+  await expect(
+    Promise.all([ensureTables(client, tables), ensureTables(client, tables)]),
+  ).resolves.toBeDefined();
 });

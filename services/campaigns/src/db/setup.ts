@@ -16,7 +16,10 @@ function table(name: string, partitionKey: string, sortKey?: string): CreateTabl
   return {
     TableName: name,
     BillingMode: "PAY_PER_REQUEST",
-    KeySchema: keys.map((key, index) => ({ AttributeName: key, KeyType: index === 0 ? "HASH" : "RANGE" })),
+    KeySchema: keys.map((key, index) => ({
+      AttributeName: key,
+      KeyType: index === 0 ? "HASH" : "RANGE",
+    })),
     AttributeDefinitions: keys.map((key) => ({ AttributeName: key, AttributeType: "S" })),
   };
 }
@@ -49,7 +52,11 @@ async function createTable(client: DynamoDBClient, input: CreateTableCommandInpu
 }
 
 // O CreateTable não aceita TTL; ele é ligado depois, numa chamada separada.
-async function enableTtl(client: DynamoDBClient, tableName: string, attribute: string): Promise<void> {
+async function enableTtl(
+  client: DynamoDBClient,
+  tableName: string,
+  attribute: string,
+): Promise<void> {
   try {
     await client.send(
       new UpdateTimeToLiveCommand({
@@ -60,7 +67,7 @@ async function enableTtl(client: DynamoDBClient, tableName: string, attribute: s
   } catch (error) {
     // Ligar de novo dá erro; só é problema se o TTL não estiver no atributo certo.
     const { TimeToLiveDescription } = await client.send(
-      new DescribeTimeToLiveCommand({ TableName: tableName })
+      new DescribeTimeToLiveCommand({ TableName: tableName }),
     );
 
     if (TimeToLiveDescription?.AttributeName !== attribute) {

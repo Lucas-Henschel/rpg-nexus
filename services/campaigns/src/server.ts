@@ -39,7 +39,11 @@ const app = buildApp({
 const delivery = {
   parse: createItemAcquiredParser(resolve(env.CONTRACTS_DIR)),
   campaigns,
-  policy: { maxRetries: env.MAX_RETRIES, baseDelayMs: env.RETRY_BASE_DELAY_MS, maxDelayMs: env.RETRY_MAX_DELAY_MS },
+  policy: {
+    maxRetries: env.MAX_RETRIES,
+    baseDelayMs: env.RETRY_BASE_DELAY_MS,
+    maxDelayMs: env.RETRY_MAX_DELAY_MS,
+  },
 };
 
 const consumer = startConsumer({

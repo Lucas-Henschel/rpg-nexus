@@ -20,7 +20,14 @@ export interface Consumer {
   close(): Promise<void>;
 }
 
-export function startConsumer({ url, queue, retryQueue, prefetch, handle, log }: ConsumerOptions): Consumer {
+export function startConsumer({
+  url,
+  queue,
+  retryQueue,
+  prefetch,
+  handle,
+  log,
+}: ConsumerOptions): Consumer {
   const connection = amqp.connect([url]);
   const channel = connection.createChannel({ confirm: true });
 
@@ -35,12 +42,18 @@ export function startConsumer({ url, queue, retryQueue, prefetch, handle, log }:
     await withConsumerSpan(queue, headers, attributes, async (span) => {
       const outcome = await handle(message.content, headers);
 
-      span.setAttribute("campaigns.outcome", outcome.kind === "ack" ? outcome.result : outcome.kind);
+      span.setAttribute(
+        "campaigns.outcome",
+        outcome.kind === "ack" ? outcome.result : outcome.kind,
+      );
 
       switch (outcome.kind) {
         case "ack":
           if (outcome.result === "unknown-campaign") {
-            log.warn({ messageId, campaignId: outcome.campaignId }, "campaigns.activity.unknown_campaign");
+            log.warn(
+              { messageId, campaignId: outcome.campaignId },
+              "campaigns.activity.unknown_campaign",
+            );
           } else {
             log.info(
               {
@@ -58,7 +71,10 @@ export function startConsumer({ url, queue, retryQueue, prefetch, handle, log }:
         case "retry":
           // Vai para a fila de retry, que devolve a mensagem para cá quando a espera (expiration) acaba.
           // O traceparent é trocado pelo deste span, para a nova tentativa aparecer no mesmo trace.
-          log.warn({ messageId, attempt: outcome.attempt, reason: outcome.reason }, "campaigns.activity.retry");
+          log.warn(
+            { messageId, attempt: outcome.attempt, reason: outcome.reason },
+            "campaigns.activity.retry",
+          );
           markError(span, outcome.reason);
 
           await channel.publish("", retryQueue, message.content, {
@@ -81,13 +97,17 @@ export function startConsumer({ url, queue, retryQueue, prefetch, handle, log }:
     });
   }
 
-  channel.consume(queue, (message) => {
-    onMessage(message).catch((err: unknown) => {
-      // Erro inesperado (por exemplo, falha ao publicar no retry): devolve para a fila.
-      log.error({ err }, "campaigns.activity.unexpected_error");
-      channel.nack(message, false, true);
-    });
-  }, { prefetch });
+  channel.consume(
+    queue,
+    (message) => {
+      onMessage(message).catch((err: unknown) => {
+        // Erro inesperado (por exemplo, falha ao publicar no retry): devolve para a fila.
+        log.error({ err }, "campaigns.activity.unexpected_error");
+        channel.nack(message, false, true);
+      });
+    },
+    { prefetch },
+  );
 
   return {
     isConnected: () => connection.isConnected(),

@@ -6,7 +6,8 @@ export interface RetryPolicy {
   maxDelayMs: number;
 }
 
-export type RetryDecision = { action: "retry"; attempt: number; delayMs: number } | { action: "dead-letter" };
+export type RetryDecision =
+  { action: "retry"; attempt: number; delayMs: number } | { action: "dead-letter" };
 
 /** Header que conta quantas vezes a mensagem já voltou pela fila de retry. */
 export const RETRY_HEADER = "x-retry-count";

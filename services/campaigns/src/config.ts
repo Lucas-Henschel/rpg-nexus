@@ -8,7 +8,12 @@ const EnvSchema = z.object({
   CORS_ORIGINS: z
     .string()
     .default("http://localhost:5173")
-    .transform((value) => value.split(",").map((origin) => origin.trim()).filter(Boolean)),
+    .transform((value) =>
+      value
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    ),
 
   AWS_ENDPOINT_URL: z.url().optional(),
   AWS_REGION: z.string().default("us-east-1"),
@@ -18,7 +23,7 @@ const EnvSchema = z.object({
   TABLE_ACTIVITY: z.string().default("campaign_activity"),
   TABLE_OPERATIONS: z.string().default("campaign_operations"),
   TABLE_INBOX: z.string().default("campaign_inbox"),
-  
+
   INBOX_TTL_DAYS: count(7),
 
   RABBITMQ_URL: z.string().default("amqp://dev:dev@localhost:5672/"),
