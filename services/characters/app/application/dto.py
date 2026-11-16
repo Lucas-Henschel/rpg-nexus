@@ -53,6 +53,7 @@ class SheetLayout(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     template: Annotated[str, StringConstraints(max_length=40)] | None = None
+    header: dict[str, Any] = Field(default_factory=dict)
     columns: Annotated[list[list[SheetBlock]], Field(min_length=1, max_length=3)]
 
     @model_validator(mode="after")

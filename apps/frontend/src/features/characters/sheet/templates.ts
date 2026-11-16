@@ -61,6 +61,7 @@ export function defaultSheet(): Sheet {
 
   return {
     template: null,
+    header: {},
     columns: [
       [fixed("hp"), fixed("backpack")],
       [fixed("attributes"), fixed("skills")],
@@ -76,7 +77,7 @@ export function normalizeSheet(sheet: Sheet | null): Sheet {
 
   const [first = [], second = [], ...rest] = sheet.columns;
 
-  return { template: sheet.template ?? null, columns: [first, [...second, ...rest.flat()]] };
+  return { template: sheet.template ?? null, header: sheet.header ?? {}, columns: [first, [...second, ...rest.flat()]] };
 }
 
 export const TEMPLATES: Template[] = [
@@ -201,6 +202,7 @@ export const TEMPLATES: Template[] = [
 export function sheetFromTemplate(template: Template): Sheet {
   return {
     template: template.id,
+    header: {},
     columns: template.columns.map((column) =>
       column.map((b) => ({ ...structuredClone(b), id: newBlockId() })),
     ),

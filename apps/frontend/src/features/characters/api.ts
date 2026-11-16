@@ -20,6 +20,7 @@ export interface SheetBlock {
 /** Organização livre da ficha: colunas de blocos. O serviço guarda e devolve sem interpretar. */
 export interface Sheet {
   template: string | null;
+  header?: Record<string, unknown>;
   columns: SheetBlock[][];
 }
 

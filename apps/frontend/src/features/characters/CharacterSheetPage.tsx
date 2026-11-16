@@ -62,11 +62,12 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
   const reloadCharacter = useReloadCharacter(character.id);
   const [draft, setDraft] = useState(() => toDraft(character));
   const [stale, setStale] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const patch = useMemo(() => buildPatch(character, draft), [character, draft]);
   const dirty = Object.keys(patch).length > 0;
   const problem = validate(draft, character.capacity.slotsUsed);
-  const edit = (changes: Partial<Draft>) => setDraft({ ...draft, ...changes });
+  const edit = (changes: Partial<Draft>) => setDraft((previous) => ({ ...previous, ...changes }));
 
   const onSave = () => {
     if (problem || !dirty) {
@@ -78,6 +79,7 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
       {
         onSuccess: (updated) => {
           setDraft(toDraft(updated));
+          setEditing(false);
           toast("ok", "Alterações salvas.");
         },
         onError: (error) => {
@@ -107,8 +109,9 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
       </Link>
 
       <Paper>
+        <div className="sheet__edit-action"><button type="button" className="button button--ghost-ink" onClick={() => setEditing(!editing)}>{editing ? "Concluir layout" : "Editar ficha"}</button></div>
         <SheetIdentity character={character} draft={draft} edit={edit} />
-        <SheetColumns draft={draft} edit={edit} character={character} holds={holds} />
+        <SheetColumns draft={draft} edit={edit} character={character} holds={holds} editing={editing} />
       </Paper>
 
       {(dirty || stale) && (
