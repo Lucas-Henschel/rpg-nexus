@@ -1,0 +1,24 @@
+server:
+  port: 8080
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+spring:
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    publisher-confirm-type: simple
+    listener:
+      simple:
+        acknowledge-mode: manual
+        missing-queues-fatal: false
+        retry:
+          enabled: false
+inventory:
+  table-prefix: ${INVENTORY_TABLE_PREFIX:inventory_}
+  saga-timeout-seconds: ${SAGA_TIMEOUT_SECONDS:60}
+  max-retries: ${MAX_RETRIES:3}

@@ -11,3 +11,4 @@ coverage/
 # Dados e arquivos auxiliares locais; a pilha usa volumes nomeados Docker.
 /data/
 /.local/
+/services/inventory/target/

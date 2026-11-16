@@ -73,28 +73,6 @@ export function CampaignsPage() {
   );
 }
 
-export function ItemsPage() {
-  return (
-    <ComingSoon
-      title="Itens"
-      lead="O estoque da campanha e a disputa pelos itens raros."
-      service="inventory"
-      planned={[
-        "Catálogo com o estoque restante de cada item",
-        "Botão para pedir um item e acompanhamento do pedido até a entrega ou o cancelamento",
-        "Inventário de cada personagem",
-      ]}
-      endpoints={[
-        "POST /items",
-        "POST /stocks",
-        "POST /acquisitions (responde 202 com operationId)",
-        "GET /acquisitions/{operationId}",
-        "GET /inventory/{characterId}",
-      ]}
-    />
-  );
-}
-
 export function HistoryPage() {
   return (
     <ComingSoon

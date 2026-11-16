@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:acquisition-cancelled:v1",
+  "allOf": [{"$ref": "urn:rpg-nexus:envelope:v1"}],
+  "x-routing": {"exchange": "rpg.events", "routingKey": "acquisition.cancelled.v1", "producer": "inventory", "consumers": ["characters", "actions"]},
+  "properties": {"type": {"const": "rpg.acquisition.cancelled.v1"}, "version": {"const": 1}, "payload": {"$ref": "#/$defs/payload"}},
+  "$defs": {"payload": {"type": "object", "required": ["operationId", "campaignId", "characterId", "itemId", "quantity"], "properties": {"operationId": {"type": "string"}, "campaignId": {"type": "string"}, "characterId": {"type": "string"}, "itemId": {"type": "string"}, "quantity": {"const": 1}}}}
+}
