@@ -2,12 +2,12 @@ import { expect, it } from "vitest";
 import { buildApp } from "../../src/http/app.js";
 import { loadEnv } from "../../src/config.js";
 import { createCampaignService } from "../../src/services/campaigns.js";
-import { fakeRepository } from "../fake-repository.js";
+import { fakeRepositories } from "../fake-repositories.js";
 
 function testApp({ busConnected = true, pingDatabase = async () => {} } = {}) {
   return buildApp({
     env: loadEnv({}),
-    campaigns: createCampaignService(fakeRepository()),
+    campaigns: createCampaignService(fakeRepositories()),
     pingDatabase,
     isBusConnected: () => busConnected,
     logger: false,

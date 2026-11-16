@@ -3,7 +3,8 @@
 //   node dist/scripts/create-tables.js
 import { loadEnv } from "../config.js";
 import { createDynamoClient } from "../db/client.js";
-import { ensureTables, tablesFromEnv } from "../db/tables.js";
+import { ensureTables } from "../db/setup.js";
+import { tablesFromEnv } from "../db/tables.js";
 
 const env = loadEnv();
 const tables = tablesFromEnv(env);

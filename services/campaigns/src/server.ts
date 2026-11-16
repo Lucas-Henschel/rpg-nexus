@@ -1,23 +1,31 @@
 import { resolve } from "node:path";
-import { buildApp } from "./http/app.js";
-import { createRepository } from "./db/repository.js";
 import { loadEnv } from "./config.js";
-import { createDocumentClient } from "./db/client.js";
-import { tablesFromEnv } from "./db/tables.js";
+import { createDb, pingDatabase } from "./db/client.js";
+import { buildApp } from "./http/app.js";
 import { startConsumer } from "./messaging/consumer.js";
 import { createItemAcquiredParser } from "./messaging/events.js";
 import { handleDelivery } from "./messaging/handle-delivery.js";
+import { createAcquisitionRepository } from "./repositories/acquisition-repository.js";
+import { createActivityRepository } from "./repositories/activity-repository.js";
+import { createCampaignRepository } from "./repositories/campaign-repository.js";
+import { createMemberRepository } from "./repositories/member-repository.js";
 import { createCampaignService } from "./services/campaigns.js";
 
 const env = loadEnv();
 // As tabelas já existem: quem cria é o script create-tables (contêiner campaigns-init).
-const repository = createRepository(createDocumentClient(env), tablesFromEnv(env), env.INBOX_TTL_DAYS);
-const campaigns = createCampaignService(repository);
+const db = createDb(env);
+
+const campaigns = createCampaignService({
+  campaigns: createCampaignRepository(db),
+  members: createMemberRepository(db),
+  activity: createActivityRepository(db),
+  acquisitions: createAcquisitionRepository(db, env.INBOX_TTL_DAYS),
+});
 
 const app = buildApp({
   env,
   campaigns,
-  pingDatabase: () => repository.ping(),
+  pingDatabase: () => pingDatabase(db),
   isBusConnected: () => consumer.isConnected(),
 });
 

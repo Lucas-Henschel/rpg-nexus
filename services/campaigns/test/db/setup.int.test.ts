@@ -3,7 +3,7 @@ import { DescribeTableCommand, DescribeTimeToLiveCommand } from "@aws-sdk/client
 import { expect, it } from "vitest";
 import { loadEnv } from "../../src/config.js";
 import { createDynamoClient } from "../../src/db/client.js";
-import { ensureTables } from "../../src/db/tables.js";
+import { ensureTables } from "../../src/db/setup.js";
 import { uniqueTables } from "./unique-tables.js";
 
 const env = loadEnv({ AWS_ENDPOINT_URL: "http://localhost:4566", ...process.env });

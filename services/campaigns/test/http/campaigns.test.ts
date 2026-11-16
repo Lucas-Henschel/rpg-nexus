@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { loadEnv } from "../../src/config.js";
 import { buildApp } from "../../src/http/app.js";
 import { createCampaignService } from "../../src/services/campaigns.js";
-import { fakeRepository } from "../fake-repository.js";
+import { fakeRepositories } from "../fake-repositories.js";
 
 const NOW = "2026-11-16T12:00:00.000Z";
 
 function testApp() {
   return buildApp({
     env: loadEnv({}),
-    campaigns: createCampaignService(fakeRepository(), () => NOW),
+    campaigns: createCampaignService(fakeRepositories(), () => NOW),
     pingDatabase: async () => {},
     isBusConnected: () => true,
     logger: false,
