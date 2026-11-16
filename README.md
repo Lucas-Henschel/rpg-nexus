@@ -33,6 +33,8 @@ para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
 
 - Opcional: Node.js 24 LTS, apenas para desenvolver os projetos JavaScript fora do
   Docker. Veja [Instalação do Node.js](docs/instalacao-node.md).
+- Opcional: dekit (mprocs), para ver os logs de cada serviço num painel separado. Veja
+  [Logs por serviço no terminal](docs/logs-por-servico.md).
 - Docker Engine ou Docker Desktop em execução, com Docker Compose v2.
 - Portas locais `5672`, `15672`, `4566`, `3001`, `8000` e `5173` livres, ou portas alternativas no `.env`.
 
@@ -67,13 +69,18 @@ front-end em [localhost:5173](http://localhost:5173).
 ### Logs separados por serviço
 
 `docker compose up` mistura os logs de todos os contêineres, com o nome do serviço como
-prefixo. Para ver cada serviço separadamente, suba a pilha em segundo plano com
-`docker compose up --build --detach --wait` e use uma destas opções:
+prefixo. Para ver cada serviço no seu próprio painel, suba a pilha em segundo plano e abra
+o mprocs com o `mprocs.yaml` da raiz:
 
-- [lazydocker](https://github.com/jesseduffield/lazydocker) (`brew install lazydocker`):
-  interface no terminal com a lista de contêineres e o log de cada um.
-- Um painel do terminal por serviço com `docker compose logs -f <serviço>`.
-- A aba de logs de cada contêiner no Docker Desktop.
+```sh
+docker compose up --build --detach --wait
+dekit mprocs
+```
+
+A instalação no Windows, Linux e macOS, as teclas e como incluir um serviço novo estão em
+[Logs por serviço no terminal](docs/logs-por-servico.md). Sem instalar nada, também dá para
+usar `docker compose logs -f <serviço>` (um terminal por serviço) ou a aba de logs de cada
+contêiner no Docker Desktop.
 
 ## Comandos
 
