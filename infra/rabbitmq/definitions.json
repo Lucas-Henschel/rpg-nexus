@@ -1,0 +1,267 @@
+{
+  "exchanges": [
+    {
+      "name": "rpg.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "characters.validation-requested.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "characters.validation-requested.v1.dlq"
+      }
+    },
+    {
+      "name": "characters.validation-requested.v1.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "characters.validation-requested.v1"
+      }
+    },
+    {
+      "name": "characters.validation-requested.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "characters.acquisition-outcomes.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "characters.acquisition-outcomes.v1.dlq"
+      }
+    },
+    {
+      "name": "characters.acquisition-outcomes.v1.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "characters.acquisition-outcomes.v1"
+      }
+    },
+    {
+      "name": "characters.acquisition-outcomes.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "inventory.saga-replies.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "inventory.saga-replies.v1.dlq"
+      }
+    },
+    {
+      "name": "inventory.saga-replies.v1.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "inventory.saga-replies.v1"
+      }
+    },
+    {
+      "name": "inventory.saga-replies.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "actions.validation-requested.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "actions.validation-requested.v1.dlq"
+      }
+    },
+    {
+      "name": "actions.validation-requested.v1.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "actions.validation-requested.v1"
+      }
+    },
+    {
+      "name": "actions.validation-requested.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "actions.history.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "actions.history.v1.dlq"
+      }
+    },
+    {
+      "name": "actions.history.v1.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "actions.history.v1"
+      }
+    },
+    {
+      "name": "actions.history.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "campaigns.activity.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "campaigns.activity.v1.dlq"
+      }
+    },
+    {
+      "name": "campaigns.activity.v1.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "campaigns.activity.v1"
+      }
+    },
+    {
+      "name": "campaigns.activity.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "characters.validation-requested.v1",
+      "destination_type": "queue",
+      "routing_key": "character.validation.requested.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "characters.acquisition-outcomes.v1",
+      "destination_type": "queue",
+      "routing_key": "item.acquired.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "characters.acquisition-outcomes.v1",
+      "destination_type": "queue",
+      "routing_key": "acquisition.cancelled.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.saga-replies.v1",
+      "destination_type": "queue",
+      "routing_key": "character.validated.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.saga-replies.v1",
+      "destination_type": "queue",
+      "routing_key": "character.rejected.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.saga-replies.v1",
+      "destination_type": "queue",
+      "routing_key": "external.validation.succeeded.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.saga-replies.v1",
+      "destination_type": "queue",
+      "routing_key": "external.validation.failed.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "actions.validation-requested.v1",
+      "destination_type": "queue",
+      "routing_key": "external.validation.requested.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "actions.history.v1",
+      "destination_type": "queue",
+      "routing_key": "item.acquired.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "actions.history.v1",
+      "destination_type": "queue",
+      "routing_key": "acquisition.cancelled.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "campaigns.activity.v1",
+      "destination_type": "queue",
+      "routing_key": "item.acquired.v1",
+      "arguments": {}
+    }
+  ]
+}

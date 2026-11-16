@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:external-validation-failed:v1",
+  "title": "ExternalValidationFailed v1",
+  "description": "A dependência externa simulada pelo S4 recusou a operação. O S3 compensa: libera o estoque e publica AcquisitionCancelled.",
+  "x-routing": {
+    "exchange": "rpg.events",
+    "routingKey": "external.validation.failed.v1",
+    "producer": "actions (S4, P4)",
+    "consumers": ["inventory (S3, P3) — fila inventory.saga-replies.v1"]
+  },
+  "type": "object",
+  "allOf": [{ "$ref": "urn:rpg-nexus:envelope:v1" }],
+  "properties": {
+    "type": { "const": "rpg.external.validation-failed.v1" },
+    "version": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["operationId", "campaignId", "characterId", "itemId", "quantity", "reason"],
+      "additionalProperties": true,
+      "properties": {
+        "operationId": { "$ref": "#/$defs/id" },
+        "campaignId": { "$ref": "#/$defs/id" },
+        "characterId": { "$ref": "#/$defs/id" },
+        "itemId": { "$ref": "#/$defs/id" },
+        "quantity": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "reason": {
+          "type": "string",
+          "enum": ["SIMULATED_FAILURE", "DEADLINE_EXPIRED"],
+          "description": "SIMULATED_FAILURE: falha sorteada por SIMULATED_FAILURE_RATE. DEADLINE_EXPIRED: o pedido chegou ao S4 depois do deadlineAt."
+        },
+        "detail": { "type": "string", "maxLength": 500 }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" }
+  }
+}

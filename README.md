@@ -18,12 +18,14 @@ Cada serviço fica em sua própria pasta dentro de `services/`, com `Dockerfile`
 endpoint de health check, e é declarado no `docker-compose.yml`. Os projetos são
 independentes: cada um tem suas próprias dependências e lockfile (`package.json`,
 `pom.xml`, `requirements.txt`) e seu Dockerfile usa a própria pasta como contexto,
-podendo ser construído isoladamente com `docker build services/<serviço>`. A exceção
-é `services/characters`, cujo build usa a raiz como contexto para copiar `contracts/`
-e `infra/manifests/`: `docker build -f services/characters/Dockerfile .`.
+podendo ser construído isoladamente com `docker build services/<serviço>`. As exceções
+são `services/characters` e `services/campaigns`, cujo build usa a raiz como contexto
+para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
+`docker build -f services/<serviço>/Dockerfile .`.
 
 | Projeto | Pasta | Serviços no Compose |
 | --- | --- | --- |
+| Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns-init`, `campaigns` |
 | Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters-init`, `characters` |
 | Front-end (React + Vite) | [`apps/frontend`](apps/frontend/README.md) | `frontend` |
 
@@ -31,8 +33,10 @@ e `infra/manifests/`: `docker build -f services/characters/Dockerfile .`.
 
 - Opcional: Node.js 24 LTS, apenas para desenvolver os projetos JavaScript fora do
   Docker. Veja [Instalação do Node.js](docs/instalacao-node.md).
+- Opcional: dekit (mprocs), para ver os logs de cada serviço num painel separado. Veja
+  [Logs por serviço no terminal](docs/logs-por-servico.md).
 - Docker Engine ou Docker Desktop em execução, com Docker Compose v2.
-- Portas locais `5672`, `15672`, `4566`, `8000` e `5173` livres, ou portas alternativas no `.env`.
+- Portas locais `5672`, `15672`, `4566`, `3001`, `8000` e `5173` livres, ou portas alternativas no `.env`.
 
 ## Primeiro uso
 
@@ -51,24 +55,32 @@ e exclusivas deste ambiente local.
 a infraestrutura e todos os serviços declarados no Compose, com os logs anexados
 ao terminal. O inicializador `aws-init` aguarda o MiniStack saudável, cria o
 bucket caso necessário e termina; repetir a inicialização preserva um bucket
-existente. O RabbitMQ aguarda a conclusão com sucesso de `aws-init`, tornando a
-inicialização uma condição de prontidão da pilha. Uma falha do inicializador faz
+existente. Em paralelo, depois que o RabbitMQ fica saudável, o inicializador
+`rabbitmq-init` declara o exchange, as filas e as ligações de
+`infra/rabbitmq/definitions.json` e termina. Os serviços esperam a conclusão com
+sucesso dos inicializadores de que dependem, e uma falha de qualquer um deles faz
 o `docker compose up` falhar.
 
-Em seguida, `characters-init` cria as tabelas DynamoDB do serviço de Personagens e
-aplica o CORS do bucket, e só então `characters` sobe. Com a pilha no ar, abra o
+Em seguida, `campaigns-init` e `characters-init` criam as tabelas DynamoDB dos
+serviços de Campanhas e Personagens (o segundo também aplica o CORS do bucket), e só
+então `campaigns` e `characters` sobem. Com a pilha no ar, abra o
 front-end em [localhost:5173](http://localhost:5173).
 
 ### Logs separados por serviço
 
 `docker compose up` mistura os logs de todos os contêineres, com o nome do serviço como
-prefixo. Para ver cada serviço separadamente, suba a pilha em segundo plano com
-`docker compose up --build --detach --wait` e use uma destas opções:
+prefixo. Para ver cada serviço no seu próprio painel, suba a pilha em segundo plano e abra
+o mprocs com o `mprocs.yaml` da raiz:
 
-- [lazydocker](https://github.com/jesseduffield/lazydocker) (`brew install lazydocker`):
-  interface no terminal com a lista de contêineres e o log de cada um.
-- Um painel do terminal por serviço com `docker compose logs -f <serviço>`.
-- A aba de logs de cada contêiner no Docker Desktop.
+```sh
+docker compose up --build --detach --wait
+dekit mprocs
+```
+
+A instalação no Windows, Linux e macOS, as teclas e como incluir um serviço novo estão em
+[Logs por serviço no terminal](docs/logs-por-servico.md). Sem instalar nada, também dá para
+usar `docker compose logs -f <serviço>` (um terminal por serviço) ou a aba de logs de cada
+contêiner no Docker Desktop.
 
 ## Comandos
 
@@ -103,6 +115,7 @@ resolvidos entre contêineres na rede Compose, e não no host.
 | RabbitMQ AMQP | `amqp://localhost:5672` | `amqp://rabbitmq:5672` |
 | RabbitMQ Management | [localhost:15672](http://localhost:15672) | `http://rabbitmq:15672` |
 | MiniStack S3 / DynamoDB | `http://localhost:4566` | `http://ministack:4566` |
+| Campanhas (API) | [localhost:3001/campaigns](http://localhost:3001/campaigns) | `http://campaigns:3001` |
 | Personagens (API) | [localhost:8000/docs](http://localhost:8000/docs) | `http://characters:8000` |
 | Front-end | [localhost:5173](http://localhost:5173) | — |
 
@@ -118,8 +131,9 @@ resolvidos entre contêineres na rede Compose, e não no host.
 | `AWS_ACCESS_KEY_ID` | `test` | Chave fictícia para o MiniStack. |
 | `AWS_SECRET_ACCESS_KEY` | `test` | Segredo fictício para o MiniStack. |
 | `RPG_ASSETS_BUCKET` | `rpg-assets` | Bucket criado pelo inicializador e usado pelo serviço de Personagens. |
+| `CAMPAIGNS_PORT` | `3001` | Porta da API de Campanhas no host; também é o endereço gravado no build do front-end. |
 | `CHARACTERS_PORT` | `8000` | Porta da API de Personagens no host; também é o endereço gravado no build do front-end. |
-| `FRONTEND_PORT` | `5173` | Porta do front-end no host; também é a origem liberada no CORS de Personagens e do bucket. |
+| `FRONTEND_PORT` | `5173` | Porta do front-end no host; também é a origem liberada no CORS de Campanhas, de Personagens e do bucket. |
 
 Mudar uma porta publicada altera somente o endereço no host. A porta interna do
 MiniStack continua `4566`, portanto mantenha `AWS_ENDPOINT_URL=http://ministack:4566`

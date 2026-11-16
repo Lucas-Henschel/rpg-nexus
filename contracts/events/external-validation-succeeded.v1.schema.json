@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:external-validation-succeeded:v1",
+  "title": "ExternalValidationSucceeded v1",
+  "description": "A dependência externa simulada pelo S4 aprovou a operação. O S3 conclui a aquisição, a menos que a Saga já tenha expirado ou sido compensada.",
+  "x-routing": {
+    "exchange": "rpg.events",
+    "routingKey": "external.validation.succeeded.v1",
+    "producer": "actions (S4, P4)",
+    "consumers": ["inventory (S3, P3) — fila inventory.saga-replies.v1"]
+  },
+  "type": "object",
+  "allOf": [{ "$ref": "urn:rpg-nexus:envelope:v1" }],
+  "properties": {
+    "type": { "const": "rpg.external.validation-succeeded.v1" },
+    "version": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["operationId", "campaignId", "characterId", "itemId", "quantity"],
+      "additionalProperties": true,
+      "properties": {
+        "operationId": { "$ref": "#/$defs/id" },
+        "campaignId": { "$ref": "#/$defs/id" },
+        "characterId": { "$ref": "#/$defs/id" },
+        "itemId": { "$ref": "#/$defs/id" },
+        "quantity": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" }
+  }
+}

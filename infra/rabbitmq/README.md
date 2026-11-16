@@ -22,3 +22,52 @@ docker compose --env-file .env.example config --quiet
 
 A entrada principal do ambiente é `docker compose up`; `docker compose down` encerra os contêineres
 preservando os volumes.
+
+## Topologia
+
+`definitions.json` declara o exchange `rpg.events` (tipo `topic`), as filas e as ligações. O
+serviço `rabbitmq-init` envia o arquivo para a API de gerenciamento (`POST /api/definitions`) depois
+que o RabbitMQ fica saudável e então termina. A importação só acrescenta: não apaga filas nem
+mensagens, e rodar de novo não muda nada.
+
+O arquivo não é carregado no boot (`load_definitions`) porque, nesse caso, o RabbitMQ deixa de
+criar o usuário de `RABBITMQ_USER` quando o volume está vazio.
+
+Cada serviço tem uma fila por assunto, e as réplicas do mesmo serviço dividem essa fila. Toda fila
+de consumo `Q` vem com:
+
+| Fila | Para quê |
+| --- | --- |
+| `Q` | Recebe os eventos. Mensagem recusada sem reenvio vai para `Q.dlq`. |
+| `Q.retry` | Sem consumidores. O serviço publica ali com TTL por mensagem (o tempo de espera); ao expirar, a mensagem volta para `Q`. |
+| `Q.dlq` | Mensagens que esgotaram as tentativas, para inspeção no painel. |
+
+| Fila | Serviço | Routing keys |
+| --- | --- | --- |
+| `campaigns.activity.v1` | S1 Campanhas | `item.acquired.v1` |
+| `characters.validation-requested.v1` | S2 Personagens | `character.validation.requested.v1` |
+| `characters.acquisition-outcomes.v1` | S2 Personagens | `item.acquired.v1`, `acquisition.cancelled.v1` |
+| `inventory.saga-replies.v1` | S3 Inventário | `character.validated.v1`, `character.rejected.v1`, `external.validation.succeeded.v1`, `external.validation.failed.v1` |
+| `actions.validation-requested.v1` | S4 Ações | `external.validation.requested.v1` |
+| `actions.history.v1` | S4 Ações | `item.acquired.v1`, `acquisition.cancelled.v1` |
+
+Um serviço que usa o RabbitMQ deve esperar a topologia no Compose:
+
+```yaml
+depends_on:
+  rabbitmq-init:
+    condition: service_completed_successfully
+```
+
+Isso também mantém o `docker compose up --wait` funcionando: ele aceita contêineres que terminam
+somente quando algum serviço contínuo depende deles.
+
+Se um serviço também declara as próprias filas ao subir, os argumentos precisam ser iguais aos do
+`definitions.json`, ou o RabbitMQ recusa a declaração. O teste de `contracts/` compara as filas dos
+manifestos em `infra/manifests/` com este arquivo.
+
+Para aplicar de novo depois de editar o arquivo:
+
+```sh
+docker compose run --rm rabbitmq-init
+```
