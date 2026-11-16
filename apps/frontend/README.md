@@ -22,17 +22,18 @@ Os endereços dos serviços vêm de variáveis `VITE_*`. Os padrões já apontam
 
 ## O que já funciona
 
-| Área        | Estado                                                                                                                                                                  | Serviço                        |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| Início      | pronto; mostra se cada serviço está no ar (`GET /health`)                                                                                                               | todos                          |
-| Personagens | pronto: listar por campanha, criar a partir de um modelo ou em branco, ficha livre em blocos, atributos, perícias, pontos de vida, mochila, retrato (S3), itens pedidos | S2 (P2)                        |
-| Dados       | pronto: bandeja de dados com animação, em qualquer tela; sorteio no navegador                                                                                           | (S4 depois, com `POST /rolls`) |
-| Campanhas   | página de espera com o que falta construir                                                                                                                              | S1 (P1)                        |
-| Itens       | página de espera                                                                                                                                                        | S3 (P3)                        |
-| Histórico   | página de espera                                                                                                                                                        | S4 (P4)                        |
+| Área        | Estado                                                                                                                                                                   | Serviço                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------ |
+| Início      | pronto; mostra se cada serviço está no ar (`GET /health`)                                                                                                                | todos                          |
+| Personagens | pronto: listar por campanha, criar a partir de um modelo ou em branco, ficha livre em blocos, atributos, perícias, pontos de vida, mochila, retrato (S3), itens pedidos  | S2 (P2)                        |
+| Dados       | pronto: bandeja de dados com animação, em qualquer tela; sorteio no navegador                                                                                            | (S4 depois, com `POST /rolls`) |
+| Campanhas   | pronto: listar e criar campanhas (com código opcional), participantes com itens conquistados, adicionar personagens da campanha, atividade recente (atualiza a cada 5 s) | S1 (P1)                        |
+| Itens       | página de espera                                                                                                                                                         | S3 (P3)                        |
+| Histórico   | página de espera                                                                                                                                                         | S4 (P4)                        |
 
-Enquanto o serviço de Campanhas não existe, a campanha é um código digitado na tela de Personagens
-(padrão `c1`), guardado no navegador.
+A campanha em uso é escolhida no seletor da tela de Personagens (lista de `GET /campaigns`) ou ao
+abrir uma campanha, e fica guardada no navegador. Se o serviço de Campanhas estiver fora do ar, o
+seletor vira um campo para digitar o código (padrão `c1`).
 
 ## Ficha livre e dados
 
@@ -74,8 +75,9 @@ src/
 │   ├── home/           página inicial
 │   ├── characters/     api.ts (S2), queries.ts, lista, criação e ficha
 │   │   └── sheet/          blocos da ficha, modelos, rascunho e layout
+│   ├── campaigns/      api.ts (S1), queries.ts, lista, detalhe e seletor de campanha
 │   ├── dice/           bandeja de dados e sorteio
-│   └── placeholders/   Campanhas, Itens e Histórico, a construir
+│   └── placeholders/   Itens e Histórico, a construir
 └── styles/         tokens.css (cores e fontes), base.css, sheet.css, pages.css
 ```
 
