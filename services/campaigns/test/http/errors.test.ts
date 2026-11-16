@@ -3,22 +3,18 @@ import { expect, it } from "vitest";
 import { z } from "zod";
 import { buildApp } from "../../src/http/app.js";
 import { loadEnv } from "../../src/config.js";
+import { createCampaignService } from "../../src/services/campaigns.js";
+import { fakeRepository } from "../fake-repository.js";
 
-function testApp() {
+function testApp({ busConnected = true, pingDatabase = async () => {} } = {}) {
   return buildApp({
     env: loadEnv({}),
-    repository: { ping: async () => {} },
-    isBusConnected: () => true,
+    campaigns: createCampaignService(fakeRepository()),
+    pingDatabase,
+    isBusConnected: () => busConnected,
     logger: false,
   });
 }
-
-it("GET /health responde ok", async () => {
-  const res = await testApp().inject({ method: "GET", url: "/health" });
-
-  expect(res.statusCode).toBe(200);
-  expect(res.json()).toEqual({ status: "ok" });
-});
 
 it("corpo inválido vira 422 VALIDATION_ERROR com o campo", async () => {
   const app = testApp();

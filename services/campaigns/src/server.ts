@@ -3,13 +3,19 @@ import { createRepository } from "./db/repository.js";
 import { loadEnv } from "./config.js";
 import { createDocumentClient, createDynamoClient } from "./db/client.js";
 import { ensureTables, TABLES } from "./db/tables.js";
+import { createCampaignService } from "./services/campaigns.js";
 
 const env = loadEnv();
 
 await ensureTables(createDynamoClient(env), TABLES);
 
 const repository = createRepository(createDocumentClient(env), TABLES, env.INBOX_TTL_DAYS);
-const app = buildApp({ env, repository, isBusConnected: () => false });
+const app = buildApp({
+  env,
+  campaigns: createCampaignService(repository),
+  pingDatabase: () => repository.ping(),
+  isBusConnected: () => false,
+});
 
 async function shutdown(signal: string) {
   app.log.info({ signal }, "shutdown");
