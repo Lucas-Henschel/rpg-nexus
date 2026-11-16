@@ -1,32 +1,36 @@
 // Precisa de um DynamoDB (MiniStack) em AWS_ENDPOINT_URL, padrão http://localhost:4566.
-import { randomUUID } from "node:crypto";
 import { DescribeTableCommand, DescribeTimeToLiveCommand } from "@aws-sdk/client-dynamodb";
 import { expect, it } from "vitest";
 import { loadEnv } from "../../src/config.js";
 import { createDynamoClient } from "../../src/db/client.js";
 import { ensureTables } from "../../src/db/tables.js";
+import { uniqueTables } from "./unique-tables.js";
 
 const env = loadEnv({ AWS_ENDPOINT_URL: "http://localhost:4566", ...process.env });
 const client = createDynamoClient(env);
 
-function uniqueTables() {
-  const suffix = randomUUID().slice(0, 8);
+const keysOf = async (tableName: string) =>
+  (await client.send(new DescribeTableCommand({ TableName: tableName }))).Table?.KeySchema;
 
-  return { campaigns: `campaigns_${suffix}`, inbox: `campaign_inbox_${suffix}` };
-}
-
-it("cria as duas tabelas, com TTL na inbox", async () => {
+it("cria as cinco tabelas com suas chaves, com TTL na inbox", async () => {
   const tables = uniqueTables();
 
   await ensureTables(client, tables);
 
-  const campaigns = await client.send(new DescribeTableCommand({ TableName: tables.campaigns }));
+  expect(await keysOf(tables.campaigns)).toEqual([{ AttributeName: "campaignId", KeyType: "HASH" }]);
+  expect(await keysOf(tables.members)).toEqual([
+    { AttributeName: "campaignId", KeyType: "HASH" },
+    { AttributeName: "characterId", KeyType: "RANGE" },
+  ]);
+  expect(await keysOf(tables.activity)).toEqual([
+    { AttributeName: "campaignId", KeyType: "HASH" },
+    { AttributeName: "activityKey", KeyType: "RANGE" },
+  ]);
+  expect(await keysOf(tables.operations)).toEqual([{ AttributeName: "operationId", KeyType: "HASH" }]);
+  expect(await keysOf(tables.inbox)).toEqual([{ AttributeName: "messageId", KeyType: "HASH" }]);
+
   const ttl = await client.send(new DescribeTimeToLiveCommand({ TableName: tables.inbox }));
 
-  expect(campaigns.Table?.KeySchema).toEqual([
-    { AttributeName: "pk", KeyType: "HASH" },
-    { AttributeName: "sk", KeyType: "RANGE" },
-  ]);
   expect(ttl.TimeToLiveDescription?.AttributeName).toBe("expiresAt");
 });
 

@@ -10,30 +10,43 @@ import {
 
 export interface Tables {
   campaigns: string;
+  members: string;
+  activity: string;
+  operations: string;
   inbox: string;
 }
 
-/** Campanha, participantes, atividade e marcadores de operação, separados pelo prefixo do `sk`. */
-const campaignsTable = (name: string): CreateTableCommandInput => ({
-  TableName: name,
-  BillingMode: "PAY_PER_REQUEST",
-  KeySchema: [
-    { AttributeName: "pk", KeyType: "HASH" },
-    { AttributeName: "sk", KeyType: "RANGE" },
-  ],
-  AttributeDefinitions: [
-    { AttributeName: "pk", AttributeType: "S" },
-    { AttributeName: "sk", AttributeType: "S" },
-  ],
-});
+export const TABLES: Tables = {
+  campaigns: "campaigns",
+  members: "campaign_members",
+  activity: "campaign_activity",
+  operations: "campaign_operations",
+  inbox: "campaign_inbox",
+};
 
-/** Mensagens já processadas; o DynamoDB apaga cada uma quando passa o `expiresAt`. */
-const inboxTable = (name: string): CreateTableCommandInput => ({
-  TableName: name,
-  BillingMode: "PAY_PER_REQUEST",
-  KeySchema: [{ AttributeName: "messageId", KeyType: "HASH" }],
-  AttributeDefinitions: [{ AttributeName: "messageId", AttributeType: "S" }],
-});
+/** Tabela com chave de partição e, se informada, chave de ordenação. Todas as chaves são texto. */
+function table(name: string, partitionKey: string, sortKey?: string): CreateTableCommandInput {
+  const keys = sortKey ? [partitionKey, sortKey] : [partitionKey];
+
+  return {
+    TableName: name,
+    BillingMode: "PAY_PER_REQUEST",
+    KeySchema: keys.map((key, index) => ({ AttributeName: key, KeyType: index === 0 ? "HASH" : "RANGE" })),
+    AttributeDefinitions: keys.map((key) => ({ AttributeName: key, AttributeType: "S" })),
+  };
+}
+
+const definitions = (tables: Tables): CreateTableCommandInput[] => [
+  table(tables.campaigns, "campaignId"),
+  // participantes de uma campanha
+  table(tables.members, "campaignId", "characterId"),
+  // atividade de uma campanha, ordenada pela data (activityKey = occurredAt#operationId)
+  table(tables.activity, "campaignId", "activityKey"),
+  // operações já contadas
+  table(tables.operations, "operationId"),
+  // mensagens já processadas; o DynamoDB apaga cada uma quando passa o `expiresAt`
+  table(tables.inbox, "messageId"),
+];
 
 const INBOX_TTL_ATTRIBUTE = "expiresAt";
 
@@ -72,7 +85,6 @@ async function enableTtl(client: DynamoDBClient, tableName: string, attribute: s
 }
 
 export async function ensureTables(client: DynamoDBClient, tables: Tables): Promise<void> {
-  await createTable(client, campaignsTable(tables.campaigns));
-  await createTable(client, inboxTable(tables.inbox));
+  await Promise.all(definitions(tables).map((input) => createTable(client, input)));
   await enableTtl(client, tables.inbox, INBOX_TTL_ATTRIBUTE);
 }

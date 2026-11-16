@@ -12,8 +12,6 @@ const EnvSchema = z.object({
 
   AWS_ENDPOINT_URL: z.url().optional(),
   AWS_REGION: z.string().default("us-east-1"),
-  TABLE_CAMPAIGNS: z.string().default("campaigns"),
-  TABLE_INBOX: z.string().default("campaign_inbox"),
   INBOX_TTL_DAYS: count(7),
 
   RABBITMQ_URL: z.string().default("amqp://dev:dev@localhost:5672/"),

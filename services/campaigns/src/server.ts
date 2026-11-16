@@ -2,14 +2,13 @@ import { buildApp } from "./http/app.js";
 import { createRepository } from "./db/repository.js";
 import { loadEnv } from "./config.js";
 import { createDocumentClient, createDynamoClient } from "./db/client.js";
-import { ensureTables } from "./db/tables.js";
+import { ensureTables, TABLES } from "./db/tables.js";
 
 const env = loadEnv();
-const tables = { campaigns: env.TABLE_CAMPAIGNS, inbox: env.TABLE_INBOX };
 
-await ensureTables(createDynamoClient(env), tables);
+await ensureTables(createDynamoClient(env), TABLES);
 
-const repository = createRepository(createDocumentClient(env), tables);
+const repository = createRepository(createDocumentClient(env), TABLES, env.INBOX_TTL_DAYS);
 const app = buildApp({ env, repository, isBusConnected: () => false });
 
 async function shutdown(signal: string) {
