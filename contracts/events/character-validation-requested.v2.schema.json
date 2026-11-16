@@ -11,6 +11,7 @@
       "characters (S2, P2) — fila characters.validation-requested.v1"
     ]
   },
+  "type": "object",
   "allOf": [
     {
       "$ref": "urn:rpg-nexus:envelope:v1"
