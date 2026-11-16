@@ -1,4 +1,4 @@
-// Publica um ItemAcquired em rpg.events, como o S3 faria. Serve para testar o consumidor.
+// Publica um ItemAcquired na exchange RABBITMQ_EXCHANGE, como o S3 faria. Serve para testar o consumidor.
 //
 //   node dist/scripts/publish-item-acquired.js --campaign c1 --character ch1 --item sword
 //
@@ -42,10 +42,12 @@ const event = {
   },
 };
 
-const connection = await amqp.connect(loadEnv().RABBITMQ_URL);
+const env = loadEnv();
+const connection = await amqp.connect(env.RABBITMQ_URL);
 const channel = await connection.createConfirmChannel();
 
-channel.publish("rpg.events", "item.acquired.v1", Buffer.from(JSON.stringify(event)), {
+// A routing key faz parte do contrato do evento (x-routing em contracts/).
+channel.publish(env.RABBITMQ_EXCHANGE, "item.acquired.v1", Buffer.from(JSON.stringify(event)), {
   persistent: true,
   contentType: "application/json",
   messageId: event.messageId,

@@ -2,18 +2,16 @@ import { resolve } from "node:path";
 import { buildApp } from "./http/app.js";
 import { createRepository } from "./db/repository.js";
 import { loadEnv } from "./config.js";
-import { createDocumentClient, createDynamoClient } from "./db/client.js";
-import { ensureTables, TABLES } from "./db/tables.js";
+import { createDocumentClient } from "./db/client.js";
+import { tablesFromEnv } from "./db/tables.js";
 import { startConsumer } from "./messaging/consumer.js";
 import { createItemAcquiredParser } from "./messaging/events.js";
 import { handleDelivery } from "./messaging/handle-delivery.js";
 import { createCampaignService } from "./services/campaigns.js";
 
 const env = loadEnv();
-
-await ensureTables(createDynamoClient(env), TABLES);
-
-const repository = createRepository(createDocumentClient(env), TABLES, env.INBOX_TTL_DAYS);
+// As tabelas já existem: quem cria é o script create-tables (contêiner campaigns-init).
+const repository = createRepository(createDocumentClient(env), tablesFromEnv(env), env.INBOX_TTL_DAYS);
 const campaigns = createCampaignService(repository);
 
 const app = buildApp({
@@ -32,6 +30,7 @@ const delivery = {
 const consumer = startConsumer({
   url: env.RABBITMQ_URL,
   queue: env.RABBITMQ_QUEUE,
+  retryQueue: env.RABBITMQ_RETRY_QUEUE,
   prefetch: env.RABBITMQ_PREFETCH,
   handle: (body, headers) => handleDelivery(delivery, body, headers),
   log: app.log,

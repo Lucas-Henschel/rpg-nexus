@@ -1,4 +1,4 @@
-// Tabelas DynamoDB do S1. O serviço as cria ao subir (ensureTables), se ainda não existirem.
+// Tabelas DynamoDB do S1. São criadas pelo script create-tables (contêiner campaigns-init), se ainda não existirem.
 import {
   CreateTableCommand,
   type CreateTableCommandInput,
@@ -7,6 +7,7 @@ import {
   UpdateTimeToLiveCommand,
   waitUntilTableExists,
 } from "@aws-sdk/client-dynamodb";
+import type { Env } from "../config.js";
 
 export interface Tables {
   campaigns: string;
@@ -16,13 +17,16 @@ export interface Tables {
   inbox: string;
 }
 
-export const TABLES: Tables = {
-  campaigns: "campaigns",
-  members: "campaign_members",
-  activity: "campaign_activity",
-  operations: "campaign_operations",
-  inbox: "campaign_inbox",
-};
+/** Os nomes vêm do ambiente, para o mesmo código rodar no MiniStack e na nuvem. */
+export function tablesFromEnv(env: Env): Tables {
+  return {
+    campaigns: env.TABLE_CAMPAIGNS,
+    members: env.TABLE_MEMBERS,
+    activity: env.TABLE_ACTIVITY,
+    operations: env.TABLE_OPERATIONS,
+    inbox: env.TABLE_INBOX,
+  };
+}
 
 /** Tabela com chave de partição e, se informada, chave de ordenação. Todas as chaves são texto. */
 function table(name: string, partitionKey: string, sortKey?: string): CreateTableCommandInput {

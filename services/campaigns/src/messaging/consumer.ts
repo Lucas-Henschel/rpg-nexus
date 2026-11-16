@@ -1,4 +1,4 @@
-// Liga na fila campaigns.activity.v1 e aplica no RabbitMQ a decisão do handleDelivery.
+// Liga na fila de atividade (RABBITMQ_QUEUE) e aplica no RabbitMQ a decisão do handleDelivery.
 import amqp from "amqp-connection-manager";
 import type { ConsumeMessage } from "amqplib";
 import type { FastifyBaseLogger } from "fastify";
@@ -8,6 +8,7 @@ import { RETRY_HEADER } from "./retry.js";
 export interface ConsumerOptions {
   url: string;
   queue: string;
+  retryQueue: string;
   prefetch: number;
   handle: (body: Buffer, headers: Record<string, unknown> | undefined) => Promise<Outcome>;
   log: FastifyBaseLogger;
@@ -18,7 +19,7 @@ export interface Consumer {
   close(): Promise<void>;
 }
 
-export function startConsumer({ url, queue, prefetch, handle, log }: ConsumerOptions): Consumer {
+export function startConsumer({ url, queue, retryQueue, prefetch, handle, log }: ConsumerOptions): Consumer {
   const connection = amqp.connect([url]);
   const channel = connection.createChannel({ confirm: true });
 
@@ -48,10 +49,10 @@ export function startConsumer({ url, queue, prefetch, handle, log }: ConsumerOpt
         break;
 
       case "retry":
-        // Volta para a fila .retry, que devolve a mensagem para cá quando a espera (expiration) acaba.
+        // Vai para a fila de retry, que devolve a mensagem para cá quando a espera (expiration) acaba.
         log.warn({ messageId, attempt: outcome.attempt, reason: outcome.reason }, "campaigns.activity.retry");
-        
-        await channel.publish("", `${queue}.retry`, message.content, {
+
+        await channel.publish("", retryQueue, message.content, {
           persistent: true,
           expiration: String(outcome.delayMs),
           headers: { ...headers, [RETRY_HEADER]: outcome.attempt },

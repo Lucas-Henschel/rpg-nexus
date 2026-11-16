@@ -1,7 +1,7 @@
 {
   "service": "campaigns",
   "owner": "P1",
-  "description": "Filas do S1 Campanhas, conferidas pelo teste de contracts/. As tabelas DynamoDB são criadas pelo próprio serviço ao subir (services/campaigns/src/tables.ts).",
+  "description": "Filas do S1 Campanhas, conferidas pelo teste de contracts/. As tabelas DynamoDB são criadas pelo script services/campaigns/src/scripts/create-tables.ts (contêiner campaigns-init).",
   "rabbitmq": {
     "exchange": {
       "name": "rpg.events",
