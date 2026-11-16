@@ -23,7 +23,10 @@ export function CampaignPage({ id }: { id: string }) {
 
       {campaign.isError && (
         <div className="notice">
-          <p>{errorMessage(campaign.error, "Não foi possível carregar a campanha.")}</p>
+          <p>
+            {errorMessage(campaign.error, "Não foi possível carregar a campanha.")}
+            {campaign.data && " Mostrando os últimos dados carregados."}
+          </p>
           <button
             type="button"
             className="button button--ghost-felt"
@@ -34,7 +37,8 @@ export function CampaignPage({ id }: { id: string }) {
         </div>
       )}
 
-      {campaign.isSuccess && <CampaignDetail campaign={campaign.data} />}
+      {/* Uma atualização em segundo plano que falha não apaga o que já estava na tela. */}
+      {campaign.data && <CampaignDetail campaign={campaign.data} />}
     </main>
   );
 }

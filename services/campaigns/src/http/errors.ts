@@ -30,6 +30,13 @@ export function errorHandler(error: FastifyError, request: FastifyRequest, reply
     return reply.status(409).send(errorBody("CAMPAIGN_ALREADY_EXISTS", "campanha já existe", details));
   }
 
+  // Erros do próprio Fastify por culpa de quem chamou (JSON malformado, corpo vazio, tipo de conteúdo).
+  if (error.statusCode !== undefined && error.statusCode < 500) {
+    const details = { reason: error.message };
+
+    return reply.status(error.statusCode).send(errorBody("INVALID_REQUEST", "requisição inválida", details));
+  }
+
   request.log.error({ err: error }, "http.unhandled_error");
 
   return reply.status(500).send(errorBody("INTERNAL_ERROR", "erro interno"));

@@ -32,3 +32,14 @@ it("corpo inválido vira 422 VALIDATION_ERROR com o campo", async () => {
     error: { code: "VALIDATION_ERROR", message: "requisição inválida", details: [{ field: "name" }] },
   });
 });
+
+it("JSON malformado ou corpo vazio → 400 INVALID_REQUEST, não 500", async () => {
+  const app = testApp();
+  const post = (payload: string) =>
+    app.inject({ method: "POST", url: "/campaigns", headers: { "content-type": "application/json" }, payload });
+
+  for (const res of [await post("{bad"), await post("")]) {
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: { code: "INVALID_REQUEST", message: "requisição inválida" } });
+  }
+});
