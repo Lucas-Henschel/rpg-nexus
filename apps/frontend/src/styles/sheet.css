@@ -315,9 +315,13 @@ input.stat-box__value:focus {
   text-align: center;
 }
 .stat-row--layout { flex-wrap: wrap; }
-.stat-row__edit { border: 0; background: transparent; color: var(--nanquim); cursor: pointer; font-size: 1.15rem; padding: 0.2rem; }
+.stat-row__name-button, .stat-row__formula { padding: 0; border: 0; background: transparent; color: var(--nanquim); cursor: text; font: inherit; }
+.stat-row__name-button { max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.stat-row__formula { min-width: 4.5rem; text-align: right; font-family: var(--fonte-titulo); font-weight: 700; }
+.stat-row__name-button:hover, .stat-row__formula:hover { text-decoration: underline; }
+.stat-row__name-input { width: min(9rem, 38%); min-width: 0; }
+.stat-row__formula-input { width: 6.5rem; min-width: 0; }
 .stat-row__editor { display: grid; gap: 0.5rem; flex-basis: 100%; padding: 0.5rem 0 0.65rem; }
-.stat-row__editor label { display: grid; gap: 0.2rem; color: var(--nanquim-suave); font-size: 0.85rem; }
 .stat-row__editor-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 
 .stats__empty {

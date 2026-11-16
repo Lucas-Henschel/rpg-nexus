@@ -54,13 +54,15 @@ export function StatsEditor({ kind, stats, onChange, min = -1000, max = 1000, ed
   const [skillName, setSkillName] = useState("");
   const [skillFormula, setSkillFormula] = useState("");
   const [skillProblem, setSkillProblem] = useState("");
+  const [skillFocus, setSkillFocus] = useState<"name" | "formula">("formula");
   const entries = Object.entries(stats);
   const formulaFor = (key: string, value: number) => diceFormulas[key] || `1d${diceSides[key] ?? 20}${value === 0 ? "" : signed(value)}`;
   const skillLabel = (key: string) => skillLabels[key] || toLabel(key);
 
-  const openSkill = (key: string, value: number) => {
-    if (editingSkill === key) return setEditingSkill(null);
+  const openSkill = (key: string, value: number, focus: "name" | "formula") => {
+    if (editingSkill === key) return;
     setEditingSkill(key);
+    setSkillFocus(focus);
     setSkillName(skillLabel(key));
     setSkillFormula(formulaFor(key, value));
     setSkillProblem("");
@@ -147,7 +149,13 @@ export function StatsEditor({ kind, stats, onChange, min = -1000, max = 1000, ed
         <ul className="stat-rows">
           {entries.map(([key, value]) => (
             <li key={key} className={`stat-row${editing || editingSkill === key ? " stat-row--layout" : ""}`}>
-              <span className="stat-row__name">{skillLabel(key)}</span>
+              {editingSkill === key ? <input className="ink-input stat-row__name-input" value={skillName}
+                maxLength={40} autoFocus={skillFocus === "name"} aria-label={`Nome de ${skillLabel(key)}`}
+                onChange={event => setSkillName(event.target.value)} /> :
+                <button type="button" className="stat-row__name-button"
+                  onClick={() => openSkill(key, value, "name")} aria-label={`Editar nome de ${skillLabel(key)}`}>
+                  {skillLabel(key)}
+                </button>}
               <span className="stat-row__dots" aria-hidden="true" />
               {kind === "skills" && (
                 <button
@@ -159,30 +167,15 @@ export function StatsEditor({ kind, stats, onChange, min = -1000, max = 1000, ed
                   <DieIcon sides={parseFormula(formulaFor(key, value))?.sides ?? 20} />
                 </button>
               )}
-              <button
-                type="button"
-                className="stat-row__step"
-                onClick={() => set(key, value - 1)}
-                aria-label={`Diminuir ${toLabel(key)}`}
-              >
-                −
-              </button>
-              <output className="stat-row__value">{signed(value)}</output>
-              <button
-                type="button"
-                className="stat-row__step"
-                onClick={() => set(key, value + 1)}
-                aria-label={`Aumentar ${toLabel(key)}`}
-              >
-                +
-              </button>
-              <button type="button" className="stat-row__edit" onClick={() => openSkill(key, value)}
-                aria-label={`Editar perícia ${skillLabel(key)}`} aria-expanded={editingSkill === key}>✎</button>
+              {editingSkill === key ? <input className="ink-input stat-row__formula-input" value={skillFormula}
+                maxLength={12} autoFocus={skillFocus === "formula"} aria-label={`Rolagem de ${skillLabel(key)}`}
+                placeholder="2d20+5" onChange={event => setSkillFormula(event.target.value)}
+                onKeyDown={event => { if (event.key === "Enter") saveSkill(key); if (event.key === "Escape") setEditingSkill(null); }} /> :
+                <button type="button" className="stat-row__formula" onClick={() => openSkill(key, value, "formula")}
+                  aria-label={`Editar rolagem de ${skillLabel(key)}: ${formulaFor(key, value)}`}>
+                  {formulaFor(key, value)}
+                </button>}
               {editingSkill === key && <div className="stat-row__editor">
-                <label>Nome <input className="ink-input" value={skillName} maxLength={40}
-                  onChange={event => setSkillName(event.target.value)} aria-label={`Nome de ${skillLabel(key)}`} /></label>
-                <label>Rolagem <input className="ink-input" value={skillFormula} maxLength={12}
-                  onChange={event => setSkillFormula(event.target.value)} aria-label={`Rolagem de ${skillLabel(key)}`} placeholder="2d20+5" /></label>
                 {skillProblem && <p className="field-error">{skillProblem}</p>}
                 <div className="stat-row__editor-actions">
                   <button type="button" className="button button--ghost-ink button--small" onClick={() => saveSkill(key)}>Aplicar</button>
