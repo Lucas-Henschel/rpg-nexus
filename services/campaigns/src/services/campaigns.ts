@@ -1,5 +1,6 @@
 // Regras de campanhas e participantes. As rotas HTTP usam este serviço, nunca o repositório direto.
 import { randomUUID } from "node:crypto";
+import type { Acquisition } from "../domain/acquisition.js";
 import type { CampaignRepository } from "../domain/repository.js";
 import { CampaignNotFound } from "../domain/errors.js";
 
@@ -44,6 +45,11 @@ export function createCampaignService(repository: CampaignRepository, clock: Clo
     /** Adiciona o personagem ou só atualiza o nome. Lança CampaignNotFound se a campanha não existir. */
     addMember(campaignId: string, { characterId, characterName }: NewMember) {
       return repository.addMember(campaignId, characterId, characterName, clock());
+    },
+
+    /** Item conquistado (evento do RabbitMQ): vira atividade e soma no contador do participante. */
+    recordAcquisition(acquisition: Acquisition) {
+      return repository.recordAcquisition(acquisition, clock());
     },
   };
 }

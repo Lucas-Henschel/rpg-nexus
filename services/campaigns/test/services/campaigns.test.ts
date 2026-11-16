@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CampaignNotFound } from "../../src/domain/errors.js";
 import { createCampaignService } from "../../src/services/campaigns.js";
 import { fakeRepository } from "../fake-repository.js";
@@ -32,6 +32,25 @@ describe("get", () => {
 
     expect(error).toBeInstanceOf(CampaignNotFound);
     expect(error).toMatchObject({ campaignId: "nao-existe" });
+  });
+});
+
+describe("recordAcquisition", () => {
+  it("grava com a data do relógio e devolve o resultado do repositório", async () => {
+    const repository = fakeRepository();
+    const record = vi.spyOn(repository, "recordAcquisition");
+    const acquisition = {
+      messageId: "m1",
+      occurredAt: "2026-11-16T11:00:00Z",
+      operationId: "op1",
+      campaignId: "c1",
+      characterId: "ch1",
+      itemId: "sword",
+      quantity: 1,
+    };
+
+    expect(await createCampaignService(repository, () => NOW).recordAcquisition(acquisition)).toBe("applied");
+    expect(record).toHaveBeenCalledWith(acquisition, NOW);
   });
 });
 
