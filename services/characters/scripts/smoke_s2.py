@@ -18,7 +18,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
+import time
+import urllib.parse
 import urllib.request
 import uuid
 from typing import Any
@@ -100,6 +103,36 @@ async def run(base: str, poison: bool, poison_wait: float) -> None:
         check("F7: pedido após cancelamento é recusado", reason == "OPERATION_CLOSED", str(reason))
         check("nenhuma capacidade retida", await capacity_eventually(base, cid, 1) == 1)
 
+        # Versionamento: a mesma fila recebe o pedido na v2 (prazo obrigatório em `expiresAt`).
+        op_d = str(uuid.uuid4())
+        await publish([validation_request(cid, campaign, op_d, version=2)])
+        validated_v2 = await listener.wait_for(for_operation(op_d, "rpg.character.validated.v1"))
+        check("versionamento: pedido v2 validado ao lado da v1", len(validated_v2) == 1)
+        check("versionamento: v2 reservou capacidade", await capacity_eventually(base, cid, 0) == 0)
+        await publish([outcome("cancelled", cid, op_d)])
+        check("versionamento: cancelamento da operação v2 compensa", await capacity_eventually(base, cid, 1) == 1)
+
+    # CQRS: o painel da campanha vem do modelo de leitura e já reflete a Saga acima.
+    await asyncio.sleep(1)  # consistência eventual: dá tempo à última projeção
+    roster = http("GET", f"{base}/campaigns/{campaign}/roster")
+    row = next((i for i in roster["items"] if i["characterId"] == cid), None)
+    check("CQRS: personagem aparece no modelo de leitura", row is not None, json.dumps(roster["totals"]))
+    check(
+        "CQRS: modelo de leitura reflete capacidade e reservas",
+        row is not None and row["capacity"]["slotsAvailable"] == 1 and row["holds"]["held"] == 0,
+        json.dumps(row, default=str),
+    )
+
+    jaeger = os.getenv("JAEGER_QUERY_URL")
+    if jaeger and os.getenv("TRACING_ENABLED", "").lower() in {"1", "true", "yes", "on", "sim"}:
+        # Operação própria, publicada uma única vez: o trace dela precisa ter o publicador e o S2.
+        op_t = str(uuid.uuid4())
+        await publish([validation_request(cid, campaign, op_t)])
+        found, detail = await find_cross_service_trace(jaeger, op_t)
+        check("tracing: uma operação é um único trace que atravessa publicador e S2", found, detail)
+        await publish([outcome("cancelled", cid, op_t)])
+        check("tracing: operação de teste compensada", await capacity_eventually(base, cid, 1) == 1)
+
     outbox = http("GET", f"{base}/internal/outbox")
     check("outbox drenada", outbox.get("pending") == 0, json.dumps(outbox, default=str))
 
@@ -110,6 +143,27 @@ async def run(base: str, poison: bool, poison_wait: float) -> None:
         await asyncio.sleep(poison_wait)
         after = await queue_depth(VALIDATION_QUEUE.dlq_name)
         check("F4: poison message chegou à DLQ", after == before + 1, f"{VALIDATION_QUEUE.dlq_name}: {before} -> {after}")
+
+
+async def find_cross_service_trace(jaeger: str, correlation_id: str, wait_seconds: float = 30.0) -> tuple[bool, str]:
+    """Procura no Jaeger um trace da operação com spans do publicador e do S2 (os spans chegam em lotes de ~5 s)."""
+    tags = urllib.parse.quote(json.dumps({"rpg.correlation_id": correlation_id}))
+    url = f"{jaeger.rstrip('/')}/api/traces?service=characters&tags={tags}&lookback=1h&limit=20"
+    deadline = time.monotonic() + wait_seconds
+    seen = "nenhum trace encontrado"
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=5) as resp:  # noqa: S310 — URL interna da rede Compose
+                traces = json.load(resp).get("data") or []
+        except OSError as exc:
+            traces, seen = [], f"Jaeger inacessível: {exc}"
+        for item in traces:
+            services = {p["serviceName"] for p in item.get("processes", {}).values()}
+            if {"demo-publisher", "characters"} <= services:
+                return True, f"traceId {item['traceID']} com {', '.join(sorted(services))}"
+            seen = f"traceId {item['traceID']} só com {', '.join(sorted(services))}"
+        await asyncio.sleep(2)
+    return False, seen
 
 
 def main() -> int:

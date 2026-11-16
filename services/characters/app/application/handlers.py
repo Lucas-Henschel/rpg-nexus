@@ -39,13 +39,16 @@ from app.messaging.events import (
     CHARACTER_REJECTED,
     CHARACTER_VALIDATED,
     CHARACTER_VALIDATION_REQUESTED,
+    CHARACTER_VALIDATION_REQUESTED_V2,
     ITEM_ACQUIRED,
     AcquisitionOutcomePayload,
     CharacterRejectedPayload,
     CharacterValidatedPayload,
     EventSpec,
     ValidationRequestedPayload,
+    ValidationRequestedPayloadV2,
 )
+from app.tracing import current_carrier
 
 from .ports import CharacterStore, ConcurrencyConflict, DuplicateMessage, InboxRecord, OutboxRecord
 
@@ -93,6 +96,10 @@ class MessageHandlers:
         self._validate_outgoing = outgoing_validator
         self._routes: dict[str, tuple[EventSpec, Callable[[Envelope], HandlingResult]]] = {
             CHARACTER_VALIDATION_REQUESTED.type: (CHARACTER_VALIDATION_REQUESTED, self.handle_validation_requested),
+            CHARACTER_VALIDATION_REQUESTED_V2.type: (
+                CHARACTER_VALIDATION_REQUESTED_V2,
+                self.handle_validation_requested_v2,
+            ),
             ITEM_ACQUIRED.type: (ITEM_ACQUIRED, self.handle_item_acquired),
             ACQUISITION_CANCELLED.type: (ACQUISITION_CANCELLED, self.handle_acquisition_cancelled),
         }
@@ -118,7 +125,13 @@ class MessageHandlers:
     # --- CharacterValidationRequested ---------------------------------------------------------
 
     def handle_validation_requested(self, envelope: Envelope) -> HandlingResult:
-        p = self._parse(ValidationRequestedPayload, envelope)
+        return self._validate(envelope, self._parse(ValidationRequestedPayload, envelope))
+
+    def handle_validation_requested_v2(self, envelope: Envelope) -> HandlingResult:
+        """v2 convive com a v1: o payload é convertido para a forma interna e segue o mesmo caminho."""
+        return self._validate(envelope, self._parse(ValidationRequestedPayloadV2, envelope).upcast())
+
+    def _validate(self, envelope: Envelope, p: ValidationRequestedPayload) -> HandlingResult:
         message_id = str(envelope.messageId)
         if self._store.get_inbox(message_id) is not None:
             return HandlingResult(Outcome.DUPLICATE, "messageId já processado")
@@ -145,6 +158,7 @@ class MessageHandlers:
                     "characterId": p.characterId,
                     "outcome": result.outcome.value,
                     "detail": result.detail,
+                    "eventVersion": envelope.version,
                 },
             )
             return result
@@ -335,6 +349,7 @@ class MessageHandlers:
             correlation_id=correlation_id,
             envelope=envelope,
             created_at=now,
+            trace_context=current_carrier(),
         )
 
     def _anomaly(self, envelope: Envelope, detail: str, now: Any) -> HandlingResult:

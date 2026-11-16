@@ -186,6 +186,14 @@
     {
       "source": "rpg.events",
       "vhost": "/",
+      "destination": "characters.validation-requested.v1",
+      "destination_type": "queue",
+      "routing_key": "character.validation.requested.v2",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
       "destination": "characters.acquisition-outcomes.v1",
       "destination_type": "queue",
       "routing_key": "item.acquired.v1",

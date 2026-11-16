@@ -101,6 +101,8 @@ class Settings:
     table_characters: str = "characters"
     table_inbox: str = "character_inbox"
     table_outbox: str = "character_outbox"
+    #: Modelo de leitura (CQRS): resumo por personagem, consultado por campanha.
+    table_read_model: str = "character_read_model"
     inbox_ttl_days: int = 7
     outbox_published_ttl_days: int = 3
 
@@ -130,6 +132,12 @@ class Settings:
     outbox_batch_size: int = 25
     outbox_lease_seconds: int = 30
     validate_outgoing_events: bool = True
+
+    # Tracing distribuído (OpenTelemetry). O endpoint vem de OTEL_EXPORTER_OTLP_ENDPOINT, lido pelo SDK.
+    tracing_enabled: bool = False
+
+    # Atraso artificial por mensagem consumida (somente demonstração da autoescala; 0 = desligado)
+    consumer_simulated_delay_ms: int = 0
 
     # Domínio
     default_max_items: int = 10
@@ -162,6 +170,7 @@ class Settings:
             table_characters=e.str("TABLE_CHARACTERS", defaults.table_characters),
             table_inbox=e.str("TABLE_INBOX", defaults.table_inbox),
             table_outbox=e.str("TABLE_OUTBOX", defaults.table_outbox),
+            table_read_model=e.str("TABLE_READ_MODEL", defaults.table_read_model),
             inbox_ttl_days=e.int("INBOX_TTL_DAYS", defaults.inbox_ttl_days, minimum=1),
             outbox_published_ttl_days=e.int("OUTBOX_PUBLISHED_TTL_DAYS", defaults.outbox_published_ttl_days, minimum=1),
             storage_backend=e.choice("STORAGE_BACKEND", "s3", {"s3", "memory"}),
@@ -187,6 +196,8 @@ class Settings:
             outbox_batch_size=e.int("OUTBOX_BATCH_SIZE", 25, minimum=1, maximum=100),
             outbox_lease_seconds=e.int("OUTBOX_LEASE_SECONDS", 30, minimum=1),
             validate_outgoing_events=e.bool("VALIDATE_OUTGOING_EVENTS", True),
+            tracing_enabled=e.bool("TRACING_ENABLED", False),
+            consumer_simulated_delay_ms=e.int("CONSUMER_SIMULATED_DELAY_MS", 0, minimum=0, maximum=60_000),
             default_max_items=e.int("DEFAULT_MAX_ITEMS", defaults.default_max_items, minimum=0, maximum=1000),
             fault_crash_before_ack=e.choice("FAULT_CRASH_BEFORE_ACK", "off", {"off", "once", "always"}),
             fault_marker_file=e.str("FAULT_MARKER_FILE", defaults.fault_marker_file),

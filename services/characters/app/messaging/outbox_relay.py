@@ -21,6 +21,7 @@ from typing import Protocol
 from app.application.ports import CharacterStore, OutboxRecord
 from app.clock import Clock, utcnow
 from app.logging_setup import log_context
+from app.tracing import untraced
 
 log = logging.getLogger(__name__)
 
@@ -90,6 +91,11 @@ class OutboxRelay:
                 pass
 
     async def run_once(self) -> int:
+        # O polling da outbox roda a cada 500 ms; sem isto, cada consulta ao DynamoDB viraria um trace no Jaeger.
+        with untraced():
+            return await self._drain()
+
+    async def _drain(self) -> int:
         records = await asyncio.to_thread(self._store.claim_outbox, self._batch, self._lease, self._owner, self._clock())
         for record in records:
             with log_context(correlationId=record.correlation_id, messageId=record.message_id, eventType=record.type):

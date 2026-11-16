@@ -171,3 +171,10 @@ def test_config_padrao_e_overrides():
 def test_config_invalida_falha_cedo(env, message):
     with pytest.raises(ConfigError, match=message):
         Settings.from_env(env)
+
+
+def test_atraso_simulado_do_consumidor_e_configuravel():
+    assert Settings.from_env({}).consumer_simulated_delay_ms == 0
+    assert Settings.from_env({"CONSUMER_SIMULATED_DELAY_MS": "250"}).consumer_simulated_delay_ms == 250
+    with pytest.raises(ConfigError):
+        Settings.from_env({"CONSUMER_SIMULATED_DELAY_MS": "-1"})

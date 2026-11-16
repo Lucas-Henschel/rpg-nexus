@@ -62,6 +62,20 @@
           }
         ],
         "ttlAttribute": "expiresAt"
+      },
+      {
+        "name": "character_read_model",
+        "envOverride": "TABLE_READ_MODEL",
+        "billingMode": "PAY_PER_REQUEST",
+        "keySchema": [
+          { "AttributeName": "campaignId", "KeyType": "HASH" },
+          { "AttributeName": "characterId", "KeyType": "RANGE" }
+        ],
+        "attributeDefinitions": [
+          { "AttributeName": "campaignId", "AttributeType": "S" },
+          { "AttributeName": "characterId", "AttributeType": "S" }
+        ],
+        "purpose": "Modelo de leitura (CQRS): um resumo por personagem, consultado por campanha. Reconstruível a partir de `characters`."
       }
     ]
   },
@@ -88,7 +102,7 @@
           "x-dead-letter-exchange": "",
           "x-dead-letter-routing-key": "characters.validation-requested.v1.dlq"
         },
-        "bindings": ["character.validation.requested.v1"]
+        "bindings": ["character.validation.requested.v1", "character.validation.requested.v2"]
       },
       {
         "name": "characters.validation-requested.v1.retry",

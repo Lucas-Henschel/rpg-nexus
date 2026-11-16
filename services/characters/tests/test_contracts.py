@@ -15,10 +15,12 @@ from app.messaging.events import (
     CHARACTER_REJECTED,
     CHARACTER_VALIDATED,
     CHARACTER_VALIDATION_REQUESTED,
+    CHARACTER_VALIDATION_REQUESTED_V2,
     AcquisitionOutcomePayload,
     CharacterRejectedPayload,
     CharacterValidatedPayload,
     ValidationRequestedPayload,
+    ValidationRequestedPayloadV2,
 )
 from app.messaging.topology import CONSUMER_QUEUES, expected_manifest_queues
 
@@ -29,6 +31,7 @@ CONSUMED = SERVICE_ROOT / "contracts-consumed"
 
 OWNED = [
     (CHARACTER_VALIDATION_REQUESTED, "character-validation-requested.v1", ValidationRequestedPayload),
+    (CHARACTER_VALIDATION_REQUESTED_V2, "character-validation-requested.v2", ValidationRequestedPayloadV2),
     (CHARACTER_VALIDATED, "character-validated.v1", CharacterValidatedPayload),
     (CHARACTER_REJECTED, "character-rejected.v1", CharacterRejectedPayload),
 ]
@@ -64,11 +67,25 @@ def test_exemplo_invalido_do_pedido_vira_poison_no_consumidor(handlers):
         handlers.dispatch(parse_envelope(body))
 
 
-def test_versao_desconhecida_e_rejeitada_pelo_schema_v1_e_pelo_consumidor(contracts, handlers):
-    example = _load(EXAMPLES / "character-validation-requested.v2.unknown-version.json")
+def test_versao_desconhecida_e_rejeitada_pelos_schemas_e_pelo_consumidor(contracts, handlers):
+    example = _load(EXAMPLES / "character-validation-requested.v3.unknown-version.json")
     assert contracts.errors(CHARACTER_VALIDATION_REQUESTED.schema_file, example)
+    assert contracts.errors(CHARACTER_VALIDATION_REQUESTED_V2.schema_file, example)
     with pytest.raises(PoisonMessage):
         handlers.dispatch(Envelope.model_validate(example))
+
+
+def test_cada_versao_do_pedido_so_passa_no_proprio_schema(contracts):
+    v1 = _load(EXAMPLES / "character-validation-requested.v1.valid.json")
+    v2 = _load(EXAMPLES / "character-validation-requested.v2.valid.json")
+    assert contracts.errors(CHARACTER_VALIDATION_REQUESTED_V2.schema_file, v1)
+    assert contracts.errors(CHARACTER_VALIDATION_REQUESTED.schema_file, v2)
+
+
+def test_exemplo_valido_da_v2_e_processado(store, clock, handlers):
+    make_character(store, clock)
+    body = (EXAMPLES / "character-validation-requested.v2.valid.json").read_bytes()
+    assert handlers.dispatch(parse_envelope(body)).outcome is Outcome.APPROVED
 
 
 def test_exemplo_valido_do_pedido_e_processado(store, clock, handlers):
@@ -110,7 +127,12 @@ def test_manifesto_de_infra_igual_a_topologia_do_codigo():
     assert manifest["rabbitmq"]["queues"] == expected_manifest_queues()
     assert set(manifest["rabbitmq"]["publishes"]) == {CHARACTER_VALIDATED.routing_key, CHARACTER_REJECTED.routing_key}
     bound = {rk for q in CONSUMER_QUEUES for rk in q.bindings}
-    assert bound == {"character.validation.requested.v1", "item.acquired.v1", "acquisition.cancelled.v1"}
+    assert bound == {
+        "character.validation.requested.v1",
+        "character.validation.requested.v2",
+        "item.acquired.v1",
+        "acquisition.cancelled.v1",
+    }
 
 
 def test_routing_keys_e_tipos_seguem_o_padrao_dos_contratos():

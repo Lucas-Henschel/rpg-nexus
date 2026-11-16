@@ -17,10 +17,12 @@ from app.application.dto import (
     CharacterOut,
     CharacterPageOut,
     CharacterPatch,
+    CharacterSummaryOut,
     HoldOut,
     PortraitUploadRequest,
     PortraitUrlOut,
     PresignedUploadOut,
+    RosterOut,
 )
 from app.bootstrap import Container
 from app.domain.errors import DomainError, InvalidPortrait, VersionConflict
@@ -79,7 +81,8 @@ def health(c: ContainerDep) -> dict[str, Any]:
 @router.get("/ready", tags=["saúde"], summary="Readiness: dependências acessíveis")
 def ready(c: ContainerDep) -> JSONResponse:
     checks: dict[str, str] = {}
-    for name, probe in (("dynamodb", c.store.ping), ("s3", c.storage.ping if c.storage else None)):
+    probes = (("dynamodb", c.store.ping), ("readModel", c.read_model.ping), ("s3", c.storage.ping if c.storage else None))
+    for name, probe in probes:
         if probe is None:
             checks[name] = "disabled"
             continue
@@ -169,6 +172,26 @@ def patch_character(
 )
 def list_holds(character_id: CharacterId, c: ContainerDep) -> dict[str, list[HoldOut]]:
     return {"items": [HoldOut.from_domain(h) for h in c.characters.holds(character_id)]}
+
+
+# --- Consulta pelo modelo de leitura (CQRS) --------------------------------------------------------
+
+
+@router.get(
+    "/campaigns/{campaign_id}/roster",
+    tags=["consultas (CQRS)"],
+    response_model=RosterOut,
+    summary="Painel da campanha: resumo de cada personagem e totais, lido do modelo de leitura",
+)
+def campaign_roster(
+    campaign_id: Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{1,64}$", description="ID da campanha")], c: ContainerDep
+) -> RosterOut:
+    roster = c.roster.by_campaign(campaign_id)
+    return RosterOut(
+        campaignId=roster.campaign_id,
+        totals=roster.totals,
+        items=[CharacterSummaryOut.from_summary(s) for s in roster.items],
+    )
 
 
 # --- Retratos (S3) --------------------------------------------------------------------------------
@@ -279,6 +302,21 @@ def inbox_record(message_id: Annotated[str, Path(max_length=64)], c: ContainerDe
         "detail": record.detail,
         "receivedAt": record.received_at,
     }
+
+
+@internal.post(
+    "/read-model/rebuild",
+    summary="Reconstrói o modelo de leitura de uma campanha a partir do modelo de escrita (CQRS)",
+)
+def rebuild_read_model(
+    c: ContainerDep, campaign_id: Annotated[str, Query(alias="campaignId", pattern=r"^[A-Za-z0-9_-]{1,64}$")]
+) -> dict[str, Any]:
+    return {"campaignId": campaign_id, "rebuilt": c.projector.rebuild_campaign(campaign_id), "projector": c.projector.stats}
+
+
+@internal.get("/read-model", summary="Contadores do projetor do modelo de leitura (CQRS)")
+def read_model_stats(c: ContainerDep) -> dict[str, Any]:
+    return {"table": c.settings.table_read_model, "projector": c.projector.stats}
 
 
 @internal.get("/messaging", summary="Estado da conexão RabbitMQ, reconexões e contadores de consumo")

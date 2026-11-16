@@ -144,3 +144,55 @@ def test_correlation_id_e_cors(api):
     assert response.headers["X-Correlation-Id"] == "abc-123"
     preflight = api.options("/characters", headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "POST"})
     assert preflight.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+
+# --- CQRS: consulta pelo modelo de leitura ----------------------------------------------------------
+
+
+def test_roster_le_do_modelo_de_leitura_e_acompanha_as_escritas(api, container):
+    lyra = _create(api, name="Lyra", maxItems=3)
+    _create(api, name="Bram", maxItems=1)
+    _create(api, name="De outra campanha", campaignId="c2")
+
+    roster = api.get("/campaigns/c1/roster").json()
+    assert roster["source"] == "read-model"
+    assert [item["name"] for item in roster["items"]] == ["Bram", "Lyra"]
+    assert roster["totals"] == {
+        "characters": 2,
+        "active": 2,
+        "slotsUsed": 0,
+        "slotsAvailable": 4,
+        "holdsHeld": 0,
+        "holdsCommitted": 0,
+        "holdsReleased": 0,
+    }
+
+    api.patch(f"/characters/{lyra['id']}", json={"name": "Lyra Ventobravo", "active": False})
+    dispatch = container.projector.after(container.handlers.dispatch)
+    bram = next(item for item in roster["items"] if item["name"] == "Bram")
+    dispatch(validation_request(character_id=bram["characterId"], operation_id="op-1"))
+
+    roster = api.get("/campaigns/c1/roster").json()
+    assert [item["name"] for item in roster["items"]] == ["Bram", "Lyra Ventobravo"]
+    assert roster["totals"]["active"] == 1
+    assert roster["totals"]["holdsHeld"] == 1 and roster["totals"]["slotsAvailable"] == 3
+    assert roster["items"][0]["capacity"] == {"maxItems": 1, "slotsUsed": 1, "slotsAvailable": 0}
+
+
+def test_roster_de_campanha_sem_personagens_e_vazio(api):
+    roster = api.get("/campaigns/vazia/roster").json()
+    assert roster["items"] == [] and roster["totals"]["characters"] == 0
+
+
+def test_rebuild_recupera_modelo_de_leitura_perdido(api, container):
+    _create(api, name="Lyra")
+    container.read_model._summaries.clear()  # simula a tabela de leitura apagada
+    assert api.get("/campaigns/c1/roster").json()["items"] == []
+
+    rebuilt = api.post("/internal/read-model/rebuild", params={"campaignId": "c1"}).json()
+    assert rebuilt["rebuilt"] == 1
+    assert [item["name"] for item in api.get("/campaigns/c1/roster").json()["items"]] == ["Lyra"]
+
+
+def test_ready_inclui_o_modelo_de_leitura(api):
+    assert api.get("/ready").json()["checks"]["readModel"] == "ok"

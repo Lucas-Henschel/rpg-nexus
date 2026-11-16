@@ -49,6 +49,11 @@ todos os consumidores migrarem e as mensagens antigas acabarem.
 Uma routing key nova precisa de uma fila em `infra/rabbitmq/definitions.json`; senão o RabbitMQ
 descarta a mensagem em silêncio. O teste abaixo confere isso.
 
+## Rastreamento (tracing)
+
+O contexto de trace **não** faz parte do envelope. Ele viaja nos headers AMQP da mensagem, no padrão W3C
+Trace Context (`traceparent` e `tracestate`).
+
 ## Validação
 
 Com Node.js instalado, dentro de `contracts/`:

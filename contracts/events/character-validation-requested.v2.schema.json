@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:character-validation-requested:v2",
+  "title": "CharacterValidationRequested v2",
+  "description": "Versão 2 do pedido de validação. Mudança incompatível em relação à v1: o prazo deixa de ser o campo opcional `deadlineAt` e passa a ser o campo OBRIGATÓRIO `expiresAt`. As duas versões convivem: produtores antigos continuam publicando a v1, e o S2 consome ambas na mesma fila.",
+  "x-routing": {
+    "exchange": "rpg.events",
+    "routingKey": "character.validation.requested.v2",
+    "producer": "inventory (S3, P3)",
+    "consumers": [
+      "characters (S2, P2) — fila characters.validation-requested.v1"
+    ]
+  },
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "urn:rpg-nexus:envelope:v1"
+    }
+  ],
+  "properties": {
+    "type": {
+      "const": "rpg.character.validation-requested.v2"
+    },
+    "version": {
+      "const": 2
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "operationId",
+        "campaignId",
+        "characterId",
+        "itemId",
+        "quantity",
+        "expiresAt"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "operationId": {
+          "$ref": "#/$defs/id",
+          "description": "ID da Saga; igual ao correlationId do envelope."
+        },
+        "campaignId": {
+          "$ref": "#/$defs/id"
+        },
+        "characterId": {
+          "$ref": "#/$defs/id"
+        },
+        "itemId": {
+          "$ref": "#/$defs/id"
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?(Z|[+-]\\d{2}:\\d{2})$",
+          "description": "Obrigatório. Prazo da Saga; após ele o S2 recusa com DEADLINE_EXPIRED em vez de reservar capacidade."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    }
+  }
+}

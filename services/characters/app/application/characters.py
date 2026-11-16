@@ -54,6 +54,7 @@ class CharacterService:
         presign_expires_seconds: int = 300,
         clock: Clock = utcnow,
         id_factory: Callable[[], str] = lambda: str(uuid.uuid4()),
+        on_change: Callable[[str], None] | None = None,
     ) -> None:
         self._store = store
         self._storage = storage
@@ -63,6 +64,8 @@ class CharacterService:
         self._presign_expires = presign_expires_seconds
         self._clock = clock
         self._new_id = id_factory
+        #: Avisado depois de cada escrita confirmada; é por aqui que o modelo de leitura (CQRS) é atualizado.
+        self._changed = on_change or (lambda _character_id: None)
 
     # --- Fichas ------------------------------------------------------------------------------
 
@@ -98,6 +101,7 @@ class CharacterService:
             log.info("character.create.idempotent_replay", extra={"characterId": character_id})
             return existing, False
         log.info("character.created", extra={"characterId": character_id, "campaignId": data.campaignId})
+        self._changed(character_id)
         return character, True
 
     def get(self, character_id: str) -> Character:
@@ -125,6 +129,7 @@ class CharacterService:
             except ConcurrencyConflict:
                 continue  # versão mudou ou reserva concorrente consumiu capacidade: reavaliar
             log.info("character.updated", extra={"characterId": character_id, "version": updated.version})
+            self._changed(character_id)
             return self.get(character_id)
         latest = self.get(character_id)
         raise VersionConflict(expected_version or latest.version, latest.version)
@@ -233,6 +238,7 @@ class CharacterService:
             except ConcurrencyConflict:
                 continue
             log.info("character.portrait_saved", extra={"characterId": character_id, "key": portrait.key})
+            self._changed(character_id)
             return self.get(character_id)
         raise DependencyUnavailable("não foi possível registrar o retrato após várias tentativas")
 

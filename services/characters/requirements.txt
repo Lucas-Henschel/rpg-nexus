@@ -4,3 +4,8 @@ pydantic~=2.10.4
 boto3~=1.35.0
 aio-pika>=9.4,<10
 jsonschema~=4.23.0
+opentelemetry-api~=1.33.1
+opentelemetry-sdk~=1.33.1
+opentelemetry-exporter-otlp-proto-http~=1.33.1
+opentelemetry-instrumentation-fastapi==0.54b1
+opentelemetry-instrumentation-botocore==0.54b1
