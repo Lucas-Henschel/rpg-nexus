@@ -71,6 +71,10 @@ e gravado numa **transação** do DynamoDB (tudo ou nada):
 O consumidor reconecta sozinho se o RabbitMQ cair, e réplicas dividem a mesma fila (`prefetch`
 configurável).
 
+Chamadas ao DynamoDB têm limite de tempo (5 s por tentativa): um banco travado vira falha e a
+mensagem vai para o retry, em vez de ficar presa. Um erro inesperado (por exemplo, não conseguir
+publicar no retry) devolve a mensagem à fila depois de 1 s, sem perdê-la.
+
 ## 5. Tabelas DynamoDB
 
 Criadas pelo Terraform ([`infra/terraform/campaigns.tf`](../../infra/terraform/campaigns.tf)) antes de o

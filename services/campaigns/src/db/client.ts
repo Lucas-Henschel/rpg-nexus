@@ -11,8 +11,18 @@ export interface Db {
   tables: Tables;
 }
 
+const REQUEST_TIMEOUT = {
+  connectionTimeout: 2000,
+  requestTimeout: 5000,
+  throwOnRequestTimeout: true,
+};
+
 export function createDynamoClient(env: Env): DynamoDBClient {
-  const client = new DynamoDBClient({ endpoint: env.AWS_ENDPOINT_URL, region: env.AWS_REGION });
+  const client = new DynamoDBClient({
+    endpoint: env.AWS_ENDPOINT_URL,
+    region: env.AWS_REGION,
+    requestHandler: REQUEST_TIMEOUT,
+  });
 
   traceDynamoCommands(client);
 
