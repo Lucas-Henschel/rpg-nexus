@@ -56,6 +56,8 @@ class OutboxRecord:
     status: str = "PENDING"  # PENDING | PUBLISHED
     attempts: int = 0
     published_at: datetime | None = None
+    #: W3C Trace Context de quando o evento foi gerado; o relay continua este trace ao publicar.
+    trace_context: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

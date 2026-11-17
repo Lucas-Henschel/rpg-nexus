@@ -13,15 +13,27 @@ import aio_pika
 from aio_pika import DeliveryMode, Message
 
 from app.messaging.envelope import build_envelope
-from app.messaging.events import ACQUISITION_CANCELLED, CHARACTER_VALIDATION_REQUESTED, ITEM_ACQUIRED, EventSpec
+from app.messaging.events import (
+    ACQUISITION_CANCELLED,
+    CHARACTER_VALIDATION_REQUESTED,
+    CHARACTER_VALIDATION_REQUESTED_V2,
+    ITEM_ACQUIRED,
+    EventSpec,
+)
+from app.tracing import current_carrier, flush_tracing, init_tracing, producer_span
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 EXCHANGE = os.getenv("RABBITMQ_EXCHANGE", "rpg.events")
 
 
 def validation_request(
-    character_id: str, campaign_id: str, operation_id: str | None = None, deadline_seconds: int | None = None
+    character_id: str,
+    campaign_id: str,
+    operation_id: str | None = None,
+    deadline_seconds: int | None = None,
+    version: int = 1,
 ) -> dict[str, Any]:
+    """Monta o pedido na versão escolhida. Na v2 o prazo é obrigatório (``expiresAt``; padrão de 60 s)."""
     op = operation_id or str(uuid.uuid4())
     payload: dict[str, Any] = {
         "operationId": op,
@@ -30,9 +42,16 @@ def validation_request(
         "itemId": "demo-sword",
         "quantity": 1,
     }
+    if version == 2:
+        payload["expiresAt"] = _in_seconds(60 if deadline_seconds is None else deadline_seconds)
+        return _envelope(CHARACTER_VALIDATION_REQUESTED_V2, op, payload)
     if deadline_seconds is not None:
-        payload["deadlineAt"] = (datetime.now(UTC) + timedelta(seconds=deadline_seconds)).isoformat().replace("+00:00", "Z")
+        payload["deadlineAt"] = _in_seconds(deadline_seconds)
     return _envelope(CHARACTER_VALIDATION_REQUESTED, op, payload)
+
+
+def _in_seconds(seconds: int) -> str:
+    return (datetime.now(UTC) + timedelta(seconds=seconds)).isoformat().replace("+00:00", "Z")
 
 
 def outcome(kind: str, character_id: str, operation_id: str) -> dict[str, Any]:
@@ -48,13 +67,28 @@ def _envelope(spec: EventSpec, correlation_id: str, payload: dict[str, Any]) -> 
 
 
 def routing_key_for(envelope: dict[str, Any]) -> str:
-    for spec in (CHARACTER_VALIDATION_REQUESTED, ITEM_ACQUIRED, ACQUISITION_CANCELLED):
+    for spec in (CHARACTER_VALIDATION_REQUESTED, CHARACTER_VALIDATION_REQUESTED_V2, ITEM_ACQUIRED, ACQUISITION_CANCELLED):
         if envelope.get("type") == spec.type:
             return spec.routing_key
     return CHARACTER_VALIDATION_REQUESTED.routing_key
 
 
+TRACING_ENABLED = os.getenv("TRACING_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on", "sim"}
+#: Nome com que o script aparece no Jaeger: ele faz o papel do serviço que publicaria o evento (S3 Inventário).
+TRACING_SERVICE_NAME = os.getenv("DEMO_PUBLISHER_SERVICE_NAME", "demo-publisher")
+
+
 async def publish(bodies: list[bytes | dict[str, Any]], routing_key: str | None = None) -> None:
+    """Publica com um span PRODUCER por mensagem; o traceparent vai nos headers AMQP e inicia o trace."""
+    # Inicia uma vez por processo (o smoke publica várias vezes); desligar aqui descartaria os spans seguintes.
+    init_tracing(TRACING_SERVICE_NAME, enabled=TRACING_ENABLED)
+    try:
+        await _publish(bodies, routing_key)
+    finally:
+        flush_tracing()  # processo curto: exporta os spans sem esperar o próximo lote
+
+
+async def _publish(bodies: list[bytes | dict[str, Any]], routing_key: str | None) -> None:
     connection = await aio_pika.connect(RABBITMQ_URL, timeout=10)
     async with connection:
         channel = await connection.channel(publisher_confirms=True)
@@ -66,16 +100,18 @@ async def publish(bodies: list[bytes | dict[str, Any]], routing_key: str | None 
                 message_id, msg_type = body.get("messageId"), body.get("type")
             else:
                 raw, key, message_id, msg_type = body, routing_key or CHARACTER_VALIDATION_REQUESTED.routing_key, None, None
-            await exchange.publish(
-                Message(
-                    raw,
-                    content_type="application/json",
-                    delivery_mode=DeliveryMode.PERSISTENT,
-                    message_id=message_id,
-                    type=msg_type,
-                ),
-                routing_key=key,
-            )
+            with producer_span(key, None, {"messaging.message.id": message_id, "rpg.event_type": msg_type}):
+                await exchange.publish(
+                    Message(
+                        raw,
+                        content_type="application/json",
+                        delivery_mode=DeliveryMode.PERSISTENT,
+                        message_id=message_id,
+                        type=msg_type,
+                        headers=dict(current_carrier()),
+                    ),
+                    routing_key=key,
+                )
 
 
 class EventListener:

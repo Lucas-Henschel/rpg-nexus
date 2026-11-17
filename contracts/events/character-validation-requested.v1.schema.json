@@ -9,6 +9,7 @@
     "producer": "inventory (S3, P3)",
     "consumers": ["characters (S2, P2) — fila characters.validation-requested.v1"]
   },
+  "type": "object",
   "allOf": [{ "$ref": "urn:rpg-nexus:envelope:v1" }],
   "properties": {
     "type": { "const": "rpg.character.validation-requested.v1" },

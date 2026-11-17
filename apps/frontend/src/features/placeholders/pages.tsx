@@ -57,18 +57,24 @@ function ComingSoon({ title, lead, service, planned, endpoints }: Props) {
   );
 }
 
-export function CampaignsPage() {
+export function ItemsPage() {
   return (
     <ComingSoon
-      title="Campanhas"
-      lead="Onde quem mestra abre a campanha e reúne os personagens que vão jogar."
-      service="campaigns"
+      title="Itens"
+      lead="O estoque da campanha e a disputa pelos itens raros."
+      service="inventory"
       planned={[
-        "Lista de campanhas e botão para criar uma nova",
-        "Participantes de cada campanha",
-        "Atividade recente: itens que os personagens conquistaram",
+        "Catálogo com o estoque restante de cada item",
+        "Botão para pedir um item e acompanhamento do pedido até a entrega ou o cancelamento",
+        "Inventário de cada personagem",
       ]}
-      endpoints={["POST /campaigns", "GET /campaigns/{id}", "POST /campaigns/{id}/members"]}
+      endpoints={[
+        "POST /items",
+        "POST /stocks",
+        "POST /acquisitions (responde 202 com operationId)",
+        "GET /acquisitions/{operationId}",
+        "GET /inventory/{characterId}",
+      ]}
     />
   );
 }

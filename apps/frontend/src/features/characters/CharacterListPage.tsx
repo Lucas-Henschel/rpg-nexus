@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from "react";
 import { portraitUrl, type Character } from "./api";
 import { errorMessage } from "../../shared/http";
-import { CAMPAIGN_PATTERN, useCampaign } from "../../shared/campaign";
+import { useCampaign } from "../../shared/campaign";
+import { CampaignPicker } from "../campaigns/CampaignPicker";
 import { cx } from "../../shared/ui/cx";
 import { HpBar, Initials } from "../../shared/ui/Sheet";
 import { toLabel } from "../../shared/labels";
@@ -45,47 +45,14 @@ function CharacterTile({ character }: { character: Character }) {
 
 export function CharacterListPage() {
   const [campaign, setCampaign] = useCampaign();
-  const [draft, setDraft] = useState(campaign);
   const characters = useCharacters(campaign);
-
-  const changeCampaign = (event: FormEvent) => {
-    event.preventDefault();
-    if (CAMPAIGN_PATTERN.test(draft.trim())) {
-      setCampaign(draft.trim());
-    }
-  };
-
-  const draftValid = CAMPAIGN_PATTERN.test(draft.trim());
 
   return (
     <main className="page">
       <header className="page__head">
         <div>
           <h1 className="page__title">Personagens</h1>
-          <form className="campaign-picker" onSubmit={changeCampaign}>
-            <label htmlFor="campaign">Campanha</label>
-            <input
-              id="campaign"
-              className="felt-input"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              spellCheck={false}
-            />
-            {draft.trim() !== campaign && (
-              <button
-                type="submit"
-                className="button button--ghost-felt button--small"
-                disabled={!draftValid}
-              >
-                Trocar campanha
-              </button>
-            )}
-          </form>
-          {!draftValid && (
-            <p className="field-error field-error--felt">
-              Use só letras, números, hífen e sublinhado.
-            </p>
-          )}
+          <CampaignPicker value={campaign} onChange={setCampaign} />
         </div>
         <Link to="/personagens/novo" className="button button--brass">
           Criar personagem

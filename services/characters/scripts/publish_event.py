@@ -5,6 +5,12 @@ Exemplos (dentro do contêiner: ``docker compose exec characters python -m scrip
     # pedido de validação
     python -m scripts.publish_event validation --character-id <id> --campaign-id c1
 
+    # mesma operação na versão 2 do evento (as duas versões convivem)
+    python -m scripts.publish_event validation --character-id <id> --campaign-id c1 --event-version 2
+
+    # carga: N operações distintas, para a fila crescer (demonstração da autoescala)
+    python -m scripts.publish_event flood --character-id <id> --campaign-id c1 --count 2000
+
     # F3 — mesmo envelope (mesmo messageId) 5 vezes
     python -m scripts.publish_event validation --character-id <id> --campaign-id c1 --times 5
 
@@ -43,6 +49,13 @@ def main() -> int:
     v.add_argument("--operation-id")
     v.add_argument("--deadline-seconds", type=int)
     v.add_argument("--times", type=int, default=1, help="repete o MESMO envelope (mesmo messageId)")
+    v.add_argument("--event-version", type=int, choices=[1, 2], default=1, help="versão do evento a publicar")
+
+    fl = sub.add_parser("flood", help="N pedidos de validação distintos (carga para a autoescala)")
+    fl.add_argument("--character-id", required=True)
+    fl.add_argument("--campaign-id", required=True)
+    fl.add_argument("--count", type=int, default=1000)
+    fl.add_argument("--event-version", type=int, choices=[1, 2], default=1)
 
     for kind in ("acquired", "cancelled"):
         o = sub.add_parser(kind, help=f"{'ItemAcquired' if kind == 'acquired' else 'AcquisitionCancelled'}")
@@ -62,8 +75,16 @@ def main() -> int:
     bodies: list[bytes | dict[str, Any]]
 
     if args.command == "validation":
-        envelope = validation_request(args.character_id, args.campaign_id, args.operation_id, args.deadline_seconds)
+        envelope = validation_request(
+            args.character_id, args.campaign_id, args.operation_id, args.deadline_seconds, args.event_version
+        )
         bodies = [envelope] * args.times
+    elif args.command == "flood":
+        requests = [
+            validation_request(args.character_id, args.campaign_id, None, 600, args.event_version) for _ in range(args.count)
+        ]
+        bodies = list(requests)
+        envelope = {"messageId": None, "type": requests[0]["type"] if requests else None}
     elif args.command in ("acquired", "cancelled"):
         envelope = outcome(args.command, args.character_id, args.operation_id)
         bodies = [envelope] * args.times

@@ -6,7 +6,9 @@ import { CharacterListPage } from "../features/characters/CharacterListPage";
 import { CharacterSheetPage } from "../features/characters/CharacterSheetPage";
 import { NewCharacterPage } from "../features/characters/NewCharacterPage";
 import { HomePage } from "../features/home/HomePage";
-import { CampaignsPage, HistoryPage } from "../features/placeholders/pages";
+import { CampaignPage } from "../features/campaigns/CampaignPage";
+import { CampaignsPage } from "../features/campaigns/CampaignsPage";
+import { HistoryPage } from "../features/placeholders/pages";
 import { ItemsPage } from "../features/inventory/ItemsPage";
 import { matchPath, usePath } from "./navigation";
 import { queryClient } from "./queryClient";
@@ -34,6 +36,11 @@ function Routes() {
 
   if (path === "/campanhas") {
     return <CampaignsPage />;
+  }
+
+  const campaign = matchPath("/campanhas/:id", path);
+  if (campaign) {
+    return <CampaignPage key={campaign.id} id={campaign.id} />;
   }
 
   if (path === "/itens") {

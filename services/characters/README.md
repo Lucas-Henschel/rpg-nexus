@@ -99,6 +99,7 @@ capacidade.
 | `characters` | `pk=CHAR#{id}`, `sk=PROFILE` | ficha + `maxItems`, `slotsUsed`, `slotsAvailable`, `version` | GSI esparso `byCampaign` (`gsi1pk=CAMPAIGN#{campaignId}`) |
 | `characters` | `pk=CHAR#{id}`, `sk=HOLD#{operationId}` | reserva: `status`, `quantity`, `tombstone` | consultas por personagem com `begins_with` |
 | `character_inbox` | `messageId` | `type`, `correlationId`, `outcome`, `detail` | TTL `expiresAt` (padrão 7 dias) |
+| `character_read_model` | `campaignId` + `characterId` | resumo por personagem (vida, vagas, reservas por estado, `projectedAt`) | modelo de leitura (CQRS); reconstruível |
 | `character_outbox` | `messageId` | `envelope`, `routingKey`, `status`, `attempts`, lease | GSI esparso `pending` só com itens pendentes |
 
 S3: `s3://{S3_BUCKET}/characters/{characterId}/portrait`.
@@ -107,19 +108,109 @@ S3: `s3://{S3_BUCKET}/characters/{characterId}/portrait`.
 vida, mochila, texto, contador, rolagens, lista). O serviço valida formato e tamanho (até 60 blocos e
 60 KB) e guarda a organização como texto JSON no item `PROFILE`; o conteúdo dos blocos é do frontend.
 
+### Modelo de leitura separado (CQRS)
+
+As consultas de campanha não leem a tabela de escrita. Elas leem `character_read_model`, uma tabela só de
+consulta, com um resumo pronto por personagem.
+
+| | Lado de escrita | Lado de leitura |
+|---|---|---|
+| Tabela | `characters` (fichas + reservas) | `character_read_model` |
+| Chave | `pk=CHAR#{id}`, `sk=PROFILE` ou `HOLD#{op}` | `campaignId` + `characterId` |
+| Otimizada para | transações e escritas condicionais da Saga | "painel da campanha" em uma Query pela chave primária |
+| Conteúdo | estado normalizado, uma linha por reserva | resumo desnormalizado: vida, vagas, contagem de reservas por estado |
+| Quem acessa | comandos (API de escrita e handlers da Saga) | `GET /campaigns/{campaignId}/roster` |
+
+- **Projeção** (`app/application/read_model.py::Projector`): depois de cada escrita confirmada, relê a ficha e
+  as reservas do personagem e regrava o resumo inteiro. Por reconstruir a partir da fonte, é idempotente e
+  não depende da ordem dos eventos.
+- **Gatilhos:** escritas pela API (`CharacterService`, via `on_change`) e mensagens da Saga
+  (`Projector.after`, que envolve o `dispatch`, depois do efeito e antes do ACK).
+- **Consistência eventual:** a leitura pode ficar um instante atrás da escrita; cada item traz `projectedAt`.
+- **Queda entre gravar e projetar:** a mensagem é reentregue, a inbox impede o efeito duplicado e a projeção
+  roda mesmo para a duplicata.
+- **Corrida entre projeções:** a gravação é condicional (`projectedAt <= :novo`); uma projeção mais antiga
+  nunca sobrescreve uma mais nova.
+- **Falha no lado de leitura** não derruba a escrita: o erro é registrado (`read_model.projection_failed`) e
+  o resumo é corrigido na próxima mudança ou pelo rebuild.
+- **Rebuild:** `POST /internal/read-model/rebuild?campaignId=c1` reconstrói a campanha a partir do modelo de
+  escrita. Use uma vez para personagens criados antes de o modelo de leitura existir.
+
+Limitação: a projeção disparada pela API roda no próprio processo, logo após a escrita. Se o serviço cair
+exatamente entre as duas, o resumo fica desatualizado até a próxima mudança daquele personagem ou até o rebuild.
+
+Demonstração:
+
+```bash
+curl -s localhost:8000/campaigns/c1/roster                 # resumo + totais, lidos do modelo de leitura
+docker compose exec characters python -m scripts.publish_event validation --character-id <id> --campaign-id c1
+curl -s localhost:8000/campaigns/c1/roster                 # holds.held e slotsUsed do personagem mudaram
+curl -s localhost:8000/internal/read-model                 # contadores do projetor
+curl -s -X POST "localhost:8000/internal/read-model/rebuild?campaignId=c1"
+aws --endpoint-url http://localhost:4566 dynamodb scan --table-name character_read_model   # a tabela separada
+```
+
+### Tracing distribuído (OpenTelemetry)
+
+O S2 envia spans ao Jaeger da pilha (http://localhost:16686) e propaga o W3C `traceparent` nos **headers AMQP**:
+
+- **Consumo:** o span `CONSUMER` é filho de quem publicou; o handler e as chamadas ao DynamoDB ficam dentro dele.
+- **Outbox:** o evento de resposta é gravado com o `traceparent` do processamento (`OutboxRecord.trace_context`,
+  atributo `traceContext` na tabela). O relay publica depois e reabre esse contexto, então o trace não se parte.
+- **Retry:** a mensagem republicada para nova tentativa mantém os headers, e com eles o trace.
+- **Logs:** cada linha de log tem `traceId`, o mesmo id do Jaeger.
+
+Ligado por `TRACING_ENABLED=true` (padrão no Compose); com `false`, nenhum span é exportado. O item só vale com os
+quatro serviços no mesmo trace.
+
 ## 5. Mensageria
 
 | Direção | Evento | Routing key | Fila do S2 |
 |---|---|---|---|
 | consome | `CharacterValidationRequested` (`rpg.character.validation-requested.v1`) | `character.validation.requested.v1` | `characters.validation-requested.v1` |
+| consome | `CharacterValidationRequested` **v2** (`rpg.character.validation-requested.v2`) | `character.validation.requested.v2` | `characters.validation-requested.v1` (a mesma) |
 | consome | `ItemAcquired` (`rpg.item.acquired.v1`) | `item.acquired.v1` | `characters.acquisition-outcomes.v1` |
 | consome | `AcquisitionCancelled` (`rpg.acquisition.cancelled.v1`) | `acquisition.cancelled.v1` | `characters.acquisition-outcomes.v1` |
 | publica | `CharacterValidated` (`rpg.character.validated.v1`) | `character.validated.v1` | — |
 | publica | `CharacterRejected` (`rpg.character.rejected.v1`) | `character.rejected.v1` | — |
 
-Cada fila tem `.retry` e `.dlq`. Schemas: `contracts/events/character-*.v1.schema.json`, com exemplos
+Cada fila tem `.retry` e `.dlq`. Schemas: `contracts/events/character-*.schema.json`, com exemplos
 válidos e inválidos em `contracts/examples/`. Todo evento produzido é validado contra o schema antes de
 entrar na outbox (`VALIDATE_OUTGOING_EVENTS=true`).
+
+### Versionamento de eventos: v1 e v2 convivendo
+
+`CharacterValidationRequested` existe em duas versões ao mesmo tempo, e o S2 consome as duas:
+
+| | v1 | v2 |
+|---|---|---|
+| `type` / `version` | `rpg.character.validation-requested.v1` / `1` | `rpg.character.validation-requested.v2` / `2` |
+| Routing key | `character.validation.requested.v1` | `character.validation.requested.v2` |
+| Prazo da Saga | `deadlineAt`, opcional | `expiresAt`, **obrigatório** |
+| Schema | `character-validation-requested.v1.schema.json` | `character-validation-requested.v2.schema.json` |
+
+- **Por que é uma versão nova e não um campo a mais:** tornar o prazo obrigatório e renomeá-lo quebra quem
+  publica a v1. Mudança incompatível pede `version` nova (regra de `contracts/README.md`).
+- **Como convivem:** cada versão tem `type`, routing key e schema próprios. A fila do S2 está ligada às duas
+  routing keys; `MessageHandlers.dispatch` escolhe o handler pelo par `type`/`version`.
+- **Onde a diferença morre:** `ValidationRequestedPayloadV2.upcast()` (`app/messaging/events.py`) converte a
+  v2 para a forma interna. Regras, reserva, inbox e outbox são as mesmas; o domínio não conhece versões.
+- **Quem publica a v1 não muda nada:** produtores antigos continuam funcionando, e a resposta
+  (`CharacterValidated` / `CharacterRejected` v1) é a mesma para as duas versões.
+- **Idempotência entre versões:** a mesma `operationId` pedida em v1 e depois em v2 reserva uma única vez.
+- **Versão desconhecida** (ex.: v3) continua sendo mensagem venenosa e vai para a DLQ.
+
+Demonstração (com a pilha no ar, na raiz do monorepo):
+
+```bash
+docker compose exec characters python -m scripts.publish_event validation --character-id <id> --campaign-id c1
+docker compose exec characters python -m scripts.publish_event validation --character-id <id> --campaign-id c1 --event-version 2
+curl -s localhost:8000/characters/<id>/holds            # duas reservas HELD, uma por operação
+curl -s localhost:8000/internal/inbox/<messageId>       # o campo "type" mostra a versão recebida
+docker compose logs characters | grep validation.decided # cada linha traz "eventVersion": 1 ou 2
+```
+
+O `smoke_s2` também publica um pedido v2 e confere validação, reserva e compensação.
 
 ## 6. API HTTP
 
@@ -133,6 +224,7 @@ Documentação interativa: `http://localhost:8000/docs`.
 | GET | `/characters?campaignId=c1&limit=50&cursor=` | lista por campanha (paginada) |
 | GET | `/characters/{id}` | consulta; header `ETag` = versão |
 | PATCH | `/characters/{id}` | JSON Merge Patch (`null` remove atributo/perícia); `If-Match` → `412` se desatualizado. O campo `sheet` (organização livre da ficha em blocos) é substituído por inteiro; `null` volta à ficha padrão |
+| GET | `/campaigns/{campaignId}/roster` | **consulta (CQRS)**: resumo de cada personagem e totais da campanha, lidos do modelo de leitura |
 | GET | `/characters/{id}/holds` | reservas da Saga (evidência na defesa) |
 | POST | `/characters/{id}/portrait-upload` | URL pré-assinada `PUT` para o S3 |
 | POST | `/characters/{id}/portrait/confirm` | S2 confere tamanho, tipo e *magic bytes* e grava a referência |
@@ -141,6 +233,8 @@ Documentação interativa: `http://localhost:8000/docs`.
 | GET | `/characters/{id}/portrait/content` | bytes do retrato via backend |
 | GET | `/internal/outbox` | pendentes na outbox (F6) |
 | GET | `/internal/inbox/{messageId}` | registro de processamento (F2/F3) |
+| POST | `/internal/read-model/rebuild?campaignId=` | reconstrói o modelo de leitura da campanha |
+| GET | `/internal/read-model` | contadores do projetor |
 | GET | `/internal/messaging` | conexão, reconexões, retries, DLQ, desfechos |
 
 Erros sempre no formato `{"error": {"code", "message", "details"}}`.
@@ -173,6 +267,19 @@ CORS vêm do `.env` da raiz; `services/characters/.env.example` guarda só as va
 
 Sem Docker nem AWS (útil para o frontend): `STORE_BACKEND=memory STORAGE_BACKEND=memory MESSAGING_ENABLED=false uvicorn --factory app.main:create_app --port 8000`.
 
+`characters-worker` é o mesmo serviço sem porta publicada no host: são as réplicas que consomem as filas
+e podem ser escaladas (`characters` fica com a API na porta 8000 e também consome).
+
+Itens de bônus do trabalho, cada um com seu roteiro de demonstração:
+
+| Bônus | Onde | Como ligar |
+|---|---|---|
+| Versionamento de eventos | seção 5 deste README | já ativo |
+| Modelo de leitura separado (CQRS) | seção 4 deste README | já ativo |
+| Autoescala pelo tamanho da fila | `infra/autoscaler/README.md` | `docker compose --profile autoscale up -d` |
+| Tracing distribuído (OpenTelemetry + Jaeger) | seção 4 deste README | já ativo; UI em http://localhost:16686 |
+| Infraestrutura como código (Terraform) | `infra/terraform/README.md` | `docker compose --profile iac run --rm terraform` |
+
 ### Testes
 
 ```bash
@@ -190,7 +297,7 @@ pytest            # unidade, contrato, API (TestClient), DynamoDB (moto e valida
 | **F4 poison** | `publish_event poison --kind json` | logs `message.retry_scheduled` 1/3, 2/3, 3/3 → `message.dead_lettered`; fila `.dlq` no painel (15672); mensagens seguintes processadas normalmente |
 | **F6 broker fora** | `docker compose stop rabbitmq` por 30 s, gerar validações, `start` | `/ready` → `degraded`; `/internal/outbox.pending` cresce e volta a 0; `/internal/messaging.reconnects` |
 | **F7 resposta tardia** | `publish_event cancelled` e depois `validation` com o mesmo `--operation-id` | `CharacterRejected` `OPERATION_CLOSED`; nenhuma capacidade retida |
-| **F8 escala** | `docker compose up -d --scale characters=3` | logs com `instance` diferentes; capacidade nunca negativa |
+| **F8 escala** | `docker compose up -d --scale characters-worker=3` (ou o autoscaler: `infra/autoscaler/README.md`) | logs com `instance` diferentes; capacidade nunca negativa |
 
 Filtrar a história de uma operação: `docker compose logs characters | grep <operationId>` (todo log
 carrega `correlationId`).

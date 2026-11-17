@@ -12,3 +12,8 @@ coverage/
 /data/
 /.local/
 /services/inventory/target/
+
+# Terraform: estado e providers ficam no volume Docker; nada disso é versionado.
+.terraform/
+*.tfstate
+*.tfstate.*

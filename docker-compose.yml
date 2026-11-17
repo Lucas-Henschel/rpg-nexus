@@ -1,21 +1,47 @@
-# Base comum do S2 Personagens. Os valores de infraestrutura vêm do .env da raiz e
-# sobrescrevem services/characters/.env.example.
+# Variáveis comuns, vindas do .env da raiz. Use dentro de `environment` com `<<: *backend-env`
+x-aws-env: &aws-env
+  AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL:-http://ministack:4566}
+  AWS_REGION: ${AWS_REGION:-us-east-1}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+
+x-backend-env: &backend-env
+  <<: *aws-env
+  RABBITMQ_URL: amqp://${RABBITMQ_USER:-dev}:${RABBITMQ_PASSWORD:-dev}@rabbitmq:5672/
+
+# Base comum do S2 Personagens. Os valores de infraestrutura sobrescrevem
+# services/characters/.env.example.
 x-characters: &characters
   build:
     context: .
     dockerfile: services/characters/Dockerfile
   env_file: services/characters/.env.example
   environment:
-    AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL:-http://ministack:4566}
-    AWS_REGION: ${AWS_REGION:-us-east-1}
-    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+    <<: *backend-env
     S3_BUCKET: ${RPG_ASSETS_BUCKET:-rpg-assets}
     # Endereços vistos pelo NAVEGADOR (URLs pré-assinadas do S3 e origem do front).
     S3_PUBLIC_ENDPOINT_URL: http://localhost:${MINISTACK_PORT:-4566}
     CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173}
-    RABBITMQ_URL: amqp://${RABBITMQ_USER:-dev}:${RABBITMQ_PASSWORD:-dev}@rabbitmq:5672/
     FAULT_CRASH_BEFORE_ACK: ${FAULT_CRASH_BEFORE_ACK:-off}
+    CONSUMER_SIMULATED_DELAY_MS: ${CONSUMER_SIMULATED_DELAY_MS:-0}
+    # Tracing distribuído: spans vão para o Jaeger por OTLP/HTTP.
+    TRACING_ENABLED: ${TRACING_ENABLED:-true}
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    JAEGER_QUERY_URL: http://jaeger:16686
+  networks:
+    - rpg
+
+# Base comum do S1 Campanhas. Nomes de filas e tabelas vêm de services/campaigns/.env.example;
+# os valores abaixo trocam os endereços do host pelos da rede Compose.
+x-campaigns: &campaigns
+  build:
+    context: .
+    dockerfile: services/campaigns/Dockerfile
+  env_file: services/campaigns/.env.example
+  environment:
+    <<: *backend-env
+    CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173}
+    CONTRACTS_DIR: /app/contracts
   networks:
     - rpg
 
@@ -23,10 +49,6 @@ services:
   rabbitmq:
     image: rabbitmq:4-management-alpine
     hostname: rabbitmq
-    # Gate stack readiness on initialization, including for `up --wait`.
-    depends_on:
-      aws-init:
-        condition: service_completed_successfully
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-dev}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-dev}
@@ -79,16 +101,33 @@ services:
       ministack:
         condition: service_healthy
     environment:
-      AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL:-http://ministack:4566}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
+      <<: *aws-env
       AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
       AWS_PAGER: ""
       RPG_ASSETS_BUCKET: ${RPG_ASSETS_BUCKET:-rpg-assets}
     working_dir: /work
     entrypoint: ["/bin/sh"]
     command: ["/work/infra/ministack/init-resources.sh"]
+    volumes:
+      - .:/work:ro
+    networks:
+      - rpg
+
+  # Declares the exchange, queues and bindings from infra/rabbitmq/definitions.json.
+  # Services that use RabbitMQ should wait for it with condition: service_completed_successfully.
+  rabbitmq-init:
+    image: curlimages/curl:8.11.1
+    restart: "no"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
+      RABBITMQ_USER: ${RABBITMQ_USER:-dev}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev}
+    working_dir: /work
+    entrypoint: ["/bin/sh"]
+    command: ["/work/infra/rabbitmq/load-definitions.sh"]
     volumes:
       - .:/work:ro
     networks:
@@ -109,9 +148,117 @@ services:
     ports:
       - "127.0.0.1:${CHARACTERS_PORT:-8000}:8000"
     depends_on:
+      rabbitmq-init:
+        condition: service_completed_successfully
+      characters-init:
+        condition: service_completed_successfully
+      jaeger:
+        condition: service_started
+
+  # Réplicas do S2 que só consomem as filas (sem porta no host, por isso podem escalar).
+  # Manual: docker compose up -d --scale characters-worker=3   |   automático: perfil "autoscale".
+  characters-worker:
+    <<: *characters
+    restart: unless-stopped
+    depends_on:
+      rabbitmq-init:
+        condition: service_completed_successfully
+      characters-init:
+        condition: service_completed_successfully
+      jaeger:
+        condition: service_started
+
+  # Bônus (tracing distribuído): recebe os spans de todos os serviços (OTLP) e mostra os traces.
+  #   UI: http://localhost:16686   |   serviços na rede Compose: OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "127.0.0.1:${JAEGER_UI_PORT:-16686}:16686"
+      - "127.0.0.1:${OTLP_HTTP_PORT:-4318}:4318"
+    networks:
+      - rpg
+
+  # Bônus (autoescala): ajusta o número de réplicas de characters-worker pelo tamanho da fila.
+  #   docker compose --profile autoscale up -d autoscaler
+  autoscaler:
+    image: docker:27-cli
+    profiles: ["autoscale"]
+    restart: unless-stopped
+    depends_on:
       rabbitmq:
         condition: service_healthy
-      characters-init:
+    environment:
+      RABBITMQ_API_URL: http://rabbitmq:15672
+      RABBITMQ_USER: ${RABBITMQ_USER:-dev}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev}
+      AUTOSCALE_QUEUE: ${AUTOSCALE_QUEUE:-characters.validation-requested.v1}
+      AUTOSCALE_SERVICE: characters-worker
+      AUTOSCALE_MIN_REPLICAS: ${AUTOSCALE_MIN_REPLICAS:-1}
+      AUTOSCALE_MAX_REPLICAS: ${AUTOSCALE_MAX_REPLICAS:-4}
+      AUTOSCALE_MESSAGES_PER_REPLICA: ${AUTOSCALE_MESSAGES_PER_REPLICA:-100}
+      AUTOSCALE_INTERVAL_SECONDS: ${AUTOSCALE_INTERVAL_SECONDS:-5}
+      AUTOSCALE_SCALE_DOWN_AFTER: ${AUTOSCALE_SCALE_DOWN_AFTER:-3}
+    working_dir: /work
+    entrypoint: ["/bin/sh", "/work/infra/autoscaler/autoscale.sh"]
+    volumes:
+      - .:/work:ro
+      # O autoscaler fala com o Docker do host para criar e remover réplicas.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - rpg
+
+  # Bônus (infraestrutura como código): recria do zero as tabelas DynamoDB e o bucket S3 no MiniStack.
+  #   docker compose --profile iac run --rm terraform
+  terraform:
+    image: hashicorp/terraform:1.9
+    profiles: ["iac"]
+    restart: "no"
+    depends_on:
+      ministack:
+        condition: service_healthy
+    environment:
+      TF_IN_AUTOMATION: "1"
+      TF_DATA_DIR: /state/.terraform
+      TF_VAR_aws_endpoint_url: ${AWS_ENDPOINT_URL:-http://ministack:4566}
+      TF_VAR_aws_region: ${AWS_REGION:-us-east-1}
+      TF_VAR_aws_access_key_id: ${AWS_ACCESS_KEY_ID:-test}
+      TF_VAR_aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY:-test}
+      TF_VAR_assets_bucket: ${RPG_ASSETS_BUCKET:-rpg-assets}
+      TF_VAR_cors_allowed_origin: http://localhost:${FRONTEND_PORT:-5173}
+    working_dir: /infra
+    # "init" a cada execução (baixa o provider só na primeira; fica no volume) e depois o comando pedido.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - terraform init -input=false -backend-config=path=/state/terraform.tfstate && exec terraform "$$@"
+      - --
+    command: ["apply", "-input=false", "-auto-approve"]
+    volumes:
+      - ./infra/terraform:/infra
+      - terraform-state:/state
+    networks:
+      - rpg
+
+  # Cria as tabelas DynamoDB do S1 (idempotente) e termina.
+  campaigns-init:
+    <<: *campaigns
+    restart: "no"
+    command: ["node", "dist/scripts/create-tables.js"]
+    depends_on:
+      aws-init:
+        condition: service_completed_successfully
+
+  campaigns:
+    <<: *campaigns
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${CAMPAIGNS_PORT:-3001}:3001"
+    depends_on:
+      rabbitmq-init:
+        condition: service_completed_successfully
+      campaigns-init:
         condition: service_completed_successfully
 
   inventory-init:
@@ -170,6 +317,7 @@ services:
       args:
         VITE_CHARACTERS_URL: http://localhost:${CHARACTERS_PORT:-8000}
         VITE_INVENTORY_URL: http://localhost:${INVENTORY_PORT:-8080}
+        VITE_CAMPAIGNS_URL: http://localhost:${CAMPAIGNS_PORT:-3001}
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
     networks:
@@ -182,3 +330,4 @@ networks:
 volumes:
   rabbitmq-data:
   ministack-data:
+  terraform-state:

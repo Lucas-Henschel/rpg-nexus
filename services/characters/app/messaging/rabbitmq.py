@@ -30,6 +30,7 @@ from aio_pika.abc import AbstractChannel, AbstractExchange, AbstractIncomingMess
 from app.application.handlers import HandlingResult
 from app.application.ports import OutboxRecord
 from app.logging_setup import log_context
+from app.tracing import consumer_span, current_carrier, current_trace_id, mark_error, producer_span
 
 from .envelope import Envelope, parse_envelope
 from .errors import PoisonMessage
@@ -61,6 +62,7 @@ class RabbitMQBus:
         policy: RetryPolicy,
         fault: FaultInjector | None = None,
         queues: tuple[QueueSpec, ...] = CONSUMER_QUEUES,
+        simulated_delay_ms: int = 0,
     ) -> None:
         self._url = url
         self._exchange_name = exchange_name
@@ -74,6 +76,7 @@ class RabbitMQBus:
         self._policy = policy
         self._fault = fault or FaultInjector()
         self._queues = queues
+        self._simulated_delay = simulated_delay_ms / 1000
         self._connected = asyncio.Event()
         self._stopping = asyncio.Event()
         self._exchange: AbstractExchange | None = None
@@ -199,20 +202,46 @@ class RabbitMQBus:
 
     async def _on_message(self, spec: QueueSpec, channel: AbstractChannel, message: AbstractIncomingMessage) -> None:
         retries = read_retry_count(message.headers)
+        attributes = {
+            "messaging.message.id": message.message_id,
+            "messaging.rabbitmq.destination.routing_key": message.routing_key,
+            "rpg.retry_count": retries,
+            "rpg.redelivered": message.redelivered,
+        }
+        # O span continua o trace de quem publicou (traceparent nos headers AMQP).
+        with consumer_span(spec.name, message.headers, attributes) as span:
+            await self._process(spec, channel, message, retries, span)
+
+    async def _process(
+        self, spec: QueueSpec, channel: AbstractChannel, message: AbstractIncomingMessage, retries: int, span: Any
+    ) -> None:
         started = time.perf_counter()
         try:
             envelope = parse_envelope(message.body)
         except PoisonMessage as exc:
-            with log_context(amqpMessageId=message.message_id, queue=spec.name):
+            mark_error(span, exc)
+            with log_context(amqpMessageId=message.message_id, queue=spec.name, traceId=current_trace_id()):
                 await self._fail(spec, channel, message, exc, retries)
             return
 
-        with log_context(correlationId=envelope.correlationId, messageId=str(envelope.messageId), eventType=envelope.type):
+        span.set_attribute("rpg.event_type", envelope.type)
+        span.set_attribute("rpg.correlation_id", envelope.correlationId)
+        with log_context(
+            correlationId=envelope.correlationId,
+            messageId=str(envelope.messageId),
+            eventType=envelope.type,
+            traceId=current_trace_id(),
+        ):
             try:
+                if self._simulated_delay:  # consumidor lento de propósito: faz a fila crescer na demonstração
+                    await asyncio.sleep(self._simulated_delay)
+                # to_thread copia os contextvars: o span atual segue para o handler e para as chamadas ao DynamoDB
                 result = await asyncio.to_thread(self._dispatch, envelope)
             except Exception as exc:  # noqa: BLE001 — qualquer falha segue a política de retry
+                mark_error(span, exc)
                 await self._fail(spec, channel, message, exc, retries)
                 return
+            span.set_attribute("rpg.outcome", result.outcome.value)
             self.stats["outcomes"][result.outcome.value] += 1
             log.info(
                 "message.processed",
@@ -293,16 +322,24 @@ class RabbitMQBus:
         exchange = self._exchange
         if exchange is None or not self._connected.is_set():
             raise NotConnected("RabbitMQ indisponível")
-        message = Message(
-            body=json.dumps(record.envelope, ensure_ascii=False).encode("utf-8"),
-            content_type="application/json",
-            content_encoding="utf-8",
-            delivery_mode=DeliveryMode.PERSISTENT,
-            message_id=record.message_id,
-            correlation_id=record.correlation_id,
-            type=record.type,
-            timestamp=record.created_at,
-            app_id=self._service,
-            headers={"x-producer": self._service},
-        )
-        await exchange.publish(message, routing_key=record.routing_key, timeout=10)
+        attributes = {"messaging.message.id": record.message_id, "rpg.event_type": record.type}
+        with producer_span(record.routing_key, record.trace_context, attributes) as span:
+            # traceparent do span de publicação: o consumidor do outro serviço vira filho dele
+            headers: dict[str, Any] = {"x-producer": self._service, **current_carrier()}
+            message = Message(
+                body=json.dumps(record.envelope, ensure_ascii=False).encode("utf-8"),
+                content_type="application/json",
+                content_encoding="utf-8",
+                delivery_mode=DeliveryMode.PERSISTENT,
+                message_id=record.message_id,
+                correlation_id=record.correlation_id,
+                type=record.type,
+                timestamp=record.created_at,
+                app_id=self._service,
+                headers=headers,
+            )
+            try:
+                await exchange.publish(message, routing_key=record.routing_key, timeout=10)
+            except Exception as exc:
+                mark_error(span, exc)
+                raise

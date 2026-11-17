@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .events import ACQUISITION_CANCELLED, CHARACTER_VALIDATION_REQUESTED, ITEM_ACQUIRED
+from .events import ACQUISITION_CANCELLED, CHARACTER_VALIDATION_REQUESTED, CHARACTER_VALIDATION_REQUESTED_V2, ITEM_ACQUIRED
 
 
 @dataclass(frozen=True)
@@ -36,7 +36,12 @@ class QueueSpec:
         return {"x-dead-letter-exchange": "", "x-dead-letter-routing-key": self.name}
 
 
-VALIDATION_QUEUE = QueueSpec("characters.validation-requested.v1", (CHARACTER_VALIDATION_REQUESTED.routing_key,))
+# As duas versões do pedido chegam à MESMA fila: réplicas dividem a carga e a ordem entre versões é
+# preservada. O "v1" no nome é a versão da fila, não a do evento; renomear a fila perderia mensagens.
+VALIDATION_QUEUE = QueueSpec(
+    "characters.validation-requested.v1",
+    (CHARACTER_VALIDATION_REQUESTED.routing_key, CHARACTER_VALIDATION_REQUESTED_V2.routing_key),
+)
 OUTCOMES_QUEUE = QueueSpec("characters.acquisition-outcomes.v1", (ITEM_ACQUIRED.routing_key, ACQUISITION_CANCELLED.routing_key))
 CONSUMER_QUEUES: tuple[QueueSpec, ...] = (VALIDATION_QUEUE, OUTCOMES_QUEUE)
 

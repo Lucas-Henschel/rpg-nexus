@@ -34,6 +34,14 @@ CHARACTER_VALIDATION_REQUESTED = EventSpec(
     "character.validation.requested.v1",
     "events/character-validation-requested.v1.schema.json",
 )
+# Versão 2 do mesmo evento, convivendo com a v1 (tipo, routing key e schema próprios).
+CHARACTER_VALIDATION_REQUESTED_V2 = EventSpec(
+    "CharacterValidationRequested",
+    "rpg.character.validation-requested.v2",
+    2,
+    "character.validation.requested.v2",
+    "events/character-validation-requested.v2.schema.json",
+)
 CHARACTER_VALIDATED = EventSpec(
     "CharacterValidated",
     "rpg.character.validated.v1",
@@ -58,7 +66,7 @@ ACQUISITION_CANCELLED = EventSpec(
     "events/acquisition-cancelled.v1.schema.json",
 )
 
-CONSUMED_EVENTS = (CHARACTER_VALIDATION_REQUESTED, ITEM_ACQUIRED, ACQUISITION_CANCELLED)
+CONSUMED_EVENTS = (CHARACTER_VALIDATION_REQUESTED, CHARACTER_VALIDATION_REQUESTED_V2, ITEM_ACQUIRED, ACQUISITION_CANCELLED)
 PRODUCED_EVENTS = (CHARACTER_VALIDATED, CHARACTER_REJECTED)
 
 
@@ -77,6 +85,28 @@ class ValidationRequestedPayload(_Consumed):
     itemId: Id
     quantity: Quantity
     deadlineAt: AwareDatetime | None = None
+
+
+class ValidationRequestedPayloadV2(_Consumed):
+    """Payload da v2: o prazo é obrigatório e se chama ``expiresAt`` (na v1 era ``deadlineAt``, opcional)."""
+
+    operationId: Id
+    campaignId: Id
+    characterId: Id
+    itemId: Id
+    quantity: Quantity
+    expiresAt: AwareDatetime
+
+    def upcast(self) -> ValidationRequestedPayload:
+        """Converte para a forma interna única; as regras de negócio não conhecem versões de evento."""
+        return ValidationRequestedPayload(
+            operationId=self.operationId,
+            campaignId=self.campaignId,
+            characterId=self.characterId,
+            itemId=self.itemId,
+            quantity=self.quantity,
+            deadlineAt=self.expiresAt,
+        )
 
 
 class AcquisitionOutcomePayload(_Consumed):

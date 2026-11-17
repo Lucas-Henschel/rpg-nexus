@@ -12,7 +12,7 @@ from app.domain.models import HoldStatus
 from app.messaging.envelope import Envelope
 from app.messaging.errors import PoisonMessage
 
-from .conftest import make_character, outcome_event, validation_request
+from .conftest import make_character, outcome_event, validation_request, validation_request_v2
 
 
 def _last_event(store):
@@ -129,6 +129,54 @@ def test_pedido_apos_deadline_nao_reserva(store, clock, handlers):
     result = handlers.handle_validation_requested(validation_request(deadline_at="2026-11-11T12:00:30Z"))
     assert result.outcome is Outcome.REJECTED
     assert _last_event(store)["payload"]["reason"] == "DEADLINE_EXPIRED"
+
+
+# --- Versionamento de eventos: v1 e v2 de CharacterValidationRequested convivem ------------------
+
+
+def test_v1_e_v2_do_pedido_convivem_no_mesmo_consumidor(store, clock, handlers):
+    make_character(store, clock, max_items=5)
+    antigo = handlers.dispatch(validation_request(operation_id="op-v1", message_id=str(uuid.uuid4())))
+    novo = handlers.dispatch(validation_request_v2(operation_id="op-v2", message_id=str(uuid.uuid4())))
+    assert antigo.outcome is Outcome.APPROVED and novo.outcome is Outcome.APPROVED
+    assert store.get_character("p1").slots_used == 2
+    statuses = {h.operation_id: h.status for h in store.list_holds("p1")}
+    assert statuses == {"op-v1": HoldStatus.HELD, "op-v2": HoldStatus.HELD}
+    # a resposta tem o mesmo contrato para as duas versões do pedido
+    assert {r.type for r in store.outbox} == {"rpg.character.validated.v1"}
+
+
+def test_v2_exige_expires_at_e_nao_aceita_o_campo_antigo(handlers):
+    sem_prazo = validation_request_v2(expires_at=None)
+    with pytest.raises(PoisonMessage):
+        handlers.dispatch(sem_prazo)
+    com_campo_da_v1 = sem_prazo.model_copy(update={"payload": {**sem_prazo.payload, "deadlineAt": "2026-11-11T12:05:00Z"}})
+    with pytest.raises(PoisonMessage):
+        handlers.dispatch(com_campo_da_v1)
+
+
+def test_v2_com_prazo_vencido_nao_reserva(store, clock, handlers):
+    make_character(store, clock)
+    clock.advance(seconds=60)
+    result = handlers.dispatch(validation_request_v2(expires_at="2026-11-11T12:00:30Z"))
+    assert result.outcome is Outcome.REJECTED
+    assert _last_event(store)["payload"]["reason"] == "DEADLINE_EXPIRED"
+    assert store.get_character("p1").slots_used == 0
+
+
+def test_mesma_operacao_pedida_em_v1_e_depois_em_v2_reserva_uma_vez(store, clock, handlers):
+    make_character(store, clock)
+    handlers.dispatch(validation_request(operation_id="op-1", message_id=str(uuid.uuid4())))
+    repetido = handlers.dispatch(validation_request_v2(operation_id="op-1", message_id=str(uuid.uuid4())))
+    assert repetido.outcome is Outcome.APPROVED_REPLAY
+    assert store.get_character("p1").slots_used == 1
+
+
+def test_inbox_registra_a_versao_do_evento_recebido(store, clock, handlers):
+    make_character(store, clock)
+    message_id = str(uuid.uuid4())
+    handlers.dispatch(validation_request_v2(message_id=message_id))
+    assert store.get_inbox(message_id).type == "rpg.character.validation-requested.v2"
 
 
 def test_anomalias_sao_registradas_sem_alterar_capacidade(store, clock, handlers):

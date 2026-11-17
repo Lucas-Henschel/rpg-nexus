@@ -1,0 +1,15 @@
+{
+  "messageId": "5d2c1b0a-9f8e-4d7c-8b6a-5f4e3d2c1b0a",
+  "correlationId": "7e6d5c4b-3a29-4180-9f7e-6d5c4b3a2918",
+  "type": "rpg.character.validation-requested.v2",
+  "version": 2,
+  "occurredAt": "2026-11-11T12:00:00Z",
+  "payload": {
+    "operationId": "7e6d5c4b-3a29-4180-9f7e-6d5c4b3a2918",
+    "campaignId": "c1",
+    "characterId": "p1",
+    "itemId": "sword",
+    "quantity": 1,
+    "deadlineAt": "2026-11-11T12:00:30Z"
+  }
+}

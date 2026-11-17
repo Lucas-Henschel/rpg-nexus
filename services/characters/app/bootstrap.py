@@ -13,6 +13,7 @@ from typing import Any
 from app.application.characters import CharacterService
 from app.application.handlers import MessageHandlers
 from app.application.ports import CharacterStore, ObjectStorage
+from app.application.read_model import Projector, ReadModelStore, RosterQuery
 from app.config import Settings
 from app.messaging.contracts import ContractRegistry
 from app.messaging.faults import FaultInjector
@@ -28,6 +29,9 @@ class Container:
     storage: ObjectStorage | None
     handlers: MessageHandlers
     characters: CharacterService
+    read_model: ReadModelStore
+    projector: Projector
+    roster: RosterQuery
     contracts: ContractRegistry | None = None
     bus: Any | None = None  # RabbitMQBus
     relay: Any | None = None  # OutboxRelay
@@ -52,6 +56,18 @@ def build_store(settings: Settings) -> CharacterStore:
     )
 
 
+def build_read_model(settings: Settings) -> ReadModelStore:
+    if settings.store_backend == "memory":
+        from app.adapters.memory_store import InMemoryReadModel
+
+        return InMemoryReadModel()
+    from app.adapters.dynamodb_read_model import DynamoDBReadModel
+
+    return DynamoDBReadModel(
+        region=settings.aws_region, endpoint_url=settings.dynamodb_endpoint_url, table=settings.table_read_model
+    )
+
+
 def build_storage(settings: Settings) -> ObjectStorage:
     if settings.storage_backend == "memory":
         from app.adapters.memory_store import InMemoryObjectStorage
@@ -73,9 +89,13 @@ def build_container(
     *,
     store: CharacterStore | None = None,
     storage: ObjectStorage | None = None,
+    read_model: ReadModelStore | None = None,
 ) -> Container:
     store = store or build_store(settings)
     storage = storage or build_storage(settings)
+    read_model = read_model or build_read_model(settings)
+    # CQRS: o projetor mantém o modelo de leitura; as consultas de campanha leem só dele.
+    projector = Projector(store, read_model)
 
     contracts: ContractRegistry | None = None
     if settings.validate_outgoing_events:
@@ -92,8 +112,11 @@ def build_container(
         portrait_prefix=settings.s3_portrait_prefix,
         portrait_max_bytes=settings.portrait_max_bytes,
         presign_expires_seconds=settings.s3_presign_expires_seconds,
+        on_change=projector.project_safely,
     )
-    container = Container(settings, store, storage, handlers, characters, contracts)
+    container = Container(
+        settings, store, storage, handlers, characters, read_model, projector, RosterQuery(read_model), contracts
+    )
 
     if settings.messaging_enabled:
         from app.messaging.outbox_relay import OutboxRelay
@@ -107,7 +130,7 @@ def build_container(
             reconnect_initial_ms=settings.rabbitmq_reconnect_initial_ms,
             reconnect_max_ms=settings.rabbitmq_reconnect_max_ms,
             service_name=settings.service_name,
-            dispatcher=handlers.dispatch,
+            dispatcher=projector.after(handlers.dispatch),
             policy=RetryPolicy(
                 max_retries=settings.max_retries,
                 base_delay_ms=settings.retry_base_delay_ms,
@@ -115,6 +138,7 @@ def build_container(
                 poison_direct_to_dlq=settings.poison_direct_to_dlq,
             ),
             fault=FaultInjector(settings.fault_crash_before_ack, settings.fault_marker_file),
+            simulated_delay_ms=settings.consumer_simulated_delay_ms,
         )
         relay = OutboxRelay(
             store,
