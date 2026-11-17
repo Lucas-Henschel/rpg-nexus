@@ -253,14 +253,15 @@ MiniStack (não há compose próprio do S2). Na raiz:
 
 ```bash
 cp .env.example .env
-docker compose up --build characters      # sobe só o S2 e o que ele precisa (RabbitMQ, MiniStack, inits)
+docker compose up --build characters      # sobe só o S2 e o que ele precisa (RabbitMQ, MiniStack, Terraform)
 # em outro terminal: prova o S2 fazendo o papel do S3 Inventário
 docker compose exec characters python -m scripts.smoke_s2 --poison
 ```
 
-`characters-init` cria as tabelas DynamoDB e aplica o CORS do bucket a partir de
-`infra/manifests/characters.json` (tabelas, índices, TTL, CORS, filas e bindings). O build usa a raiz
-como contexto, para copiar `contracts/` e o manifesto.
+As tabelas DynamoDB, o bucket e o CORS são criados pelo Terraform (`infra/terraform/characters.tf`),
+espelhando `infra/manifests/characters.json`. O script `scripts.create_resources` cria o mesmo a partir
+do manifesto, para usar sem o Terraform. O build usa a raiz como contexto, para copiar `contracts/` e o
+manifesto.
 
 Endpoints e credenciais de AWS/MiniStack, bucket (`RPG_ASSETS_BUCKET`), usuário do RabbitMQ e origem do
 CORS vêm do `.env` da raiz; `services/characters/.env.example` guarda só as variáveis próprias do S2.
@@ -278,7 +279,7 @@ Itens de bônus do trabalho, cada um com seu roteiro de demonstração:
 | Modelo de leitura separado (CQRS) | seção 4 deste README | já ativo |
 | Autoescala pelo tamanho da fila | `infra/autoscaler/README.md` | `docker compose --profile autoscale up -d` |
 | Tracing distribuído (OpenTelemetry + Jaeger) | seção 4 deste README | já ativo; UI em http://localhost:16686 |
-| Infraestrutura como código (Terraform) | `infra/terraform/README.md` | `docker compose --profile iac run --rm terraform` |
+| Infraestrutura como código (Terraform) | `infra/terraform/README.md` | já ativo: o `docker compose up` roda o Terraform |
 
 ### Testes
 

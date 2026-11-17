@@ -28,14 +28,8 @@ em `/data`. `PERSIST_STATE=1` preserva metadados em `/data/state` e
 `S3_PERSIST=1` preserva o conteúdo dos objetos em `/data/s3`, conforme a
 [configuração oficial de persistência](https://ministack.org/docs/configuration#persistence).
 
-`aws-init` é um contêiner AWS CLI de execução única que aguarda o MiniStack
-saudável. Ele monta o repositório somente para leitura em `/work` e executa
-`/bin/sh /work/infra/ministack/init-resources.sh`, recebendo `AWS_ENDPOINT_URL`
-(`http://ministack:4566`), região, credenciais fictícias e `RPG_ASSETS_BUCKET`
-(`rpg-assets`). O script cria o bucket se necessário e verifica a API DynamoDB;
-não são criadas tabelas de domínio. O RabbitMQ depende da conclusão com sucesso
-de `aws-init`, tornando a inicialização uma condição explícita de prontidão da
-pilha em `docker compose up`, inclusive com `--wait`.
+O bucket e as tabelas DynamoDB são criados pelo contêiner `terraform`, que espera o MiniStack
+saudável (veja [`infra/terraform/README.md`](../terraform/README.md)).
 
 A entrada principal do ambiente é `docker compose up`; `docker compose down` preserva os volumes.
 Para conferir os serviços declarados:

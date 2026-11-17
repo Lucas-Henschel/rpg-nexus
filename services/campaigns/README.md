@@ -50,7 +50,7 @@ Códigos seguem `^[A-Za-z0-9_-]{1,64}$`; textos têm de 1 a 80 caracteres. Fora 
 ## 4. Consumo de `ItemAcquired`
 
 Fila `campaigns.activity.v1` (ligada a `rpg.events` / `item.acquired.v1`), com `.retry` e `.dlq`
-declaradas pelo `rabbitmq-init`. O evento é validado com os JSON Schemas de [`contracts/`](../../contracts)
+criadas pelo Terraform ([`infra/terraform`](../../infra/terraform)). O evento é validado com os JSON Schemas de [`contracts/`](../../contracts)
 e gravado numa **transação** do DynamoDB (tudo ou nada):
 
 1. inbox: `messageId` ainda não processado;
@@ -73,7 +73,9 @@ configurável).
 
 ## 5. Tabelas DynamoDB
 
-Criadas pelo script `create-tables` (contêiner `campaigns-init`), antes de o serviço subir.
+Criadas pelo Terraform ([`infra/terraform/campaigns.tf`](../../infra/terraform/campaigns.tf)) antes de o
+serviço subir, com os nomes deste `.env.example`. O script `create-tables` cria as mesmas tabelas
+e serve para os testes de integração ou para um DynamoDB sem o Terraform.
 
 | Variável           | Padrão                | Chave                                                   | Conteúdo                                                             |
 | ------------------ | --------------------- | ------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -136,8 +138,8 @@ AWS_ENDPOINT_URL=http://localhost:34566 AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS
 docker stop ms-test
 ```
 
-Para rodar fora do Docker com a pilha do Compose no ar: `cp .env.example .env`, `npm run build`,
-`npm run create-tables` e `npm start` (com as variáveis do `.env` carregadas no shell).
+Para rodar fora do Docker com a pilha do Compose no ar (as tabelas e filas já existem):
+`cp .env.example .env`, `npm run build` e `npm start` (com as variáveis do `.env` carregadas no shell).
 
 ## 9. Demonstração: idempotência
 

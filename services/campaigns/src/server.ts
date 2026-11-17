@@ -19,7 +19,7 @@ if (env.TRACING_ENABLED) {
   startTracing(env.SERVICE_NAME);
 }
 
-// As tabelas já existem: quem cria é o script create-tables (contêiner campaigns-init).
+// As tabelas já existem: quem cria é o Terraform (infra/terraform), antes de o serviço subir.
 const db = createDb(env);
 
 const campaigns = createCampaignService({

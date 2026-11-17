@@ -34,22 +34,21 @@ variable "cors_allowed_origin" {
   default     = "http://localhost:5173"
 }
 
-variable "table_characters" {
-  type    = string
-  default = "characters"
+variable "rabbitmq_management_url" {
+  description = "API de gerenciamento do RabbitMQ. No Compose é http://rabbitmq:15672."
+  type        = string
+  default     = "http://localhost:15672"
 }
 
-variable "table_inbox" {
-  type    = string
-  default = "character_inbox"
+variable "rabbitmq_user" {
+  description = "Credencial fictícia do RabbitMQ local (RABBITMQ_USER)."
+  type        = string
+  default     = "dev"
 }
 
-variable "table_outbox" {
-  type    = string
-  default = "character_outbox"
-}
-
-variable "table_read_model" {
-  type    = string
-  default = "character_read_model"
+variable "rabbitmq_password" {
+  description = "Credencial fictícia do RabbitMQ local (RABBITMQ_PASSWORD)."
+  type        = string
+  default     = "dev"
+  sensitive   = true
 }

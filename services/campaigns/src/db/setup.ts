@@ -1,4 +1,5 @@
-// Cria as tabelas DynamoDB do S1, se ainda não existirem. Só o script create-tables usa.
+// Cria as tabelas DynamoDB do S1, se ainda não existirem. No Compose quem cria é o Terraform;
+// isto é usado pelo script create-tables e pelos testes de integração.
 import {
   CreateTableCommand,
   type CreateTableCommandInput,
