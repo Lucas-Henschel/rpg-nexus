@@ -165,3 +165,45 @@ curl localhost:3001/campaigns/c1
 pub --campaign nao-existe --character ch1 --item espada
 docker compose logs campaigns | grep unknown_campaign
 ```
+
+## 10. Demonstração: réplicas na mesma fila
+
+`campaigns-worker` é o mesmo serviço sem porta no host. Ele e o `campaigns` consomem a mesma fila
+`campaigns.activity.v1`, e o RabbitMQ entrega cada mensagem a um só deles.
+
+```sh
+# 1. três consumidores: campaigns + 2 réplicas (rabbitmqctl mostra 3 na coluna consumers)
+docker compose up -d --wait --scale campaigns-worker=2
+docker compose exec rabbitmq rabbitmqctl list_queues name consumers
+
+# 2. campanha r4, 20 aquisições diferentes e a mesma mensagem 5 vezes, tudo em paralelo
+curl -X POST localhost:3001/campaigns -H 'content-type: application/json' \
+  -d '{"name": "Réplicas", "campaignId": "r4"}'
+pub() { docker compose exec -T campaigns node dist/scripts/publish-item-acquired.js "$@"; }
+for i in $(seq 1 20); do pub --campaign r4 --character ch1 --item "item-$i" & done; wait
+for i in 1 2 3 4 5; do
+  pub --campaign r4 --character ch2 --item escudo --operation op-dup \
+      --message-id 11111111-2222-4333-8444-555555555555 &
+done; wait
+
+# 3. quem processou o quê: a carga se divide e a mensagem repetida é aplicada uma vez só
+docker compose logs campaigns campaigns-worker | grep campaigns.activity.processed \
+  | sed -E 's/^([a-z0-9-]+) .*"result":"([a-z-]+)".*/\1 \2/' | sort | uniq -c
+
+# 4. resultado: ch1 com itemsAcquired 20 e ch2 com 1
+curl localhost:3001/campaigns/r4
+```
+
+Num teste com três consumidores, cada um aplicou 7 mensagens; das cinco cópias da mensagem
+repetida, uma foi aplicada e as outras quatro, em réplicas diferentes, deram `duplicate`.
+
+Não há efeito duplicado porque a gravação é uma transação condicional no DynamoDB (seção 4): duas
+réplicas com a mesma mensagem disputam a mesma linha da inbox, e só uma transação passa.
+
+**Ordenação.** Com várias réplicas (e com o retry, que devolve a mensagem para o fim da fila), as
+mensagens podem ser processadas fora da ordem de publicação. O S1 não depende dessa ordem:
+
+- o contador `itemsAcquired` é uma soma, e a ordem das somas não muda o total;
+- a atividade é ordenada por `occurredAt`, a data do evento, e não pela ordem de chegada;
+- se o evento chega antes de o personagem entrar na campanha, o participante é criado sem nome, e o
+  `POST /members` depois só completa o nome, mantendo o contador.

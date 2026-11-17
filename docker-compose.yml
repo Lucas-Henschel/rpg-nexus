@@ -206,6 +206,18 @@ services:
       jaeger:
         condition: service_started
 
+  # Réplicas do S1 que dividem a fila campaigns.activity.v1 com o `campaigns` (consumidores
+  # concorrentes). Sem porta no host, por isso podem escalar:
+  #   docker compose up -d --scale campaigns-worker=3
+  campaigns-worker:
+    <<: *campaigns
+    restart: unless-stopped
+    depends_on:
+      terraform:
+        condition: service_completed_successfully
+      jaeger:
+        condition: service_started
+
   frontend:
     build:
       context: apps/frontend

@@ -7,6 +7,9 @@
 procs:
   campaigns:
     cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "campaigns"]
+  # As réplicas do S1 (campaigns-worker-1, -2...); com prefixo, para saber qual processou cada mensagem.
+  campaigns-worker:
+    cmd: ["docker", "compose", "logs", "--follow", "--tail", "200", "campaigns-worker"]
   characters:
     cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "characters"]
   frontend:

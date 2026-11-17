@@ -25,7 +25,7 @@ para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
 
 | Projeto | Pasta | Serviços no Compose |
 | --- | --- | --- |
-| Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns` |
+| Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns`, `campaigns-worker` |
 | Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters`, `characters-worker` |
 | Front-end (React + Vite) | [`apps/frontend`](apps/frontend/README.md) | `frontend` |
 
