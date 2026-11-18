@@ -21,9 +21,9 @@ public final class SagaTransition {
                 return new Decision(Status.COMPENSATED, Effect.RELEASE_STOCK);
         }
         if (current == Status.VALIDATING_EXTERNAL) {
-            if (eventType.equals("rpg.external.validation.succeeded.v1"))
+            if (eventType.equals("rpg.external.validation-succeeded.v1"))
                 return new Decision(Status.COMPLETED, Effect.DELIVER_ITEM);
-            if (eventType.equals("rpg.external.validation.failed.v1"))
+            if (eventType.equals("rpg.external.validation-failed.v1"))
                 return new Decision(Status.COMPENSATED, Effect.RELEASE_STOCK);
         }
         return new Decision(current, Effect.NONE);

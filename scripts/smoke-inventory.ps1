@@ -29,7 +29,7 @@ do {
         Start-Sleep -Seconds 2
     }
 } while (-not $ready -and (Get-Date) -lt $startupLimit)
-if (-not $ready) { throw 'Inventory did not respond in 60 s. Run: docker compose ps; docker compose logs --tail=100 inventory inventory-init' }
+if (-not $ready) { throw 'Inventory did not respond in 60 s. Run: docker compose ps; docker compose logs --tail=100 inventory terraform' }
 if ($health.status -ne 'UP') { throw "Health inesperado: $($health.status)" }
 Write-Host 'Inventory healthy. Creating item and stock...'
 Request-Json POST '/items' @{ itemId = $itemId; name = 'Item de teste' } | Out-Null

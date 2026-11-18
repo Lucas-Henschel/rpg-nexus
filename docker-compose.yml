@@ -218,32 +218,14 @@ services:
       jaeger:
         condition: service_started
 
-  inventory-init:
-    image: amazon/aws-cli:2.40.2
-    restart: "no"
-    depends_on:
-      aws-init:
-        condition: service_completed_successfully
-    environment:
-      AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL:-http://ministack:4566}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
-      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
-      AWS_PAGER: ""
-    working_dir: /work
-    entrypoint: ["/bin/sh"]
-    command: ["/work/infra/ministack/init-inventory.sh"]
-    volumes:
-      - .:/work:ro
-    networks:
-      - rpg
-
+  # S3 Inventário. Nomes de filas e o prefixo das tabelas vêm de services/inventory/.env.example;
+  # aqui só muda o que aponta para dentro da rede do Compose.
   inventory:
     build:
       context: .
       dockerfile: services/inventory/Dockerfile
     restart: unless-stopped
+    env_file: services/inventory/.env.example
     environment:
       AWS_REGION: ${AWS_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
@@ -254,14 +236,13 @@ services:
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-dev}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev}
       SAGA_TIMEOUT_SECONDS: ${SAGA_TIMEOUT_SECONDS:-60}
-      MAX_RETRIES: ${MAX_RETRIES:-3}
       CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173}
     ports:
       - "127.0.0.1:${INVENTORY_PORT:-8080}:8080"
     depends_on:
       rabbitmq:
         condition: service_healthy
-      inventory-init:
+      terraform:
         condition: service_completed_successfully
       characters:
         condition: service_started

@@ -16,6 +16,7 @@ serviços só sobem depois que ele termina com sucesso.
 | Tabela DynamoDB | `character_outbox` | `characters.tf` | Eventos a publicar (S2); índice `pending`; TTL em `expiresAt`. |
 | Tabela DynamoDB | `character_read_model` | `characters.tf` | Modelo de leitura (CQRS) do S2. |
 | Bucket S3 | `rpg-assets` | `characters.tf` | Retratos, com CORS para o front-end. |
+| Tabelas DynamoDB | `inventory_items`, `inventory_stocks`, `inventory_inventory`, `inventory_acquisition_sagas`, `inventory_inventory_inbox`, `inventory_inventory_outbox` | `inventory.tf` | Catálogo, estoque, inventário, Saga, inbox e outbox (S3); chave `id`. |
 | Exchange, filas e ligações | `rpg.events`, ... | `rabbitmq.tf` | Topologia de `infra/rabbitmq/definitions.json`. |
 
 ## De onde vêm os nomes
@@ -24,7 +25,8 @@ Nada de nome fixo no Terraform:
 
 - **tabelas:** dos mesmos arquivos de ambiente que o Compose entrega aos serviços,
   `services/campaigns/.env.example` e `services/characters/.env.example` (`env.tf` lê as linhas
-  `TABLE_*`). Trocar um nome ali troca no serviço e no Terraform ao mesmo tempo;
+  `TABLE_*`) e `services/inventory/.env.example` (`INVENTORY_TABLE_PREFIX`, mais o nome de cada
+  tabela). Trocar um nome ali troca no serviço e no Terraform ao mesmo tempo;
 - **filas, exchange e ligações:** de `infra/rabbitmq/definitions.json`, o arquivo que o teste de
   `contracts/` confere contra os esquemas dos eventos;
 - **bucket, endpoints e credenciais:** do `.env` da raiz, pelas variáveis `TF_VAR_*` que o

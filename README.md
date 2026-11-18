@@ -19,7 +19,7 @@ endpoint de health check, e é declarado no `docker-compose.yml`. Os projetos s�
 independentes: cada um tem suas próprias dependências e lockfile (`package.json`,
 `pom.xml`, `requirements.txt`) e seu Dockerfile usa a própria pasta como contexto,
 podendo ser construído isoladamente com `docker build services/<serviço>`. As exceções
-são `services/characters` e `services/campaigns`, cujo build usa a raiz como contexto
+são `services/characters`, `services/campaigns` e `services/inventory`, cujo build usa a raiz como contexto
 para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
 `docker build -f services/<serviço>/Dockerfile .`.
 
@@ -27,6 +27,7 @@ para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
 | --- | --- | --- |
 | Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns`, `campaigns-worker` |
 | Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters`, `characters-worker` |
+| Inventário (S3, Java) | [`services/inventory`](services/inventory/README.md) | `inventory` |
 | Front-end (React + Vite) | [`apps/frontend`](apps/frontend/README.md) | `frontend` |
 
 ## Pré-requisitos
@@ -93,12 +94,11 @@ contêiner no Docker Desktop.
 
 ### Serviços opcionais (perfis)
 
-Dois serviços só sobem quando o perfil é pedido, e não mudam o `docker compose up` padrão:
+Um serviço só sobe quando o perfil é pedido, e não mudam o `docker compose up` padrão:
 
 | Perfil | Serviço | O que faz | Detalhes |
 | --- | --- | --- | --- |
 | `autoscale` | `autoscaler` | Ajusta as réplicas de `characters-worker` pelo tamanho da fila. | [infra/autoscaler](infra/autoscaler/README.md) |
-| `iac` | `terraform` | Recria do zero as tabelas DynamoDB e o bucket S3 no MiniStack. | [infra/terraform](infra/terraform/README.md) |
 
 ## Higiene Git e reprodução
 

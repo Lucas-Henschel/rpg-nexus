@@ -1,6 +1,6 @@
 # S3 Inventário e Saga
 
-Serviço Java 21 / Spring Boot na porta 8080. Usa apenas tabelas `inventory_*` no DynamoDB. RabbitMQ: exchange `rpg.events` (topic), fila própria `rpg.inventory.results.v1`, fila morta `rpg.inventory.results.dlq.v1`.
+Serviço Java 21 / Spring Boot na porta 8080. Usa apenas tabelas `inventory_*` no DynamoDB. RabbitMQ: exchange `rpg.events` (topic), fila `inventory.saga-replies.v1`, com `.retry` e `.dlq`. Tabelas e filas são criadas pelo Terraform (`infra/terraform/inventory.tf` e `infra/rabbitmq/definitions.json`); o serviço não declara topologia.
 
 ## Organização do código
 
@@ -18,7 +18,7 @@ As regras de transição ficam em `SagaTransition`. O adaptador DynamoDB aplica 
 
 ## Inicialização
 
-No monorepo, `docker compose up --build` cria as seis tabelas do manifesto `infra/manifests/inventory.json` e inicia o serviço na porta 8080. Para build isolado, execute `docker build -f services/inventory/Dockerfile -t rpg-inventory .` **na raiz do repositório**. Para Maven local, entre em `services/inventory` e execute `mvn spring-boot:run`, com RabbitMQ e DynamoDB já configurados. As tabelas usam chave primária `id` String e cobrança `PAY_PER_REQUEST`. Configure AWS_REGION, credenciais AWS, DYNAMODB_ENDPOINT (omita na AWS), SPRING_RABBITMQ_HOST/PORT/USERNAME/PASSWORD, INVENTORY_TABLE_PREFIX, SAGA_TIMEOUT_SECONDS e MAX_RETRIES. `GET /health` verifica vida do processo.
+No monorepo, `docker compose up --build` roda o Terraform, que cria as seis tabelas do manifesto `infra/manifests/inventory.json`, e inicia o serviço na porta 8080 com as variáveis de `services/inventory/.env.example`. Para build isolado, execute `docker build -f services/inventory/Dockerfile -t rpg-inventory .` **na raiz do repositório**. Para Maven local, entre em `services/inventory` e execute `mvn spring-boot:run`, com RabbitMQ e DynamoDB já configurados. As tabelas usam chave primária `id` String e cobrança `PAY_PER_REQUEST`. Configure AWS_REGION, credenciais AWS, DYNAMODB_ENDPOINT (omita na AWS), SPRING_RABBITMQ_HOST/PORT/USERNAME/PASSWORD, INVENTORY_TABLE_PREFIX, RABBITMQ_EXCHANGE, RABBITMQ_QUEUE, RABBITMQ_RETRY_QUEUE, RETRY_BASE_DELAY_MS, SAGA_TIMEOUT_SECONDS e MAX_RETRIES. `GET /health` verifica vida do processo.
 
 ## API
 
@@ -44,6 +44,6 @@ Envelope JSON: `messageId`, `correlationId` (= operationId), `type`, `version:1`
 | `item.acquired.v1` | `rpg.item.acquired.v1` |
 | `acquisition.cancelled.v1` | `rpg.acquisition.cancelled.v1` |
 
-Consome `character.validated.v1` / `character.rejected.v1` com types `rpg.character.validated.v1` / `rpg.character.rejected.v1`; e `external.validation.succeeded.v1` / `external.validation.failed.v1` com types `rpg.external.validation.succeeded.v1` / `rpg.external.validation.failed.v1`. Cada produtor deve publicar envelopes únicos com o mesmo `correlationId` da requisição. O consumidor confirma ACK após transação; erros são republicados com contador `x-inventory-attempt` até MAX_RETRIES e enviados à DLQ. O worker de outbox usa publisher confirms e retenta eventos pendentes. Duplicações entre confirmação do broker e marcação `PUBLISHED` são esperadas: consumidores devem usar inbox.
+Consome `character.validated.v1` / `character.rejected.v1` com types `rpg.character.validated.v1` / `rpg.character.rejected.v1`; e `external.validation.succeeded.v1` / `external.validation.failed.v1` com types `rpg.external.validation-succeeded.v1` / `rpg.external.validation-failed.v1`. Cada produtor deve publicar envelopes únicos com o mesmo `correlationId` da requisição. O consumidor confirma ACK após transação; em erro, publica uma cópia na fila `.retry` com contador `x-inventory-attempt` e espera crescente (RETRY_BASE_DELAY_MS, dobrando a cada tentativa), e ao chegar em MAX_RETRIES recusa sem requeue, o que leva a mensagem à `.dlq`. O worker de outbox usa publisher confirms e retenta eventos pendentes. Duplicações entre confirmação do broker e marcação `PUBLISHED` são esperadas: consumidores devem usar inbox.
 
-O evento `CharacterValidationRequested` inclui `deadlineAt`, necessário para o S2 não reservar capacidade após o prazo. O S2 já reconhece os eventos `ItemAcquired` e `AcquisitionCancelled`; o S4 ainda deve implementar sua fila para a validação externa. Os schemas dos eventos publicados pelo Inventário estão em `contracts/events/`.
+O evento `CharacterValidationRequested` inclui `deadlineAt`, necessário para o S2 não reservar capacidade após o prazo. O `AcquisitionCancelled` leva `reason`: `CHARACTER_REJECTED`, `EXTERNAL_VALIDATION_FAILED` ou `DEADLINE_EXPIRED`. O S2 já reconhece os eventos `ItemAcquired` e `AcquisitionCancelled`; o S4 ainda deve implementar sua fila para a validação externa. Os schemas dos eventos publicados pelo Inventário estão em `contracts/events/`.
