@@ -13,6 +13,8 @@ export interface RollResult {
   formula: DiceFormula;
   dice: number[];
   total: number;
+  sidesByDie?: number[];
+  notation?: string;
 }
 
 const PATTERN = /^(\d{0,2})d(\d{1,4})([+-]\d{1,4})?$/;
@@ -58,5 +60,15 @@ export function roll(label: string, formula: DiceFormula): RollResult {
     formula,
     dice,
     total: dice.reduce((sum, value) => sum + value, 0) + formula.bonus,
+  };
+}
+
+export function rollSelected(sides: number[]): RollResult {
+  const dice = sides.map(rollDie);
+  const notation = [...new Set(sides)].map(value => `${sides.filter(side => side === value).length}d${value}`).join(" + ");
+  return {
+    id: nextId++, label: "Dados selecionados", formula: { count: sides.length, sides: sides[0], bonus: 0 },
+    sidesByDie: sides, notation, dice,
+    total: dice.reduce((sum, value) => sum + value, 0),
   };
 }

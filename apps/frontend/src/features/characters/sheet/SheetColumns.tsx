@@ -1,4 +1,4 @@
-/** As duas colunas de blocos da ficha e o modo "Organizar ficha" (mover, remover e adicionar). */
+/** As duas colunas de blocos da ficha; ferramentas aparecem durante a edição. */
 import { useState } from "react";
 import type { BlockType, Character, Hold } from "../api";
 import { BLOCK_TITLES, SINGLETON_BLOCKS } from "./templates";
@@ -59,16 +59,15 @@ interface Props {
   edit: (changes: Partial<Draft>) => void;
   character: Character;
   holds: Hold[];
+  editing: boolean;
 }
 
-export function SheetColumns({ draft, edit, character, holds }: Props) {
-  const [organizing, setOrganizing] = useState(false);
+export function SheetColumns({ draft, edit, character, holds, editing }: Props) {
   const [menuAt, setMenuAt] = useState<number | null>(null);
 
   const columns = draft.sheet.columns;
   const setColumns = (next: Columns) => edit({ sheet: { ...draft.sheet, columns: next } });
-  // Ficha sem nenhum bloco: as ferramentas ficam abertas, senão não haveria o que clicar.
-  const showTools = organizing || columns.every((column) => column.length === 0);
+  const showTools = editing;
   const taken = new Set(
     columns
       .flat()
@@ -78,19 +77,6 @@ export function SheetColumns({ draft, edit, character, holds }: Props) {
 
   return (
     <>
-      <div className="sheet__toolbar">
-        <button
-          type="button"
-          className="text-button"
-          onClick={() => {
-            setOrganizing(!showTools);
-            setMenuAt(null);
-          }}
-        >
-          {showTools ? "Concluir organização" : "Organizar ficha"}
-        </button>
-      </div>
-
       <div className="sheet__columns">
         {columns.map((column, col) => (
           <div key={col} className="sheet__column">
@@ -102,6 +88,7 @@ export function SheetColumns({ draft, edit, character, holds }: Props) {
                 edit={edit}
                 character={character}
                 holds={holds}
+                editing={editing}
                 onPatch={(changes) => setColumns(patchBlock(columns, col, index, changes))}
                 actions={
                   showTools

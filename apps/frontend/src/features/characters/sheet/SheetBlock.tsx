@@ -1,12 +1,11 @@
 /** Um bloco da ficha: cabeçalho com título e ferramentas de organização, e o conteúdo do tipo dele. */
 import type { Character, Hold, SheetBlock as Block } from "../api";
-import { useDice } from "../../dice/dice-context";
 import { StatsEditor } from "./StatsEditor";
-import { toLabel } from "../../../shared/labels";
 import { BLOCK_TITLES, SINGLETON_BLOCKS } from "./templates";
 import { CounterBlock, DiceBlock, ListBlock, TextBlock } from "./FreeBlocks";
 import type { Draft } from "./sheetDraft";
-import { BackpackBlock, HpBlock } from "./VitalBlocks";
+import { HpBlock } from "./VitalBlocks";
+import { BackpackBlock } from "./BackpackBlock";
 
 const FREE_BLOCKS = { counter: CounterBlock, dice: DiceBlock, list: ListBlock, text: TextBlock };
 
@@ -17,13 +16,13 @@ interface BodyProps {
   character: Character;
   holds: Hold[];
   onData: (data: Record<string, unknown>) => void;
+  editing: boolean;
 }
 
-function BlockBody({ item, draft, edit, character, holds, onData }: BodyProps) {
-  const rollDice = useDice();
+function BlockBody({ item, draft, edit, character, holds, onData, editing }: BodyProps) {
   switch (item.type) {
     case "hp":
-      return <HpBlock current={draft.hpCurrent} max={draft.hpMax} onChange={edit} />;
+      return <HpBlock current={draft.hpCurrent} max={draft.hpMax} onChange={edit} data={item.data} onData={onData} editing={editing} />;
     case "backpack":
       return (
         <BackpackBlock
@@ -31,6 +30,7 @@ function BlockBody({ item, draft, edit, character, holds, onData }: BodyProps) {
           slotsUsed={character.capacity.slotsUsed}
           holds={holds}
           onChange={(maxItems) => edit({ maxItems })}
+          data={item.data} onData={onData} editing={editing}
         />
       );
     case "attributes":
@@ -39,6 +39,7 @@ function BlockBody({ item, draft, edit, character, holds, onData }: BodyProps) {
           kind="attributes"
           stats={draft.attributes}
           onChange={(attributes) => edit({ attributes })}
+          editing={editing}
         />
       );
     case "skills":
@@ -47,13 +48,36 @@ function BlockBody({ item, draft, edit, character, holds, onData }: BodyProps) {
           kind="skills"
           stats={draft.skills}
           onChange={(skills) => edit({ skills })}
-          onRoll={(key, value) => rollDice(toLabel(key), { count: 1, sides: 20, bonus: value })}
+          editing={editing}
+          diceFormulas={item.data.diceFormulas as Record<string, string> | undefined}
+          diceSides={item.data.diceSides as Record<string, number> | undefined}
+          skillLabels={item.data.skillLabels as Record<string, string> | undefined}
+          onSkillChange={(oldKey, next) => {
+            const skills: Record<string, number> = {};
+            for (const [key, value] of Object.entries(draft.skills)) {
+              if (key === oldKey) {
+                if (next) skills[next.key] = value;
+              } else skills[key] = value;
+            }
+            const diceFormulas = { ...(item.data.diceFormulas as Record<string, string> | undefined) };
+            const diceSides = { ...(item.data.diceSides as Record<string, number> | undefined) };
+            const skillLabels = { ...(item.data.skillLabels as Record<string, string> | undefined) };
+            delete diceFormulas[oldKey];
+            delete diceSides[oldKey];
+            delete skillLabels[oldKey];
+            if (next) {
+              diceFormulas[next.key] = next.formula;
+              skillLabels[next.key] = next.label;
+            }
+            edit({ skills });
+            onData({ ...item.data, diceFormulas, diceSides, skillLabels });
+          }}
         />
       );
     default: {
       const Free = FREE_BLOCKS[item.type];
 
-      return <Free title={item.title} data={item.data} onChange={onData} />;
+      return <Free title={item.title} data={item.data} onChange={onData} editing={editing} />;
     }
   }
 }
@@ -109,7 +133,7 @@ export function SheetBlock({ item, actions, onPatch, ...body }: Props) {
   return (
     <section className="block">
       <header className="block__head">
-        {free ? (
+        {free && body.editing ? (
           <input
             className="block__title block__title--input"
             value={item.title}
@@ -119,7 +143,7 @@ export function SheetBlock({ item, actions, onPatch, ...body }: Props) {
             maxLength={80}
           />
         ) : (
-          <h2 className="block__title">{BLOCK_TITLES[item.type]}</h2>
+          <h2 className="block__title">{free ? item.title || BLOCK_TITLES[item.type] : BLOCK_TITLES[item.type]}</h2>
         )}
         {actions && <BlockTools {...actions} />}
       </header>

@@ -11,6 +11,7 @@ coverage/
 # Dados e arquivos auxiliares locais; a pilha usa volumes nomeados Docker.
 /data/
 /.local/
+/services/inventory/target/
 
 # Terraform: estado e providers ficam no volume Docker; nada disso é versionado.
 .terraform/

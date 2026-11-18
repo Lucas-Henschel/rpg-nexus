@@ -46,13 +46,13 @@ export async function request<T>(
   if (!response.ok) {
     // Formato de erro combinado entre os serviços: {"error": {"code", "message", "details"}}
     const error = (
-      body as { error?: { code?: string; message?: string; details?: unknown } } | null
+      body as { error?: string | { code?: string; message?: string; details?: unknown } } | null
     )?.error;
     throw new ApiError(
       response.status,
-      error?.code ?? "HTTP_ERROR",
-      error?.message ?? `O serviço respondeu ${response.status}.`,
-      error?.details,
+      typeof error === "object" ? error?.code ?? "HTTP_ERROR" : "HTTP_ERROR",
+      typeof error === "string" ? error : error?.message ?? `O serviço respondeu ${response.status}.`,
+      typeof error === "object" ? error?.details : undefined,
     );
   }
 

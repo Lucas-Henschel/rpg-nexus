@@ -1,6 +1,7 @@
 /** Rascunho da ficha em edição: de onde ele nasce, o que vai no PATCH e quando pode ser salvo. */
 import type { Character, CharacterPatch, Sheet, StatMap } from "../api";
 import { normalizeSheet } from "./templates";
+import { parseFormula } from "../../dice/dice";
 
 export interface Draft {
   name: string;
@@ -103,8 +104,40 @@ export function validate(d: Draft, slotsUsed: number): string {
     return "O tamanho da mochila não pode ser negativo.";
   }
 
+  if (!Number.isSafeInteger(d.maxItems) || d.maxItems > 1000)
+    return "O máximo da mochila deve ser um inteiro entre 0 e 1000.";
+
   if (d.maxItems < slotsUsed) {
     return `A mochila já tem ${slotsUsed} espaço(s) em uso; não dá para deixá-la menor que isso.`;
+  }
+
+  for (const key of ["level", "defense", "money"]) {
+    const value = d.sheet.header?.[key];
+    if (value !== undefined && value !== "" && (!Number.isFinite(Number(value)) || Number(value) < 0))
+      return `O campo ${key} precisa ser um número não negativo.`;
+  }
+
+  for (const block of d.sheet.columns.flat()) {
+    if (block.type === "skills" && block.data.diceFormulas &&
+      Object.values(block.data.diceFormulas).some((formula) => typeof formula !== "string" || (formula.trim() !== "" && !parseFormula(formula))))
+      return "Uma perícia tem fórmula de rolagem inválida.";
+    if (block.type === "dice" && Array.isArray(block.data.rolls) && block.data.rolls.some((roll) =>
+      typeof roll?.expr !== "string" || !parseFormula(roll.expr)))
+      return "Uma rolagem tem fórmula inválida.";
+    if (block.type === "list" && Array.isArray(block.data.items)) {
+      if (block.data.items.some((item) => typeof item === "object" && item !== null && item.roll &&
+        (typeof item.roll !== "string" || !parseFormula(item.roll))))
+        return "Uma rolagem da lista tem fórmula inválida.";
+    }
+    if (block.type !== "backpack") continue;
+    const rows = Array.isArray(block.data.rows) ? block.data.rows : [];
+    if (rows.some((row) => !String(row?.cells?.name ?? "").trim()))
+      return "Cada item da mochila precisa de um nome.";
+    const spaces = rows.reduce((sum: number, row) => sum + Number(row?.cells?.spaces || 0), 0);
+    if (rows.some((row) => !Number.isSafeInteger(Number(row?.cells?.spaces || 0)) || Number(row?.cells?.spaces || 0) < 0))
+      return "Os espaços dos itens precisam ser inteiros não negativos.";
+    if (spaces > d.maxItems && block.data.allowOverflow !== true)
+      return "A mochila excede o máximo. Ative a opção de permitir exceder ou ajuste os espaços.";
   }
 
   return "";
