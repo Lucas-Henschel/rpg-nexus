@@ -25,7 +25,8 @@ interface ItemAcquiredEvent {
 const addFormats = addFormatsModule.default;
 
 export function createItemAcquiredParser(contractsDir: string): (body: Buffer) => Acquisition {
-  const readSchema = (file: string) => JSON.parse(readFileSync(resolve(contractsDir, file), "utf8"));
+  const readSchema = (file: string) =>
+    JSON.parse(readFileSync(resolve(contractsDir, file), "utf8"));
 
   const ajv = new Ajv2020({ allErrors: true });
 
@@ -34,7 +35,9 @@ export function createItemAcquiredParser(contractsDir: string): (body: Buffer) =
   ajv.addKeyword("x-routing");
   ajv.addSchema(readSchema("envelope.schema.json"));
 
-  const validate = ajv.compile<ItemAcquiredEvent>(readSchema("events/item-acquired.v1.schema.json"));
+  const validate = ajv.compile<ItemAcquiredEvent>(
+    readSchema("events/item-acquired.v1.schema.json"),
+  );
 
   return (body) => {
     let event: unknown;

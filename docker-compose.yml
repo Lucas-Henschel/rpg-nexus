@@ -8,6 +8,9 @@ x-aws-env: &aws-env
 x-backend-env: &backend-env
   <<: *aws-env
   RABBITMQ_URL: amqp://${RABBITMQ_USER:-dev}:${RABBITMQ_PASSWORD:-dev}@rabbitmq:5672/
+  # Tracing distribuído: spans vão para o Jaeger por OTLP/HTTP.
+  TRACING_ENABLED: ${TRACING_ENABLED:-true}
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
 
 # Base comum do S2 Personagens. Os valores de infraestrutura sobrescrevem
 # services/characters/.env.example.
@@ -24,9 +27,6 @@ x-characters: &characters
     CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173}
     FAULT_CRASH_BEFORE_ACK: ${FAULT_CRASH_BEFORE_ACK:-off}
     CONSUMER_SIMULATED_DELAY_MS: ${CONSUMER_SIMULATED_DELAY_MS:-0}
-    # Tracing distribuído: spans vão para o Jaeger por OTLP/HTTP.
-    TRACING_ENABLED: ${TRACING_ENABLED:-true}
-    OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     JAEGER_QUERY_URL: http://jaeger:16686
   networks:
     - rpg
@@ -60,7 +60,8 @@ services:
     networks:
       - rpg
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      # A API de gerenciamento (porta 15672) abre depois do ping; o Terraform precisa dela.
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_listener", "15672"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -94,53 +95,42 @@ services:
       retries: 10
       start_period: 10s
 
-  aws-init:
-    image: amazon/aws-cli:2.40.2
+  # Cria toda a infraestrutura e termina: tabelas DynamoDB e
+  # bucket S3 no MiniStack, exchange/filas/ligações no RabbitMQ. Os serviços só sobem depois.
+  # Rodar de novo não muda nada; um recurso apagado à mão é recriado. Guia: infra/terraform/README.md
+  terraform:
+    image: hashicorp/terraform:1.9
     restart: "no"
     depends_on:
       ministack:
         condition: service_healthy
-    environment:
-      <<: *aws-env
-      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
-      AWS_PAGER: ""
-      RPG_ASSETS_BUCKET: ${RPG_ASSETS_BUCKET:-rpg-assets}
-    working_dir: /work
-    entrypoint: ["/bin/sh"]
-    command: ["/work/infra/ministack/init-resources.sh"]
-    volumes:
-      - .:/work:ro
-    networks:
-      - rpg
-
-  # Declares the exchange, queues and bindings from infra/rabbitmq/definitions.json.
-  # Services that use RabbitMQ should wait for it with condition: service_completed_successfully.
-  rabbitmq-init:
-    image: curlimages/curl:8.11.1
-    restart: "no"
-    depends_on:
       rabbitmq:
         condition: service_healthy
     environment:
-      RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
-      RABBITMQ_USER: ${RABBITMQ_USER:-dev}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev}
-    working_dir: /work
-    entrypoint: ["/bin/sh"]
-    command: ["/work/infra/rabbitmq/load-definitions.sh"]
+      TF_IN_AUTOMATION: "1"
+      TF_DATA_DIR: /state/.terraform
+      TF_VAR_aws_endpoint_url: ${AWS_ENDPOINT_URL:-http://ministack:4566}
+      TF_VAR_aws_region: ${AWS_REGION:-us-east-1}
+      TF_VAR_aws_access_key_id: ${AWS_ACCESS_KEY_ID:-test}
+      TF_VAR_aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY:-test}
+      TF_VAR_assets_bucket: ${RPG_ASSETS_BUCKET:-rpg-assets}
+      TF_VAR_cors_allowed_origin: http://localhost:${FRONTEND_PORT:-5173}
+      TF_VAR_rabbitmq_management_url: http://rabbitmq:15672
+      TF_VAR_rabbitmq_user: ${RABBITMQ_USER:-dev}
+      TF_VAR_rabbitmq_password: ${RABBITMQ_PASSWORD:-dev}
+    working_dir: /work/infra/terraform
+    entrypoint:
+      - /bin/sh
+      - -c
+      - terraform init -input=false -backend-config=path=/state/terraform.tfstate && exec terraform "$$@"
+      - --
+    command: ["apply", "-input=false", "-auto-approve"]
     volumes:
       - .:/work:ro
+      - ./infra/terraform:/work/infra/terraform
+      - terraform-state:/state
     networks:
       - rpg
-
-  # Cria as tabelas DynamoDB do S2 e aplica o CORS do bucket (idempotente); o bucket é do aws-init.
-  characters-init:
-    <<: *characters
-    restart: "no"
-    command: ["python", "-m", "scripts.create_resources", "--wait", "60"]
-    depends_on:
-      aws-init:
-        condition: service_completed_successfully
 
   characters:
     <<: *characters
@@ -148,9 +138,7 @@ services:
     ports:
       - "127.0.0.1:${CHARACTERS_PORT:-8000}:8000"
     depends_on:
-      rabbitmq-init:
-        condition: service_completed_successfully
-      characters-init:
+      terraform:
         condition: service_completed_successfully
       jaeger:
         condition: service_started
@@ -161,9 +149,7 @@ services:
     <<: *characters
     restart: unless-stopped
     depends_on:
-      rabbitmq-init:
-        condition: service_completed_successfully
-      characters-init:
+      terraform:
         condition: service_completed_successfully
       jaeger:
         condition: service_started
@@ -209,57 +195,28 @@ services:
     networks:
       - rpg
 
-  # Bônus (infraestrutura como código): recria do zero as tabelas DynamoDB e o bucket S3 no MiniStack.
-  #   docker compose --profile iac run --rm terraform
-  terraform:
-    image: hashicorp/terraform:1.9
-    profiles: ["iac"]
-    restart: "no"
-    depends_on:
-      ministack:
-        condition: service_healthy
-    environment:
-      TF_IN_AUTOMATION: "1"
-      TF_DATA_DIR: /state/.terraform
-      TF_VAR_aws_endpoint_url: ${AWS_ENDPOINT_URL:-http://ministack:4566}
-      TF_VAR_aws_region: ${AWS_REGION:-us-east-1}
-      TF_VAR_aws_access_key_id: ${AWS_ACCESS_KEY_ID:-test}
-      TF_VAR_aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY:-test}
-      TF_VAR_assets_bucket: ${RPG_ASSETS_BUCKET:-rpg-assets}
-      TF_VAR_cors_allowed_origin: http://localhost:${FRONTEND_PORT:-5173}
-    working_dir: /infra
-    # "init" a cada execução (baixa o provider só na primeira; fica no volume) e depois o comando pedido.
-    entrypoint:
-      - /bin/sh
-      - -c
-      - terraform init -input=false -backend-config=path=/state/terraform.tfstate && exec terraform "$$@"
-      - --
-    command: ["apply", "-input=false", "-auto-approve"]
-    volumes:
-      - ./infra/terraform:/infra
-      - terraform-state:/state
-    networks:
-      - rpg
-
-  # Cria as tabelas DynamoDB do S1 (idempotente) e termina.
-  campaigns-init:
-    <<: *campaigns
-    restart: "no"
-    command: ["node", "dist/scripts/create-tables.js"]
-    depends_on:
-      aws-init:
-        condition: service_completed_successfully
-
   campaigns:
     <<: *campaigns
     restart: unless-stopped
     ports:
       - "127.0.0.1:${CAMPAIGNS_PORT:-3001}:3001"
     depends_on:
-      rabbitmq-init:
+      terraform:
         condition: service_completed_successfully
-      campaigns-init:
+      jaeger:
+        condition: service_started
+
+  # Réplicas do S1 que dividem a fila campaigns.activity.v1 com o `campaigns` (consumidores
+  # concorrentes). Sem porta no host, por isso podem escalar:
+  #   docker compose up -d --scale campaigns-worker=3
+  campaigns-worker:
+    <<: *campaigns
+    restart: unless-stopped
+    depends_on:
+      terraform:
         condition: service_completed_successfully
+      jaeger:
+        condition: service_started
 
   frontend:
     build:

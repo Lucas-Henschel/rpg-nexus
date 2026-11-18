@@ -23,7 +23,10 @@ export function campaignRoutes(service: CampaignService): FastifyPluginAsyncZod 
       "/campaigns/:campaignId/members",
       { schema: { params: CampaignParams, body: AddMemberBody } },
       async (request, reply) => {
-        const { member, created } = await service.addMember(request.params.campaignId, request.body);
+        const { member, created } = await service.addMember(
+          request.params.campaignId,
+          request.body,
+        );
 
         return reply.status(created ? 201 : 200).send(member);
       },

@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, expect, it } from "vitest";
 import { CampaignAlreadyExists } from "../../src/domain/errors.js";
-import { type CampaignRepository, createCampaignRepository } from "../../src/repositories/campaign-repository.js";
+import {
+  type CampaignRepository,
+  createCampaignRepository,
+} from "../../src/repositories/campaign-repository.js";
 import { createTestDb } from "../db/test-db.js";
 
 const NOW = "2026-11-16T12:00:00.000Z";
@@ -31,7 +34,9 @@ it("gravar com um código que já existe lança CampaignAlreadyExists", async ()
 
   await campaigns.create(campaign);
 
-  await expect(campaigns.create({ ...campaign, name: "Outra" })).rejects.toBeInstanceOf(CampaignAlreadyExists);
+  await expect(campaigns.create({ ...campaign, name: "Outra" })).rejects.toBeInstanceOf(
+    CampaignAlreadyExists,
+  );
 });
 
 it("campanha inexistente → null", async () => {

@@ -12,7 +12,8 @@ altera automaticamente um usuário já persistido.
 O volume nomeado `rabbitmq-data`, com prefixo do projeto Compose, guarda os
 dados em `/var/lib/rabbitmq`. O hostname estável `rabbitmq` mantém a identidade
 do nó após recriar o contêiner. O health check executa
-`rabbitmq-diagnostics -q ping`. O serviço participa da rede `rpg` do projeto.
+`rabbitmq-diagnostics -q check_port_listener 15672`: só passa quando a API de gerenciamento,
+usada pelo Terraform, já está aberta. O serviço participa da rede `rpg` do projeto.
 
 Valide a definição a partir da raiz, mesmo sem `.env`:
 
@@ -25,13 +26,10 @@ preservando os volumes.
 
 ## Topologia
 
-`definitions.json` declara o exchange `rpg.events` (tipo `topic`), as filas e as ligações. O
-serviço `rabbitmq-init` envia o arquivo para a API de gerenciamento (`POST /api/definitions`) depois
-que o RabbitMQ fica saudável e então termina. A importação só acrescenta: não apaga filas nem
-mensagens, e rodar de novo não muda nada.
-
-O arquivo não é carregado no boot (`load_definitions`) porque, nesse caso, o RabbitMQ deixa de
-criar o usuário de `RABBITMQ_USER` quando o volume está vazio.
+`definitions.json` declara o exchange `rpg.events` (tipo `topic`), as filas e as ligações. Quem
+cria tudo isso é o Terraform ([`infra/terraform/rabbitmq.tf`](../terraform/rabbitmq.tf)), que lê
+este arquivo e fala com a API de gerenciamento. Rodar de novo não muda nada, e uma fila apagada é
+recriada.
 
 Cada serviço tem uma fila por assunto, e as réplicas do mesmo serviço dividem essa fila. Toda fila
 de consumo `Q` vem com:
@@ -55,7 +53,7 @@ Um serviço que usa o RabbitMQ deve esperar a topologia no Compose:
 
 ```yaml
 depends_on:
-  rabbitmq-init:
+  terraform:
     condition: service_completed_successfully
 ```
 
@@ -69,5 +67,8 @@ manifestos em `infra/manifests/` com este arquivo.
 Para aplicar de novo depois de editar o arquivo:
 
 ```sh
-docker compose run --rm rabbitmq-init
+docker compose run --rm terraform
 ```
+
+Mudar os argumentos de uma fila que já existe faz o Terraform apagá-la e criá-la de novo (o RabbitMQ
+não altera argumentos), e as mensagens dela se perdem.

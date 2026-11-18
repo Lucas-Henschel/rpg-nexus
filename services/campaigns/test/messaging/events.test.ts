@@ -7,7 +7,8 @@ import { createItemAcquiredParser, PoisonMessage } from "../../src/messaging/eve
 const contractsDir = resolve(loadEnv({}).CONTRACTS_DIR);
 const parse = createItemAcquiredParser(contractsDir);
 
-const example = (kind: "valid" | "invalid") => readFile(resolve(contractsDir, `examples/item-acquired.v1.${kind}.json`));
+const example = (kind: "valid" | "invalid") =>
+  readFile(resolve(contractsDir, `examples/item-acquired.v1.${kind}.json`));
 
 it("aceita o exemplo válido do contrato e devolve a aquisição", async () => {
   expect(parse(await example("valid"))).toEqual({

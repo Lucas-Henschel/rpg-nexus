@@ -17,12 +17,22 @@ const policy = { maxRetries: 3, baseDelayMs: 1000, maxDelayMs: 15000 };
 const body = Buffer.from("{}");
 
 function deps(recordAcquisition: (a: Acquisition) => Promise<AcquisitionResult>) {
-  return { parse: () => ACQUISITION, campaigns: { recordAcquisition: vi.fn(recordAcquisition) }, policy };
+  return {
+    parse: () => ACQUISITION,
+    campaigns: { recordAcquisition: vi.fn(recordAcquisition) },
+    policy,
+  };
 }
 
 describe("handleDelivery", () => {
   it("applied → ack", async () => {
-    expect(await handleDelivery(deps(async () => "applied"), body, undefined)).toEqual({
+    expect(
+      await handleDelivery(
+        deps(async () => "applied"),
+        body,
+        undefined,
+      ),
+    ).toEqual({
       kind: "ack",
       campaignId: "c1",
       result: "applied",
@@ -30,12 +40,24 @@ describe("handleDelivery", () => {
   });
 
   it("duplicate e unknown-campaign → ack, sem retry", async () => {
-    expect(await handleDelivery(deps(async () => "duplicate"), body, undefined)).toEqual({
+    expect(
+      await handleDelivery(
+        deps(async () => "duplicate"),
+        body,
+        undefined,
+      ),
+    ).toEqual({
       kind: "ack",
       campaignId: "c1",
       result: "duplicate",
     });
-    expect(await handleDelivery(deps(async () => "unknown-campaign"), body, undefined)).toEqual({
+    expect(
+      await handleDelivery(
+        deps(async () => "unknown-campaign"),
+        body,
+        undefined,
+      ),
+    ).toEqual({
       kind: "ack",
       campaignId: "c1",
       result: "unknown-campaign",
@@ -64,7 +86,10 @@ describe("handleDelivery", () => {
       throw new AggregateError([]);
     });
 
-    expect(await handleDelivery(failing, body, undefined)).toMatchObject({ kind: "retry", reason: "AggregateError" });
+    expect(await handleDelivery(failing, body, undefined)).toMatchObject({
+      kind: "retry",
+      reason: "AggregateError",
+    });
   });
 
   it("mensagem inválida → dead-letter sem gravar nada", async () => {

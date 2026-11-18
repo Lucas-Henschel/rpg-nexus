@@ -1,59 +1,95 @@
 # Infraestrutura como código (Terraform)
 
-Recria do zero, no MiniStack, os recursos de nuvem do serviço de Personagens:
+Toda a infraestrutura do projeto é criada por este Terraform, no próprio `docker compose up`. O
+contêiner `terraform` espera o MiniStack e o RabbitMQ ficarem saudáveis, aplica e termina; os
+serviços só sobem depois que ele termina com sucesso.
 
-| Recurso | Nome padrão | Para quê |
-| --- | --- | --- |
-| Tabela DynamoDB | `characters` | Fichas e reservas da Saga; índice `byCampaign`. |
-| Tabela DynamoDB | `character_inbox` | Mensagens já processadas (idempotência); TTL em `expiresAt`. |
-| Tabela DynamoDB | `character_outbox` | Eventos a publicar; índice `pending`; TTL em `expiresAt`. |
-| Tabela DynamoDB | `character_read_model` | Modelo de leitura (CQRS): resumo por personagem, consultado por campanha. |
-| Bucket S3 | `rpg-assets` | Retratos, com CORS para o front-end. |
+| Recurso | Nome padrão | Arquivo | Para quê |
+| --- | --- | --- | --- |
+| Tabela DynamoDB | `campaigns` | `campaigns.tf` | Campanhas (S1). |
+| Tabela DynamoDB | `campaign_members` | `campaigns.tf` | Participantes e itens conquistados (S1). |
+| Tabela DynamoDB | `campaign_activity` | `campaigns.tf` | Atividade da campanha, ordenada por data (S1). |
+| Tabela DynamoDB | `campaign_operations` | `campaigns.tf` | Operações já contadas (S1). |
+| Tabela DynamoDB | `campaign_inbox` | `campaigns.tf` | Mensagens já processadas (S1); TTL em `expiresAt`. |
+| Tabela DynamoDB | `characters` | `characters.tf` | Fichas e reservas da Saga (S2); índice `byCampaign`. |
+| Tabela DynamoDB | `character_inbox` | `characters.tf` | Mensagens já processadas (S2); TTL em `expiresAt`. |
+| Tabela DynamoDB | `character_outbox` | `characters.tf` | Eventos a publicar (S2); índice `pending`; TTL em `expiresAt`. |
+| Tabela DynamoDB | `character_read_model` | `characters.tf` | Modelo de leitura (CQRS) do S2. |
+| Bucket S3 | `rpg-assets` | `characters.tf` | Retratos, com CORS para o front-end. |
+| Exchange, filas e ligações | `rpg.events`, ... | `rabbitmq.tf` | Topologia de `infra/rabbitmq/definitions.json`. |
 
-A definição espelha `infra/manifests/characters.json`. O provider é o da AWS; só o endpoint aponta
-para o MiniStack, então o mesmo código serviria para a AWS real.
+## De onde vêm os nomes
+
+Nada de nome fixo no Terraform:
+
+- **tabelas:** dos mesmos arquivos de ambiente que o Compose entrega aos serviços,
+  `services/campaigns/.env.example` e `services/characters/.env.example` (`env.tf` lê as linhas
+  `TABLE_*`). Trocar um nome ali troca no serviço e no Terraform ao mesmo tempo;
+- **filas, exchange e ligações:** de `infra/rabbitmq/definitions.json`, o arquivo que o teste de
+  `contracts/` confere contra os esquemas dos eventos;
+- **bucket, endpoints e credenciais:** do `.env` da raiz, pelas variáveis `TF_VAR_*` que o
+  `docker-compose.yml` passa ao contêiner (`variables.tf` lista todas).
+
+Os providers são o da AWS e o do RabbitMQ (`cyrilgdn/rabbitmq`, pela API de gerenciamento). Só os
+endpoints apontam para o MiniStack e para o RabbitMQ local, então o mesmo código serviria para a AWS
+real.
 
 ## Recriar o ambiente do zero
 
 Na raiz do monorepo:
 
 ```sh
-docker compose down --volumes                     # apaga tudo: dados, filas e estado do Terraform
-docker compose --profile iac run --rm terraform   # sobe o MiniStack e aplica o Terraform
-docker compose up --build --detach --wait         # sobe o resto da pilha
+docker compose down --volumes         # apaga tudo: dados, filas e estado do Terraform
+docker compose up --build --wait      # o Terraform recria a infraestrutura e os serviços sobem
 ```
 
-O Terraform precisa rodar **antes** do restante da pilha. Os inicializadores (`aws-init` e
-`characters-init`) são idempotentes: encontram o bucket e as tabelas já criados e seguem em frente.
-Se a pilha já subiu antes, os recursos já existem fora do estado do Terraform e o `apply` falha com
-"já existe"; nesse caso comece pelo `down --volumes`.
+Rodar `docker compose up` de novo, com a pilha no ar ou não, não muda nada ("No changes"). Se alguém
+apagar uma tabela ou uma fila, o próximo `up` (ou `docker compose run --rm terraform`) a recria.
 
-A primeira execução baixa o provider da AWS (precisa de internet e leva alguns minutos). Ele fica
-guardado, junto com o estado, no volume `terraform-state`.
+A primeira execução baixa os providers (precisa de internet). Eles ficam guardados, junto com o
+estado, no volume `terraform-state`.
+
+### Ambiente criado antes do Terraform
+
+Uma pilha que subiu antes desta mudança tem as tabelas e o bucket criados pelos scripts antigos, fora
+do estado do Terraform. Nesse caso o `apply` falha com "already exists"/`ResourceInUseException`.
+Resolva uma vez com `docker compose down --volumes` (apaga os dados locais de teste).
+
+O mesmo acontece se só um dos volumes for apagado (por exemplo `terraform-state` sem `ministack-data`):
+apague sempre os dois juntos, com `down --volumes`.
 
 ## Outros comandos
 
 ```sh
-docker compose --profile iac run --rm terraform plan              # o que mudaria; "No changes" se estiver em dia
-docker compose --profile iac run --rm terraform output            # nomes criados
-docker compose --profile iac run --rm terraform destroy -auto-approve
+docker compose run --rm terraform plan                    # o que mudaria; "No changes" se estiver em dia
+docker compose run --rm terraform output                  # nomes criados
+docker compose run --rm terraform destroy -auto-approve   # apaga tudo o que o Terraform criou
 ```
 
-Conferir no MiniStack, a partir do host:
+Conferir a partir do host:
 
 ```sh
 aws --endpoint-url http://localhost:4566 dynamodb list-tables
 aws --endpoint-url http://localhost:4566 s3api get-bucket-cors --bucket rpg-assets
+docker compose exec rabbitmq rabbitmqctl list_queues name arguments
 ```
 
 ## Arquivos
 
 | Arquivo | Conteúdo |
 | --- | --- |
-| `versions.tf` | Versões, backend local e provider AWS apontado para o endpoint. |
-| `variables.tf` | Endpoint, região, credenciais fictícias e nomes dos recursos. |
-| `main.tf` | As quatro tabelas, o bucket e o CORS. |
+| `versions.tf` | Versões, backend local e os providers AWS e RabbitMQ apontados para os endpoints. |
+| `variables.tf` | Endpoints, região, credenciais fictícias, bucket e origem do CORS. |
+| `env.tf` | Lê os nomes das tabelas dos `.env.example` dos serviços. |
+| `campaigns.tf` | As cinco tabelas do S1. |
+| `characters.tf` | As quatro tabelas do S2, o bucket e o CORS. |
+| `rabbitmq.tf` | Exchange, filas e ligações de `definitions.json`. |
 | `outputs.tf` | Nomes dos recursos criados. |
 
-Depois da primeira execução, o Terraform cria `infra/terraform/.terraform.lock.hcl`, que fixa a
-versão exata do provider. Vale versionar esse arquivo.
+`.terraform.lock.hcl` fixa a versão exata de cada provider e é versionado.
+
+## Fila com argumentos novos
+
+O RabbitMQ não altera os argumentos de uma fila que já existe. Se um argumento mudar no
+`definitions.json`, o Terraform apaga a fila e cria de novo, e as mensagens dela se perdem; o `plan`
+mostra isso como `must be replaced`.

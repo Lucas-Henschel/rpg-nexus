@@ -1,9 +1,9 @@
-# Recursos de nuvem do S2 Personagens, espelhando infra/manifests/characters.json.
-# Um `terraform apply` em ambiente vazio recria tudo: quatro tabelas DynamoDB e o bucket S3 com CORS.
+# Recursos de nuvem do S2 Personagens, espelhando infra/manifests/characters.json: quatro tabelas
+# DynamoDB e o bucket S3 com CORS. Os nomes das tabelas vêm de services/characters/.env.example (env.tf).
 
 # Fichas (sk = PROFILE) e reservas da Saga (sk = HOLD#{operationId}) sob a mesma chave de partição.
 resource "aws_dynamodb_table" "characters" {
-  name         = var.table_characters
+  name         = local.characters_env["TABLE_CHARACTERS"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "pk"
   range_key    = "sk"
@@ -39,7 +39,7 @@ resource "aws_dynamodb_table" "characters" {
 
 # Idempotência (R1): uma linha por messageId já processado; expira sozinha pelo TTL.
 resource "aws_dynamodb_table" "inbox" {
-  name         = var.table_inbox
+  name         = local.characters_env["TABLE_INBOX"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "messageId"
 
@@ -56,7 +56,7 @@ resource "aws_dynamodb_table" "inbox" {
 
 # Outbox transacional: eventos gravados junto com o efeito e publicados depois pelo relay.
 resource "aws_dynamodb_table" "outbox" {
-  name         = var.table_outbox
+  name         = local.characters_env["TABLE_OUTBOX"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "messageId"
 
@@ -91,7 +91,7 @@ resource "aws_dynamodb_table" "outbox" {
 
 # Modelo de leitura (CQRS): um resumo por personagem; "painel da campanha" é uma Query pela chave primária.
 resource "aws_dynamodb_table" "read_model" {
-  name         = var.table_read_model
+  name         = local.characters_env["TABLE_READ_MODEL"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "campaignId"
   range_key    = "characterId"

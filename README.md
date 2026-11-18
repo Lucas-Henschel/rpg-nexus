@@ -25,8 +25,8 @@ para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
 
 | Projeto | Pasta | Serviços no Compose |
 | --- | --- | --- |
-| Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns-init`, `campaigns` |
-| Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters-init`, `characters`, `characters-worker` |
+| Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns`, `campaigns-worker` |
+| Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters`, `characters-worker` |
 | Front-end (React + Vite) | [`apps/frontend`](apps/frontend/README.md) | `frontend` |
 
 ## Pré-requisitos
@@ -53,17 +53,15 @@ e exclusivas deste ambiente local.
 
 **`docker compose up --build` é a entrada principal**, subindo
 a infraestrutura e todos os serviços declarados no Compose, com os logs anexados
-ao terminal. O inicializador `aws-init` aguarda o MiniStack saudável, cria o
-bucket caso necessário e termina; repetir a inicialização preserva um bucket
-existente. Em paralelo, depois que o RabbitMQ fica saudável, o inicializador
-`rabbitmq-init` declara o exchange, as filas e as ligações de
-`infra/rabbitmq/definitions.json` e termina. Os serviços esperam a conclusão com
-sucesso dos inicializadores de que dependem, e uma falha de qualquer um deles faz
-o `docker compose up` falhar.
+ao terminal. Depois que o MiniStack e o RabbitMQ ficam saudáveis, o contêiner
+`terraform` cria toda a infraestrutura e termina: as tabelas DynamoDB dos serviços,
+o bucket S3 com CORS e o exchange, as filas e as ligações de
+`infra/rabbitmq/definitions.json`. Rodar de novo não muda nada, e um recurso apagado
+é recriado no próximo `up`. Os serviços só sobem depois que ele termina com sucesso;
+se ele falhar, o `docker compose up` falha. Detalhes em
+[`infra/terraform/README.md`](infra/terraform/README.md).
 
-Em seguida, `campaigns-init` e `characters-init` criam as tabelas DynamoDB dos
-serviços de Campanhas e Personagens (o segundo também aplica o CORS do bucket), e só
-então `campaigns` e `characters` sobem. Com a pilha no ar, abra o
+Com a pilha no ar, abra o
 front-end em [localhost:5173](http://localhost:5173).
 
 ### Logs separados por serviço

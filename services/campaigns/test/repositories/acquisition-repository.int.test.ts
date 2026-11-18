@@ -5,9 +5,18 @@ import {
   type AcquisitionRepository,
   createAcquisitionRepository,
 } from "../../src/repositories/acquisition-repository.js";
-import { type ActivityRepository, createActivityRepository } from "../../src/repositories/activity-repository.js";
-import { type CampaignRepository, createCampaignRepository } from "../../src/repositories/campaign-repository.js";
-import { createMemberRepository, type MemberRepository } from "../../src/repositories/member-repository.js";
+import {
+  type ActivityRepository,
+  createActivityRepository,
+} from "../../src/repositories/activity-repository.js";
+import {
+  type CampaignRepository,
+  createCampaignRepository,
+} from "../../src/repositories/campaign-repository.js";
+import {
+  createMemberRepository,
+  type MemberRepository,
+} from "../../src/repositories/member-repository.js";
 import { createTestDb } from "../db/test-db.js";
 
 const NOW = "2026-11-16T12:00:00.000Z";
@@ -30,7 +39,12 @@ const id = (prefix: string) => `${prefix}-${randomUUID().slice(0, 8)}`;
 async function newCampaign(): Promise<string> {
   const campaignId = id("c");
 
-  await campaigns.create({ campaignId, name: "A Coroa de Cinzas", gameMaster: null, createdAt: NOW });
+  await campaigns.create({
+    campaignId,
+    name: "A Coroa de Cinzas",
+    gameMaster: null,
+    createdAt: NOW,
+  });
 
   return campaignId;
 }

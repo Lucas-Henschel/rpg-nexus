@@ -10,9 +10,16 @@ import { createActivityRepository } from "./repositories/activity-repository.js"
 import { createCampaignRepository } from "./repositories/campaign-repository.js";
 import { createMemberRepository } from "./repositories/member-repository.js";
 import { createCampaignService } from "./services/campaigns.js";
+import { startTracing, stopTracing } from "./tracing/setup.js";
 
 const env = loadEnv();
-// As tabelas já existem: quem cria é o script create-tables (contêiner campaigns-init).
+
+// Antes de montar o app e os clientes, para o tracing enxergar tudo desde o início.
+if (env.TRACING_ENABLED) {
+  startTracing(env.SERVICE_NAME);
+}
+
+// As tabelas já existem: quem cria é o Terraform (infra/terraform), antes de o serviço subir.
 const db = createDb(env);
 
 const campaigns = createCampaignService({
@@ -32,7 +39,11 @@ const app = buildApp({
 const delivery = {
   parse: createItemAcquiredParser(resolve(env.CONTRACTS_DIR)),
   campaigns,
-  policy: { maxRetries: env.MAX_RETRIES, baseDelayMs: env.RETRY_BASE_DELAY_MS, maxDelayMs: env.RETRY_MAX_DELAY_MS },
+  policy: {
+    maxRetries: env.MAX_RETRIES,
+    baseDelayMs: env.RETRY_BASE_DELAY_MS,
+    maxDelayMs: env.RETRY_MAX_DELAY_MS,
+  },
 };
 
 const consumer = startConsumer({
@@ -48,6 +59,7 @@ async function shutdown(signal: string) {
   app.log.info({ signal }, "shutdown");
   await consumer.close();
   await app.close();
+  await stopTracing();
   process.exit(0);
 }
 

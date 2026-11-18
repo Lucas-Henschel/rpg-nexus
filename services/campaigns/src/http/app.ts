@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import type { Env } from "../config.js";
 import type { CampaignService } from "../services/campaigns.js";
+import { fastifyOtel } from "../tracing/http.js";
 import { campaignRoutes } from "./campaigns.js";
 import { errorHandler } from "./errors.js";
 import { type HealthChecks, healthRoutes } from "./health.js";
@@ -19,6 +20,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.setErrorHandler(errorHandler);
+  app.register(fastifyOtel.plugin());
   app.register(cors, { origin: deps.env.CORS_ORIGINS });
 
   app.register(healthRoutes(deps));

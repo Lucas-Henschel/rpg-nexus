@@ -21,20 +21,26 @@ export function errorHandler(error: FastifyError, request: FastifyRequest, reply
   if (error instanceof CampaignNotFound) {
     const details = { campaignId: error.campaignId };
 
-    return reply.status(404).send(errorBody("CAMPAIGN_NOT_FOUND", "campanha não encontrada", details));
+    return reply
+      .status(404)
+      .send(errorBody("CAMPAIGN_NOT_FOUND", "campanha não encontrada", details));
   }
 
   if (error instanceof CampaignAlreadyExists) {
     const details = { campaignId: error.campaignId };
 
-    return reply.status(409).send(errorBody("CAMPAIGN_ALREADY_EXISTS", "campanha já existe", details));
+    return reply
+      .status(409)
+      .send(errorBody("CAMPAIGN_ALREADY_EXISTS", "campanha já existe", details));
   }
 
   // Erros do próprio Fastify por culpa de quem chamou (JSON malformado, corpo vazio, tipo de conteúdo).
   if (error.statusCode !== undefined && error.statusCode < 500) {
     const details = { reason: error.message };
 
-    return reply.status(error.statusCode).send(errorBody("INVALID_REQUEST", "requisição inválida", details));
+    return reply
+      .status(error.statusCode)
+      .send(errorBody("INVALID_REQUEST", "requisição inválida", details));
   }
 
   request.log.error({ err: error }, "http.unhandled_error");

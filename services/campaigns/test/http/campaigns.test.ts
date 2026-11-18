@@ -42,7 +42,11 @@ describe("POST /campaigns", () => {
     expect(first.json()).toMatchObject({ campaignId: "c1", gameMaster: "Ana" });
     expect(second.statusCode).toBe(409);
     expect(second.json()).toEqual({
-      error: { code: "CAMPAIGN_ALREADY_EXISTS", message: "campanha já existe", details: { campaignId: "c1" } },
+      error: {
+        code: "CAMPAIGN_ALREADY_EXISTS",
+        message: "campanha já existe",
+        details: { campaignId: "c1" },
+      },
     });
   });
 
@@ -50,7 +54,9 @@ describe("POST /campaigns", () => {
     const res = await createCampaign(testApp(), {});
 
     expect(res.statusCode).toBe(422);
-    expect(res.json()).toMatchObject({ error: { code: "VALIDATION_ERROR", details: [{ field: "name" }] } });
+    expect(res.json()).toMatchObject({
+      error: { code: "VALIDATION_ERROR", details: [{ field: "name" }] },
+    });
   });
 
   it("com o código 'c 1' (fora do padrão) → 422", async () => {
@@ -70,7 +76,9 @@ describe("GET /campaigns", () => {
     const res = await app.inject({ method: "GET", url: "/campaigns" });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ items: [{ campaignId: "c1", name: "Um", gameMaster: null, createdAt: NOW }] });
+    expect(res.json()).toEqual({
+      items: [{ campaignId: "c1", name: "Um", gameMaster: null, createdAt: NOW }],
+    });
   });
 });
 
@@ -90,7 +98,9 @@ describe("GET /campaigns/:campaignId", () => {
     const res = await testApp().inject({ method: "GET", url: "/campaigns/nao-existe" });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json()).toMatchObject({ error: { code: "CAMPAIGN_NOT_FOUND", message: "campanha não encontrada" } });
+    expect(res.json()).toMatchObject({
+      error: { code: "CAMPAIGN_NOT_FOUND", message: "campanha não encontrada" },
+    });
   });
 
   it("código fora do padrão → 422", async () => {
@@ -102,7 +112,11 @@ describe("GET /campaigns/:campaignId", () => {
 
 describe("POST /campaigns/:campaignId/members", () => {
   const addMember = (app: ReturnType<typeof testApp>, campaignId: string, characterName = "Lyra") =>
-    app.inject({ method: "POST", url: `/campaigns/${campaignId}/members`, payload: { characterId: "ch1", characterName } });
+    app.inject({
+      method: "POST",
+      url: `/campaigns/${campaignId}/members`,
+      payload: { characterId: "ch1", characterName },
+    });
 
   it("novo → 201; repetido → 200 com o nome novo", async () => {
     const app = testApp();
@@ -113,7 +127,12 @@ describe("POST /campaigns/:campaignId/members", () => {
     const second = await addMember(app, "c1", "Lyra, a Ladina");
 
     expect(first.statusCode).toBe(201);
-    expect(first.json()).toEqual({ characterId: "ch1", characterName: "Lyra", itemsAcquired: 0, joinedAt: NOW });
+    expect(first.json()).toEqual({
+      characterId: "ch1",
+      characterName: "Lyra",
+      itemsAcquired: 0,
+      joinedAt: NOW,
+    });
     expect(second.statusCode).toBe(200);
     expect(second.json()).toMatchObject({ characterName: "Lyra, a Ladina" });
   });

@@ -48,7 +48,12 @@ export function createCampaignService(
   return {
     /** Sem código, gera um UUID. Lança CampaignAlreadyExists se o código já estiver em uso. */
     async create({ name, gameMaster, campaignId = randomUUID() }: NewCampaign): Promise<Campaign> {
-      const campaign: Campaign = { campaignId, name, gameMaster: gameMaster ?? null, createdAt: clock() };
+      const campaign: Campaign = {
+        campaignId,
+        name,
+        gameMaster: gameMaster ?? null,
+        createdAt: clock(),
+      };
 
       await campaigns.create(campaign);
 

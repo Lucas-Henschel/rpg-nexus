@@ -27,12 +27,19 @@ export function fakeRepositories(): Repositories {
 
     members: {
       async list(campaignId) {
-        return [...members.entries()].filter(([key]) => key.startsWith(`${campaignId}/`)).map(([, member]) => member);
+        return [...members.entries()]
+          .filter(([key]) => key.startsWith(`${campaignId}/`))
+          .map(([, member]) => member);
       },
       async save(campaignId, { characterId, characterName }, now) {
         const key = `${campaignId}/${characterId}`;
         const old = members.get(key);
-        const member = { characterId, characterName, itemsAcquired: old?.itemsAcquired ?? 0, joinedAt: old?.joinedAt ?? now };
+        const member = {
+          characterId,
+          characterName,
+          itemsAcquired: old?.itemsAcquired ?? 0,
+          joinedAt: old?.joinedAt ?? now,
+        };
 
         members.set(key, member);
 

@@ -7,6 +7,9 @@
 procs:
   campaigns:
     cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "campaigns"]
+  # As réplicas do S1 (campaigns-worker-1, -2...); com prefixo, para saber qual processou cada mensagem.
+  campaigns-worker:
+    cmd: ["docker", "compose", "logs", "--follow", "--tail", "200", "campaigns-worker"]
   characters:
     cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "characters"]
   frontend:
@@ -15,15 +18,6 @@ procs:
     cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "rabbitmq"]
   ministack:
     cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "ministack"]
-  # Os contêineres que preparam o ambiente e terminam; com prefixo, para saber de qual é cada linha.
-  inicializadores:
-    cmd:
-      - docker
-      - compose
-      - logs
-      - --tail
-      - "200"
-      - aws-init
-      - rabbitmq-init
-      - campaigns-init
-      - characters-init
+  # O Terraform cria a infraestrutura e termina: o painel mostra o que ele escreveu e para.
+  terraform:
+    cmd: ["docker", "compose", "logs", "--no-log-prefix", "--tail", "200", "terraform"]

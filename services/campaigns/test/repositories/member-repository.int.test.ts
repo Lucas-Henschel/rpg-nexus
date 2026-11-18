@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, expect, it } from "vitest";
 import { createAcquisitionRepository } from "../../src/repositories/acquisition-repository.js";
 import { createCampaignRepository } from "../../src/repositories/campaign-repository.js";
-import { createMemberRepository, type MemberRepository } from "../../src/repositories/member-repository.js";
+import {
+  createMemberRepository,
+  type MemberRepository,
+} from "../../src/repositories/member-repository.js";
 import { createTestDb } from "../db/test-db.js";
 
 const NOW = "2026-11-16T12:00:00.000Z";
@@ -20,7 +23,12 @@ beforeAll(async () => {
   newCampaign = async () => {
     const campaignId = `c-${randomUUID().slice(0, 8)}`;
 
-    await campaigns.create({ campaignId, name: "A Coroa de Cinzas", gameMaster: null, createdAt: NOW });
+    await campaigns.create({
+      campaignId,
+      name: "A Coroa de Cinzas",
+      gameMaster: null,
+      createdAt: NOW,
+    });
 
     return campaignId;
   };
@@ -57,7 +65,12 @@ it("primeira vez cria; segunda troca o nome e mantém o contador e a data de ent
   });
   expect(second).toEqual({
     created: false,
-    member: { characterId: "ch1", characterName: "Lyra, a Ladina", itemsAcquired: 3, joinedAt: NOW },
+    member: {
+      characterId: "ch1",
+      characterName: "Lyra, a Ladina",
+      itemsAcquired: 3,
+      joinedAt: NOW,
+    },
   });
 });
 
