@@ -92,7 +92,7 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
         String type=result.type();
         if(result.version()!=1 || messageId.isBlank() || id.isBlank() || !Set.of(
             "rpg.character.validated.v1","rpg.character.rejected.v1",
-            "rpg.external.validation.succeeded.v1","rpg.external.validation.failed.v1").contains(type))
+            "rpg.external.validation-succeeded.v1","rpg.external.validation-failed.v1").contains(type))
             throw new IllegalArgumentException("invalid envelope");
         var row=store.get("acquisition_sagas",id);
         if(row.isEmpty()) throw new IllegalArgumentException("unknown operation");
@@ -106,7 +106,7 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
         var writes=new ArrayList<TransactWriteItem>(); writes.add(inbox);
         var decision=SagaTransition.decide(map(row),type,Instant.now());
         switch(decision.effect()) {
-            case RELEASE_STOCK -> compensate(row,decision.next().name(),writes);
+            case RELEASE_STOCK -> compensate(row,decision.next().name(),cancelReason(decision.next(),type),writes);
             case REQUEST_EXTERNAL -> {
                 writes.add(store.updateSaga(row,decision.next().name(),Instant.parse(DynamoStore.str(row,"deadlineAt"))));
                 writes.add(event(id,"rpg.external.validation-requested.v1","external.validation.requested.v1",payload(row)));
@@ -126,16 +126,23 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
             throw e; // another replica changed the version: broker retry re-evaluates the state
         }
     }
-    void compensate(Map<String,AttributeValue> row,String terminal,List<TransactWriteItem> writes) {
+    /** O motivo do AcquisitionCancelled, um dos valores do enum `reason` do contrato. */
+    static String cancelReason(Acquisition.Status next,String resultType) {
+        if(next==Acquisition.Status.EXPIRED) return "DEADLINE_EXPIRED";
+        return "rpg.character.rejected.v1".equals(resultType)?"CHARACTER_REJECTED":"EXTERNAL_VALIDATION_FAILED";
+    }
+    void compensate(Map<String,AttributeValue> row,String terminal,String reason,List<TransactWriteItem> writes) {
         writes.add(TransactWriteItem.builder().update(Update.builder().tableName(store.table("stocks"))
             .key(Map.of("id",DynamoStore.s(DynamoStore.str(row,"campaignId")+"#"+DynamoStore.str(row,"itemId"))))
             .updateExpression("SET available = available + :one")
             .expressionAttributeValues(Map.of(":one",DynamoStore.n(1))).build()).build());
         writes.add(store.updateSaga(row,terminal,Instant.parse(DynamoStore.str(row,"deadlineAt"))));
-        writes.add(event(DynamoStore.str(row,"id"),"rpg.acquisition.cancelled.v1","acquisition.cancelled.v1",payload(row)));
+        var cancelled=new HashMap<String,Object>(payload(row));
+        cancelled.put("reason",reason);
+        writes.add(event(DynamoStore.str(row,"id"),"rpg.acquisition.cancelled.v1","acquisition.cancelled.v1",cancelled));
     }
     void expire(Map<String,AttributeValue> row) {
-        var writes=new ArrayList<TransactWriteItem>(); compensate(row,"EXPIRED",writes);
+        var writes=new ArrayList<TransactWriteItem>(); compensate(row,"EXPIRED","DEADLINE_EXPIRED",writes);
         try { store.transact(writes); }
         catch(TransactionCanceledException e) { /* a concurrent result won the version check; next scan sees its state */ }
     }

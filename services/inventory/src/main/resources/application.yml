@@ -20,5 +20,9 @@ spring:
           enabled: false
 inventory:
   table-prefix: ${INVENTORY_TABLE_PREFIX:inventory_}
+  exchange: ${RABBITMQ_EXCHANGE:rpg.events}
+  queue: ${RABBITMQ_QUEUE:inventory.saga-replies.v1}
+  retry-queue: ${RABBITMQ_RETRY_QUEUE:inventory.saga-replies.v1.retry}
+  retry-base-delay-ms: ${RETRY_BASE_DELAY_MS:1000}
   saga-timeout-seconds: ${SAGA_TIMEOUT_SECONDS:60}
   max-retries: ${MAX_RETRIES:3}

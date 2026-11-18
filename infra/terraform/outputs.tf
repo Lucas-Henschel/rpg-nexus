@@ -14,6 +14,7 @@ output "dynamodb_tables" {
       aws_dynamodb_table.outbox.name,
       aws_dynamodb_table.read_model.name,
     ]
+    inventory = sort([for table in aws_dynamodb_table.inventory : table.name])
   }
 }
 
