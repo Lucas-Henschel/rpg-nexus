@@ -1,14 +1,18 @@
 import { useState, type FormEvent } from "react";
 import { navigate } from "../../app/navigation";
-import { CAMPAIGN_PATTERN, useCampaign } from "../../shared/campaign";
+import { useCampaign } from "../../shared/campaign";
 import { errorMessage } from "../../shared/http";
 import { useToast } from "../../shared/ui/toast-context";
+import { useAuth } from "../auth/auth-context";
 import type { Campaign } from "./api";
 import { formatDate } from "./format";
-import { useCampaigns, useCreateCampaign } from "./queries";
+import { useCampaigns, useCreateCampaign, useJoinCampaign } from "./queries";
+
+const JOIN_CODE = /^\d{6}$/;
 
 export function CampaignsPage() {
   const campaigns = useCampaigns();
+  const { user } = useAuth();
   const [, setCampaign] = useCampaign();
 
   // Abrir uma campanha também a torna a campanha em uso nas outras telas.
@@ -21,12 +25,13 @@ export function CampaignsPage() {
     <main className="page">
       <h1 className="page__title">Campanhas</h1>
       <p className="page__lead">
-        Onde quem mestra abre a campanha e reúne os personagens que vão jogar.
+        Quem mestra cria a campanha e passa o código de seis dígitos; quem joga entra com ele.
       </p>
 
       <NewCampaignForm onCreated={open} />
+      <JoinCampaignForm onJoined={open} />
 
-      {campaigns.isPending && <p className="page__status">Buscando as campanhas…</p>}
+      {campaigns.isPending && <p className="page__status">Buscando as suas campanhas…</p>}
 
       {campaigns.isError && (
         <div className="notice">
@@ -43,7 +48,7 @@ export function CampaignsPage() {
 
       {campaigns.isSuccess && campaigns.data.length === 0 && (
         <div className="notice">
-          <p>Nenhuma campanha cadastrada ainda. Crie a primeira acima.</p>
+          <p>Você ainda não participa de nenhuma campanha. Crie uma ou entre com um código.</p>
         </div>
       )}
 
@@ -54,8 +59,8 @@ export function CampaignsPage() {
               <button type="button" className="campaign-card" onClick={() => open(campaign)}>
                 <span className="campaign-card__name">{campaign.name}</span>
                 <span className="campaign-card__meta">
-                  Código {campaign.campaignId}
-                  {campaign.gameMaster && ` · Mestre: ${campaign.gameMaster}`}
+                  Código {campaign.joinCode} ·{" "}
+                  {campaign.ownerId === user?.userId ? "Você mestra" : `Mestre: ${campaign.ownerName}`}
                 </span>
                 <span className="campaign-card__meta">
                   Criada em {formatDate(campaign.createdAt)}
@@ -73,8 +78,6 @@ function NewCampaignForm({ onCreated }: { onCreated: (campaign: Campaign) => voi
   const toast = useToast();
   const create = useCreateCampaign();
   const [name, setName] = useState("");
-  const [gameMaster, setGameMaster] = useState("");
-  const [code, setCode] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
 
   const submit = async (event: FormEvent) => {
@@ -85,20 +88,10 @@ function NewCampaignForm({ onCreated }: { onCreated: (campaign: Campaign) => voi
       return;
     }
 
-    if (code.trim() && !CAMPAIGN_PATTERN.test(code.trim())) {
-      setProblem("No código, use só letras, números, hífen e sublinhado.");
-
-      return;
-    }
-
     setProblem(null);
     try {
-      const created = await create.mutateAsync({
-        name: name.trim(),
-        gameMaster: gameMaster.trim() || undefined,
-        campaignId: code.trim() || undefined,
-      });
-      toast("ok", `Campanha ${created.name} criada.`);
+      const created = await create.mutateAsync(name.trim());
+      toast("ok", `Campanha ${created.name} criada. Código de entrada: ${created.joinCode}.`);
       onCreated(created);
     } catch (error) {
       setProblem(errorMessage(error, "Não foi possível criar a campanha."));
@@ -108,7 +101,7 @@ function NewCampaignForm({ onCreated }: { onCreated: (campaign: Campaign) => voi
   return (
     <form className="campaign-form" onSubmit={(e) => void submit(e)} noValidate>
       <label className="campaign-form__field campaign-form__field--wide">
-        <span>Nome da campanha</span>
+        <span>Nome da nova campanha</span>
         <input
           className="felt-input"
           value={name}
@@ -116,28 +109,56 @@ function NewCampaignForm({ onCreated }: { onCreated: (campaign: Campaign) => voi
           maxLength={80}
         />
       </label>
+      <button type="submit" className="button button--brass" disabled={create.isPending}>
+        {create.isPending ? "Criando…" : "Criar campanha"}
+      </button>
+      {problem && <p className="field-error field-error--felt campaign-form__problem">{problem}</p>}
+    </form>
+  );
+}
+
+function JoinCampaignForm({ onJoined }: { onJoined: (campaign: Campaign) => void }) {
+  const toast = useToast();
+  const join = useJoinCampaign();
+  const [code, setCode] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!JOIN_CODE.test(code)) {
+      setProblem("O código tem seis algarismos.");
+
+      return;
+    }
+
+    setProblem(null);
+    try {
+      const campaign = await join.mutateAsync(code);
+      toast("ok", `Você está na campanha ${campaign.name}.`);
+      setCode("");
+      onJoined(campaign);
+    } catch (error) {
+      setProblem(errorMessage(error, "Não foi possível entrar na campanha."));
+    }
+  };
+
+  return (
+    <form className="campaign-form" onSubmit={(e) => void submit(e)} noValidate>
       <label className="campaign-form__field">
-        <span>Mestre (opcional)</span>
-        <input
-          className="felt-input"
-          value={gameMaster}
-          onChange={(e) => setGameMaster(e.target.value)}
-          maxLength={80}
-        />
-      </label>
-      <label className="campaign-form__field">
-        <span>Código (opcional)</span>
+        <span>Entrar com código</span>
         <input
           className="felt-input"
           value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="ex.: c1"
+          // Só algarismos, no máximo seis.
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          placeholder="000000"
+          inputMode="numeric"
+          autoComplete="off"
           spellCheck={false}
-          maxLength={64}
         />
       </label>
-      <button type="submit" className="button button--brass" disabled={create.isPending}>
-        {create.isPending ? "Criando…" : "Criar campanha"}
+      <button type="submit" className="button button--ghost-felt" disabled={join.isPending}>
+        {join.isPending ? "Entrando…" : "Entrar"}
       </button>
       {problem && <p className="field-error field-error--felt campaign-form__problem">{problem}</p>}
     </form>

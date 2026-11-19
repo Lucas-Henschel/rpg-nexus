@@ -1,5 +1,5 @@
-/** Escolha da campanha em uso, a partir das campanhas cadastradas no S1. */
-import { useState, type FormEvent } from "react";
+/** Escolha da campanha em uso, entre as campanhas de que a pessoa logada participa no S1. */
+import { useEffect, useState, type FormEvent } from "react";
 import { CAMPAIGN_PATTERN } from "../../shared/campaign";
 import { errorMessage } from "../../shared/http";
 import { useCampaigns } from "./queries";
@@ -12,13 +12,21 @@ interface Props {
 export function CampaignPicker({ value, onChange }: Props) {
   const campaigns = useCampaigns();
 
+  const items = campaigns.data ?? [];
+  // A campanha em uso pode não ser da pessoa (código antigo, outra conta) ou a lista ainda carrega.
+  const known = items.some((campaign) => campaign.campaignId === value);
+  const first = items[0]?.campaignId;
+
+  // Campanha lembrada que não é desta pessoa: passa para a primeira dela.
+  useEffect(() => {
+    if (campaigns.isSuccess && !known && first) {
+      onChange(first);
+    }
+  }, [campaigns.isSuccess, known, first, onChange]);
+
   if (campaigns.isError) {
     return <TypedCampaign value={value} onChange={onChange} problem={campaigns.error} />;
   }
-
-  const items = campaigns.data ?? [];
-  // A campanha em uso pode não estar cadastrada (código antigo, ou lista ainda carregando).
-  const known = items.some((campaign) => campaign.campaignId === value);
 
   return (
     <div className="campaign-picker">
@@ -33,12 +41,12 @@ export function CampaignPicker({ value, onChange }: Props) {
         {!known && (
           <option value={value}>
             {value}
-            {campaigns.isSuccess ? " (não cadastrada)" : ""}
+            {campaigns.isSuccess ? " (você não participa)" : ""}
           </option>
         )}
         {items.map((campaign) => (
           <option key={campaign.campaignId} value={campaign.campaignId}>
-            {campaign.name} ({campaign.campaignId})
+            {campaign.name} · {campaign.joinCode}
           </option>
         ))}
       </select>

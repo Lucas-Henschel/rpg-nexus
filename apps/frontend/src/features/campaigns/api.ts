@@ -1,19 +1,29 @@
-/** Adaptador tipado do S1 Campanhas. As telas nunca chamam fetch direto. */
+/** Adaptador tipado do S1 Campanhas. As telas nunca chamam fetch direto. Toda rota exige login. */
 import { services } from "../../shared/config";
-import { jsonBody, request } from "../../shared/http";
+import { jsonBody } from "../../shared/http";
+import { authorizedRequest } from "../auth/session";
 
 const base = services.campaigns.url;
+const path = (campaignId: string) => `/campaigns/${encodeURIComponent(campaignId)}`;
 
 export interface Campaign {
   campaignId: string;
   name: string;
-  gameMaster: string | null;
+  ownerId: string;
+  ownerName: string;
+  /** Seis algarismos; é o que os jogadores digitam para entrar. */
+  joinCode: string;
   createdAt: string;
 }
 
+export type Role = "OWNER" | "PLAYER";
+
 export interface Member {
-  characterId: string;
-  /** null quando o personagem entrou sozinho, ao conquistar um item, sem ter sido adicionado. */
+  userId: string;
+  username: string;
+  role: Role;
+  /** null até o participante escolher o personagem que usa na campanha. */
+  characterId: string | null;
   characterName: string | null;
   itemsAcquired: number;
   joinedAt: string;
@@ -28,39 +38,50 @@ export interface Activity {
   occurredAt: string;
 }
 
-/** A campanha com participantes e as últimas atividades, da mais nova para a mais antiga. */
+/** A campanha com participantes (o dono primeiro) e as últimas atividades, da mais nova para a mais antiga. */
 export interface CampaignView extends Campaign {
   members: Member[];
   recentActivity: Activity[];
 }
 
-export interface CampaignInput {
-  name: string;
-  gameMaster?: string;
-  /** Código escolhido (ex.: c1); sem ele, o serviço gera um. */
-  campaignId?: string;
+/** As campanhas de que a pessoa logada participa. */
+export async function listMyCampaigns(): Promise<Campaign[]> {
+  return (await authorizedRequest<{ items: Campaign[] }>(base, "/users/me/campaigns")).data.items;
 }
 
-export async function listCampaigns(): Promise<Campaign[]> {
-  return (await request<{ items: Campaign[] }>(base, "/campaigns")).data.items;
+export async function getCampaign(campaignId: string): Promise<CampaignView> {
+  return (await authorizedRequest<CampaignView>(base, path(campaignId))).data;
 }
 
-export async function getCampaign(id: string): Promise<CampaignView> {
-  return (await request<CampaignView>(base, `/campaigns/${encodeURIComponent(id)}`)).data;
+/** Quem cria vira o dono; o código de entrada é gerado pelo serviço. */
+export async function createCampaign(name: string): Promise<Campaign> {
+  const init = { method: "POST", ...jsonBody({ name }) };
+
+  return (await authorizedRequest<Campaign>(base, "/campaigns", init)).data;
 }
 
-export async function createCampaign(input: CampaignInput): Promise<Campaign> {
-  return (await request<Campaign>(base, "/campaigns", { method: "POST", ...jsonBody(input) })).data;
+/** Entra pelo código. Repetir não duplica. */
+export async function joinCampaign(joinCode: string): Promise<Campaign> {
+  const init = { method: "POST", ...jsonBody({ joinCode }) };
+
+  return (await authorizedRequest<Campaign>(base, "/campaigns/join", init)).data;
 }
 
-/** Adiciona o personagem ou, se ele já participa, só troca o nome. */
-export async function addMember(
+/** O personagem que a pessoa logada usa nesta campanha. */
+export async function chooseCharacter(
   campaignId: string,
   characterId: string,
   characterName: string,
 ): Promise<Member> {
-  const init = { method: "POST", ...jsonBody({ characterId, characterName }) };
+  const init = { method: "PUT", ...jsonBody({ characterId, characterName }) };
 
-  return (await request<Member>(base, `/campaigns/${encodeURIComponent(campaignId)}/members`, init))
+  return (await authorizedRequest<Member>(base, `${path(campaignId)}/members/me/character`, init))
     .data;
+}
+
+/** Sair (o próprio userId) ou, para o dono, remover um jogador. */
+export async function removeMember(campaignId: string, userId: string): Promise<void> {
+  const url = `${path(campaignId)}/members/${encodeURIComponent(userId)}`;
+
+  await authorizedRequest<null>(base, url, { method: "DELETE" });
 }
