@@ -8,12 +8,12 @@ conquistou. Usa **DynamoDB** (tabelas exclusivas) e consome o evento **`ItemAcqu
 
 ## 1. Responsabilidades
 
-| Faz                                                                           | Não faz                                                                 |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Criar e listar campanhas, com código informado (`c1`) ou gerado (UUID)        | Validar personagens no S2 (o front lista só os personagens da campanha) |
-| Adicionar participantes e trocar o nome deles                                 | Participar da Saga de aquisição (é do S3 Inventário)                    |
-| Consumir `ItemAcquired`: registrar a atividade e somar itens por participante | Publicar eventos                                                        |
-| Mostrar a campanha com participantes e as últimas 20 atividades               | Ler tabelas de outros serviços                                          |
+| Faz                                                                                 | Não faz                                                                       |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Criar campanhas com dono e código de entrada de seis dígitos; listar as do usuário  | Autenticar (é do S4; aqui só se valida o token) nem validar personagens no S2 |
+| Entrada pelo código, papéis `OWNER`/`PLAYER`, personagem de cada um, sair e remover | Participar da Saga de aquisição (é do S3 Inventário)                          |
+| Consumir `ItemAcquired`: registrar a atividade e somar itens por participante       | Publicar eventos                                                              |
+| Mostrar a campanha com participantes e as últimas 20 atividades                     | Ler tabelas de outros serviços                                                |
 
 ## 2. Organização do código
 
@@ -35,17 +35,30 @@ Rotas e consumidor só falam com o **serviço**; o serviço é quem usa os repos
 
 ## 3. HTTP
 
-| Rota                                                                  | Resposta                                                                                            |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `GET /health`                                                         | `{status: "ok"}`                                                                                    |
-| `GET /ready`                                                          | 200 `ready` ou 503 `degraded`, com `checks.dynamodb` e `checks.rabbitmq`                            |
-| `POST /campaigns` `{name, gameMaster?, campaignId?}`                  | 201 com a campanha; 409 `CAMPAIGN_ALREADY_EXISTS` se o código já existe                             |
-| `GET /campaigns`                                                      | `{items: [...]}`                                                                                    |
-| `GET /campaigns/{campaignId}`                                         | campanha + `members` + `recentActivity`; 404 `CAMPAIGN_NOT_FOUND`                                   |
-| `POST /campaigns/{campaignId}/members` `{characterId, characterName}` | 201 se novo, 200 se já participava (troca o nome e mantém o contador); 404 se a campanha não existe |
+Todas as rotas, menos `/health` e `/ready`, exigem o access token do S4 em
+`Authorization: Bearer <token>`. O S1 valida a assinatura HS256 com o mesmo `JWT_SECRET` do S4,
+o emissor, a audiência e a validade, e usa o `sub` (userId) e o `username`. Sem token, ou com token
+inválido: 401 `UNAUTHENTICATED`.
 
-Códigos seguem `^[A-Za-z0-9_-]{1,64}$`; textos têm de 1 a 80 caracteres. Fora disso: 422
-`VALIDATION_ERROR` com `details[].field`. Erros usam o formato `{"error": {"code", "message", "details"}}`.
+Quem cria a campanha é o dono (`OWNER`); quem entra pelo código é `PLAYER`. O `campaignId` é um
+UUID interno; o que as pessoas veem e digitam é o `joinCode`, de seis algarismos, sorteado pelo
+serviço e único (escrita condicional na tabela de códigos; se repetir, sorteia outro).
+
+| Rota                                                                              | Resposta                                                                                                                                      |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                                                                     | `{status: "ok"}`                                                                                                                              |
+| `GET /ready`                                                                      | 200 `ready` ou 503 `degraded`, com `checks.dynamodb` e `checks.rabbitmq`                                                                      |
+| `POST /campaigns` `{name}`                                                        | 201 com a campanha (`ownerId`, `ownerName`, `joinCode`); quem chamou entra como `OWNER`                                                       |
+| `GET /users/me/campaigns`                                                         | `{items: [...]}`: as campanhas de que o usuário participa                                                                                     |
+| `POST /campaigns/join` `{joinCode}`                                               | 201 ao entrar, 200 se já participava (não duplica nem rebaixa o dono); 404 `JOIN_CODE_NOT_FOUND`                                              |
+| `GET /campaigns/{campaignId}`                                                     | campanha + `members` (dono primeiro) + `recentActivity`; 403 `NOT_A_MEMBER`; 404 `CAMPAIGN_NOT_FOUND`                                         |
+| `GET /campaigns/{campaignId}/members`                                             | `{items: [...]}`, só para participantes                                                                                                       |
+| `PUT /campaigns/{campaignId}/members/me/character` `{characterId, characterName}` | personagem que o usuário usa na campanha; 409 `CHARACTER_IN_USE` se outro participante já usa                                                 |
+| `DELETE /campaigns/{campaignId}/members/{userId}`                                 | 204. O jogador sai (o próprio userId) ou o dono remove um jogador; 403 `NOT_CAMPAIGN_OWNER`; 409 `OWNER_CANNOT_LEAVE`; 404 `MEMBER_NOT_FOUND` |
+
+Ids seguem `^[A-Za-z0-9_-]{1,64}$`, o código de entrada `^\d{6}$`; textos têm de 1 a 80
+caracteres. Fora disso: 422 `VALIDATION_ERROR` com `details[].field`. Erros usam o formato
+`{"error": {"code", "message", "details"}}`.
 
 ## 4. Consumo de `ItemAcquired`
 
@@ -57,7 +70,8 @@ e gravado numa **transação** do DynamoDB (tudo ou nada):
 2. a campanha existe;
 3. marcador da operação: `operationId` ainda não contado;
 4. grava a atividade;
-5. soma `quantity` no participante (cria o participante, sem nome, se ele ainda não existe).
+5. soma `quantity` no participante que usa o `characterId` (se nenhum participante escolheu esse
+   personagem, só a atividade é gravada; se ele trocou de personagem no meio, a mensagem vai para o retry).
 
 | Situação                                           | Resultado          | O que acontece com a mensagem                                                         |
 | -------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------- |
@@ -81,19 +95,20 @@ Criadas pelo Terraform ([`infra/terraform/campaigns.tf`](../../infra/terraform/c
 serviço subir, com os nomes deste `.env.example`. O script `create-tables` cria as mesmas tabelas
 e serve para os testes de integração ou para um DynamoDB sem o Terraform.
 
-| Variável           | Padrão                | Chave                                                   | Conteúdo                                                             |
-| ------------------ | --------------------- | ------------------------------------------------------- | -------------------------------------------------------------------- |
-| `TABLE_CAMPAIGNS`  | `campaigns`           | `campaignId`                                            | campanhas                                                            |
-| `TABLE_MEMBERS`    | `campaign_members`    | `campaignId` + `characterId`                            | participantes e itens conquistados                                   |
-| `TABLE_ACTIVITY`   | `campaign_activity`   | `campaignId` + `activityKey` (`occurredAt#operationId`) | atividade, ordenada por data                                         |
-| `TABLE_OPERATIONS` | `campaign_operations` | `operationId`                                           | operações já contadas                                                |
-| `TABLE_INBOX`      | `campaign_inbox`      | `messageId`                                             | mensagens já processadas (TTL em `expiresAt`, `INBOX_TTL_DAYS` dias) |
+| Variável           | Padrão                | Chave                                                              | Conteúdo                                                             |
+| ------------------ | --------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `TABLE_CAMPAIGNS`  | `campaigns`           | `campaignId`                                                       | campanhas                                                            |
+| `TABLE_JOIN_CODES` | `campaign_join_codes` | `joinCode`                                                         | códigos de entrada em uso, cada um apontando para a campanha         |
+| `TABLE_MEMBERS`    | `campaign_members`    | `campaignId` + `userId`; índice `byUser` (`userId` + `campaignId`) | participantes: papel, personagem escolhido e itens conquistados      |
+| `TABLE_ACTIVITY`   | `campaign_activity`   | `campaignId` + `activityKey` (`occurredAt#operationId`)            | atividade, ordenada por data                                         |
+| `TABLE_OPERATIONS` | `campaign_operations` | `operationId`                                                      | operações já contadas                                                |
+| `TABLE_INBOX`      | `campaign_inbox`      | `messageId`                                                        | mensagens já processadas (TTL em `expiresAt`, `INBOX_TTL_DAYS` dias) |
 
 ## 6. Variáveis de ambiente
 
 Todas estão em [`.env.example`](.env.example), com os valores para rodar fora do Docker. No Compose,
-o mesmo arquivo é carregado e os endereços (`AWS_ENDPOINT_URL`, `RABBITMQ_URL`), o `CORS_ORIGINS`
-e o `CONTRACTS_DIR` são trocados pelos da rede Compose.
+o mesmo arquivo é carregado e os endereços (`AWS_ENDPOINT_URL`, `RABBITMQ_URL`), o `CORS_ORIGINS`,
+o `CONTRACTS_DIR` e o `JWT_SECRET` (o mesmo do S4, do `.env` da raiz) são trocados pelos do Compose.
 
 | Variável                                                   | Padrão                                                 | Uso                                                                            |
 | ---------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------ |
@@ -101,6 +116,7 @@ e o `CONTRACTS_DIR` são trocados pelos da rede Compose.
 | `CORS_ORIGINS`                                             | `http://localhost:5173`                                | origens liberadas, separadas por vírgula                                       |
 | `AWS_ENDPOINT_URL`, `AWS_REGION`                           | `http://localhost:4566`, `us-east-1`                   | DynamoDB (MiniStack)                                                           |
 | `TABLE_*`, `INBOX_TTL_DAYS`                                | ver seção 5                                            | nomes das tabelas e validade da inbox                                          |
+| `JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE`                 | sem padrão, `rpg-nexus-identity`, `rpg-nexus-services` | validação do access token do S4; o segredo é o mesmo do S4 e é obrigatório     |
 | `RABBITMQ_URL`                                             | `amqp://dev:dev@localhost:5672/`                       | conexão com o RabbitMQ                                                         |
 | `RABBITMQ_EXCHANGE`                                        | `rpg.events`                                           | exchange usada pelo script de publicação                                       |
 | `RABBITMQ_QUEUE`, `RABBITMQ_RETRY_QUEUE`                   | `campaigns.activity.v1`, `campaigns.activity.v1.retry` | fila consumida e fila de retry                                                 |

@@ -34,7 +34,8 @@ function Routes() {
     return <LoginPage returnTo={path} />;
   }
 
-  if (path === "/") {
+  // /login com a sessão já aberta (favorito, voltar do navegador): vai para o início.
+  if (path === "/" || path === "/login") {
     return <HomePage />;
   }
 

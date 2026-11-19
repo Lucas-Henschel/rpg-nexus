@@ -3,10 +3,11 @@ import { buildApp } from "../../src/http/app.js";
 import { loadEnv } from "../../src/config.js";
 import { createCampaignService } from "../../src/services/campaigns.js";
 import { fakeRepositories } from "../fake-repositories.js";
+import { AUTH_ENV } from "../tokens.js";
 
 function testApp({ busConnected = true, pingDatabase = async () => {} } = {}) {
   return buildApp({
-    env: loadEnv({}),
+    env: loadEnv(AUTH_ENV),
     campaigns: createCampaignService(fakeRepositories()),
     pingDatabase,
     isBusConnected: () => busConnected,

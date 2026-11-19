@@ -7,7 +7,8 @@ serviços só sobem depois que ele termina com sucesso.
 | Recurso | Nome padrão | Arquivo | Para quê |
 | --- | --- | --- | --- |
 | Tabela DynamoDB | `campaigns` | `campaigns.tf` | Campanhas (S1). |
-| Tabela DynamoDB | `campaign_members` | `campaigns.tf` | Participantes e itens conquistados (S1). |
+| Tabela DynamoDB | `campaign_join_codes` | `campaigns.tf` | Códigos de entrada de seis dígitos em uso (S1). |
+| Tabela DynamoDB | `campaign_members` | `campaigns.tf` | Participantes por usuário: papel, personagem e itens (S1); índice `byUser`. |
 | Tabela DynamoDB | `campaign_activity` | `campaigns.tf` | Atividade da campanha, ordenada por data (S1). |
 | Tabela DynamoDB | `campaign_operations` | `campaigns.tf` | Operações já contadas (S1). |
 | Tabela DynamoDB | `campaign_inbox` | `campaigns.tf` | Mensagens já processadas (S1); TTL em `expiresAt`. |

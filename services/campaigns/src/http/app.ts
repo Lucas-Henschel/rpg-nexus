@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import type { Env } from "../config.js";
+import { createTokenVerifier } from "../security/tokens.js";
 import type { CampaignService } from "../services/campaigns.js";
 import { fastifyOtel } from "../tracing/http.js";
 import { campaignRoutes } from "./campaigns.js";
@@ -24,7 +25,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(cors, { origin: deps.env.CORS_ORIGINS });
 
   app.register(healthRoutes(deps));
-  app.register(campaignRoutes(deps.campaigns));
+  app.register(campaignRoutes(deps.campaigns, createTokenVerifier(deps.env)));
 
   return app;
 }
