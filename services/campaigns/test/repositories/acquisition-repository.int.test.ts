@@ -40,7 +40,7 @@ const id = (prefix: string) => `${prefix}-${randomUUID().slice(0, 8)}`;
 async function newCampaign(): Promise<string> {
   const created = campaign();
 
-  await campaigns.create(created, ownerOf(created));
+  await campaigns.create(created, ownerOf(created), []);
   await members.setCharacter(created.campaignId, "u-ana", {
     characterId: "ch1",
     characterName: "Lyra",

@@ -1,18 +1,25 @@
 // Tabela de participantes: um item por usuário em cada campanha, com chave `campaignId` + `userId`.
 // O índice `byUser` (userId + campaignId) responde "de quais campanhas este usuário participa".
+import { TransactionCanceledException } from "@aws-sdk/client-dynamodb";
 import {
-  DeleteCommand,
   GetCommand,
-  PutCommand,
   QueryCommand,
+  TransactWriteCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import type { Db } from "../db/client.js";
 import type { Member, Role } from "../domain/member.js";
+import type { OutboxMessage } from "../messaging/outgoing.js";
+import { outboxPut } from "./outbox-repository.js";
 
 type Item = Record<string, unknown>;
 
 export const MEMBERS_BY_USER_INDEX = "byUser";
+
+/** A condição da primeira operação da transação falhou. */
+const firstConditionFailed = (error: unknown) =>
+  error instanceof TransactionCanceledException &&
+  error.CancellationReasons?.[0]?.Code === "ConditionalCheckFailed";
 
 const toMember = (item: Item): Member => ({
   userId: item.userId as string,
@@ -33,30 +40,41 @@ export function createMemberRepository(db: Db) {
     return Item ? toMember(Item) : null;
   }
 
-  /** Grava o participante se ele ainda não participa; se já participa, devolve o que estava gravado. */
+  /**
+   * Grava o participante e o evento da entrada, se ele ainda não participa. Se já participa, não grava
+   * nada e devolve o que estava gravado.
+   */
   async function add(
     campaignId: string,
     member: Member,
+    joined: OutboxMessage,
   ): Promise<{ member: Member; created: boolean }> {
     try {
       await db.doc.send(
-        new PutCommand({
-          TableName,
-          Item: { campaignId, ...member },
-          ConditionExpression: "attribute_not_exists(userId)",
+        new TransactWriteCommand({
+          TransactItems: [
+            {
+              Put: {
+                TableName,
+                Item: { campaignId, ...member },
+                ConditionExpression: "attribute_not_exists(userId)",
+              },
+            },
+            outboxPut(db, joined),
+          ],
         }),
       );
 
       return { member, created: true };
     } catch (error) {
-      if (!(error instanceof Error && error.name === "ConditionalCheckFailedException")) {
+      if (!firstConditionFailed(error)) {
         throw error;
       }
 
       const existing = await find(campaignId, member.userId);
 
-      // Saiu entre o Put e o Get: grava de novo.
-      return existing ? { member: existing, created: false } : add(campaignId, member);
+      // Saiu entre a gravação e a leitura: grava de novo.
+      return existing ? { member: existing, created: false } : add(campaignId, member, joined);
     }
   }
 
@@ -123,8 +141,32 @@ export function createMemberRepository(db: Db) {
       return toMember(Attributes as Item);
     },
 
-    async remove(campaignId: string, userId: string): Promise<void> {
-      await db.doc.send(new DeleteCommand({ TableName, Key: { campaignId, userId } }));
+    /** Remove o participante e grava o evento da saída. Devolve false se ele já não participava. */
+    async remove(campaignId: string, userId: string, removed: OutboxMessage): Promise<boolean> {
+      try {
+        await db.doc.send(
+          new TransactWriteCommand({
+            TransactItems: [
+              {
+                Delete: {
+                  TableName,
+                  Key: { campaignId, userId },
+                  ConditionExpression: "attribute_exists(userId)",
+                },
+              },
+              outboxPut(db, removed),
+            ],
+          }),
+        );
+
+        return true;
+      } catch (error) {
+        if (firstConditionFailed(error)) {
+          return false;
+        }
+
+        throw error;
+      }
     },
   };
 }

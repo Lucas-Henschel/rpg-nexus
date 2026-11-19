@@ -21,7 +21,7 @@ beforeAll(async () => {
   const created = campaign();
 
   campaignId = created.campaignId;
-  await createCampaignRepository(db).create(created, ownerOf(created));
+  await createCampaignRepository(db).create(created, ownerOf(created), []);
 
   // 21 aquisições, uma por minuto, de 12:10 a 12:30.
   for (let minute = 10; minute < 31; minute++) {

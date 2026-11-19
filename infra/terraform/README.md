@@ -12,6 +12,7 @@ serviços só sobem depois que ele termina com sucesso.
 | Tabela DynamoDB | `campaign_activity` | `campaigns.tf` | Atividade da campanha, ordenada por data (S1). |
 | Tabela DynamoDB | `campaign_operations` | `campaigns.tf` | Operações já contadas (S1). |
 | Tabela DynamoDB | `campaign_inbox` | `campaigns.tf` | Mensagens já processadas (S1); TTL em `expiresAt`. |
+| Tabela DynamoDB | `campaign_outbox` | `campaigns.tf` | Eventos a publicar (S1); índice `pending`, TTL em `expiresAt`. |
 | Tabela DynamoDB | `characters` | `characters.tf` | Fichas e reservas da Saga (S2); índice `byCampaign`. |
 | Tabela DynamoDB | `character_inbox` | `characters.tf` | Mensagens já processadas (S2); TTL em `expiresAt`. |
 | Tabela DynamoDB | `character_outbox` | `characters.tf` | Eventos a publicar (S2); índice `pending`; TTL em `expiresAt`. |
@@ -88,7 +89,7 @@ docker compose exec rabbitmq rabbitmqctl list_queues name arguments
 | `versions.tf` | Versões, backend local e os providers AWS e RabbitMQ apontados para os endpoints. |
 | `variables.tf` | Endpoints, região, credenciais fictícias, bucket e origem do CORS. |
 | `env.tf` | Lê os nomes das tabelas dos `.env.example` dos serviços. |
-| `campaigns.tf` | As cinco tabelas do S1. |
+| `campaigns.tf` | As tabelas do S1. |
 | `characters.tf` | As quatro tabelas do S2, o bucket e o CORS. |
 | `identity.tf` | As três tabelas do S4. |
 | `rabbitmq.tf` | Exchange, filas e ligações de `definitions.json`. |

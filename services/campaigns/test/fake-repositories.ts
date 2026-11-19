@@ -1,23 +1,31 @@
 import type { Campaign } from "../src/domain/campaign.js";
 import { JoinCodeTaken } from "../src/domain/errors.js";
 import type { Member } from "../src/domain/member.js";
+import type { OutboxMessage } from "../src/messaging/outgoing.js";
 import type { Repositories } from "../src/services/campaigns.js";
 
-/** Repositórios em memória, para testar o serviço e as rotas sem DynamoDB. */
-export function fakeRepositories(): Repositories {
+/**
+ * Repositórios em memória, para testar o serviço e as rotas sem DynamoDB. `outbox` guarda os eventos
+ * gravados junto com cada mudança, na ordem.
+ */
+export function fakeRepositories(): Repositories & { outbox: OutboxMessage[] } {
   const campaigns = new Map<string, Campaign>();
   const members = new Map<string, Member>(); // chave: campaignId/userId
   const key = (campaignId: string, userId: string) => `${campaignId}/${userId}`;
+  const outbox: OutboxMessage[] = [];
 
   return {
+    outbox,
+
     campaigns: {
-      async create(campaign, owner) {
+      async create(campaign, owner, events) {
         if ([...campaigns.values()].some((c) => c.joinCode === campaign.joinCode)) {
           throw new JoinCodeTaken(campaign.joinCode);
         }
 
         campaigns.set(campaign.campaignId, campaign);
         members.set(key(campaign.campaignId, owner.userId), owner);
+        outbox.push(...events);
       },
       async find(campaignId) {
         return campaigns.get(campaignId) ?? null;
@@ -39,7 +47,7 @@ export function fakeRepositories(): Repositories {
       async find(campaignId, userId) {
         return members.get(key(campaignId, userId)) ?? null;
       },
-      async add(campaignId, member) {
+      async add(campaignId, member, event) {
         const old = members.get(key(campaignId, member.userId));
 
         if (old) {
@@ -47,6 +55,7 @@ export function fakeRepositories(): Repositories {
         }
 
         members.set(key(campaignId, member.userId), member);
+        outbox.push(event);
 
         return { member, created: true };
       },
@@ -62,8 +71,14 @@ export function fakeRepositories(): Repositories {
 
         return member;
       },
-      async remove(campaignId, userId) {
-        members.delete(key(campaignId, userId));
+      async remove(campaignId, userId, event) {
+        if (!members.delete(key(campaignId, userId))) {
+          return false;
+        }
+
+        outbox.push(event);
+
+        return true;
       },
     },
 

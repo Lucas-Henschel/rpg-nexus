@@ -6,6 +6,7 @@ import {
   type Attributes,
   type Context,
   context,
+  createContextKey,
   propagation,
   ROOT_CONTEXT,
   type Span,
@@ -15,6 +16,19 @@ import {
 } from "@opentelemetry/api";
 
 const tracer = trace.getTracer("rpg-nexus.campaigns");
+
+const UNTRACED = createContextKey("rpg-nexus.campaigns.untraced");
+
+/**
+ * Roda `fn` sem abrir spans de DynamoDB. O relay consulta a outbox a cada meio segundo; sem isto,
+ * cada consulta vazia viraria um trace no Jaeger.
+ */
+export function untraced<T>(fn: () => Promise<T>): Promise<T> {
+  return context.with(context.active().setValue(UNTRACED, true), fn);
+}
+
+export const isUntraced = (ctx: Context = context.active()): boolean =>
+  ctx.getValue(UNTRACED) === true;
 
 /** `traceparent` (e `tracestate`) do contexto, para ir nos headers de uma mensagem. */
 export function traceHeaders(ctx: Context = context.active()): Record<string, string> {
@@ -77,13 +91,21 @@ export function withConsumerSpan<T>(
   return inSpan(`${queue} process`, SpanKind.CONSUMER, allAttributes, parent, fn);
 }
 
-/** Publicação de uma mensagem. Use `traceHeaders()` dentro de `fn` para o trace ir junto. */
+/**
+ * Publicação de uma mensagem. Use `traceHeaders()` dentro de `fn` para o trace ir junto. Com
+ * `parentHeaders` (o `traceparent` guardado na outbox), o span é filho de quem gerou o evento, e não
+ * do contexto atual.
+ */
 export function withProducerSpan<T>(
   routingKey: string,
   attributes: Attributes,
   fn: (span: Span) => Promise<T>,
+  parentHeaders?: Record<string, string>,
 ): Promise<T> {
   const allAttributes = { ...messagingAttributes("publish", routingKey), ...attributes };
+  const parent = parentHeaders
+    ? propagation.extract(ROOT_CONTEXT, parentHeaders)
+    : context.active();
 
-  return inSpan(`${routingKey} publish`, SpanKind.PRODUCER, allAttributes, context.active(), fn);
+  return inSpan(`${routingKey} publish`, SpanKind.PRODUCER, allAttributes, parent, fn);
 }

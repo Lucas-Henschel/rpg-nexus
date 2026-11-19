@@ -24,7 +24,7 @@ beforeAll(async () => {
 it("grava a campanha com o dono como OWNER e acha pelo id e pelo código", async () => {
   const created = campaign();
 
-  await campaigns.create(created, ownerOf(created));
+  await campaigns.create(created, ownerOf(created), []);
 
   expect(await campaigns.find(created.campaignId)).toEqual(created);
   expect(await campaigns.findByJoinCode(created.joinCode)).toEqual(created);
@@ -35,9 +35,9 @@ it("código já usado por outra campanha → JoinCodeTaken e nada gravado", asyn
   const first = campaign();
   const second = campaign({ joinCode: first.joinCode });
 
-  await campaigns.create(first, ownerOf(first));
+  await campaigns.create(first, ownerOf(first), []);
 
-  await expect(campaigns.create(second, ownerOf(second))).rejects.toBeInstanceOf(JoinCodeTaken);
+  await expect(campaigns.create(second, ownerOf(second), [])).rejects.toBeInstanceOf(JoinCodeTaken);
   expect(await campaigns.find(second.campaignId)).toBeNull();
   expect(await members.list(second.campaignId)).toEqual([]);
 });
@@ -51,8 +51,8 @@ it("findMany devolve as que existem e ignora as que não", async () => {
   const one = campaign();
   const two = campaign();
 
-  await campaigns.create(one, ownerOf(one));
-  await campaigns.create(two, ownerOf(two));
+  await campaigns.create(one, ownerOf(one), []);
+  await campaigns.create(two, ownerOf(two), []);
 
   const found = await campaigns.findMany([one.campaignId, "nao-existe", two.campaignId]);
 

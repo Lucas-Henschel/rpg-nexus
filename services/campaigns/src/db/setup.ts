@@ -9,6 +9,7 @@ import {
   waitUntilTableExists,
 } from "@aws-sdk/client-dynamodb";
 import { MEMBERS_BY_USER_INDEX } from "../repositories/member-repository.js";
+import { OUTBOX_PENDING_INDEX } from "../repositories/outbox-repository.js";
 import type { Tables } from "./tables.js";
 
 /** Tabela com chave de partição e, se informada, chave de ordenação. Todas as chaves são texto. */
@@ -43,6 +44,27 @@ function membersTable(name: string): CreateTableCommandInput {
   };
 }
 
+/** Eventos a publicar, com o índice esparso `pending` (só os pendentes, na ordem em que foram gravados). */
+function outboxTable(name: string): CreateTableCommandInput {
+  return {
+    ...table(name, "messageId"),
+    AttributeDefinitions: ["messageId", "pendingKey", "pendingAt"].map((key) => ({
+      AttributeName: key,
+      AttributeType: "S",
+    })),
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: OUTBOX_PENDING_INDEX,
+        KeySchema: [
+          { AttributeName: "pendingKey", KeyType: "HASH" },
+          { AttributeName: "pendingAt", KeyType: "RANGE" },
+        ],
+        Projection: { ProjectionType: "KEYS_ONLY" },
+      },
+    ],
+  };
+}
+
 const definitions = (tables: Tables): CreateTableCommandInput[] => [
   table(tables.campaigns, "campaignId"),
   // códigos de entrada em uso: cada código aponta para uma campanha
@@ -54,9 +76,11 @@ const definitions = (tables: Tables): CreateTableCommandInput[] => [
   table(tables.operations, "operationId"),
   // mensagens já processadas; o DynamoDB apaga cada uma quando passa o `expiresAt`
   table(tables.inbox, "messageId"),
+  // eventos a publicar (outbox); o DynamoDB apaga os publicados quando passa o `expiresAt`
+  outboxTable(tables.outbox),
 ];
 
-const INBOX_TTL_ATTRIBUTE = "expiresAt";
+const TTL_ATTRIBUTE = "expiresAt";
 
 async function createTable(client: DynamoDBClient, input: CreateTableCommandInput): Promise<void> {
   try {
@@ -98,5 +122,6 @@ async function enableTtl(
 
 export async function ensureTables(client: DynamoDBClient, tables: Tables): Promise<void> {
   await Promise.all(definitions(tables).map((input) => createTable(client, input)));
-  await enableTtl(client, tables.inbox, INBOX_TTL_ATTRIBUTE);
+  await enableTtl(client, tables.inbox, TTL_ATTRIBUTE);
+  await enableTtl(client, tables.outbox, TTL_ATTRIBUTE);
 }

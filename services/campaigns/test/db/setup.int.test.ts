@@ -13,7 +13,7 @@ const client = createDynamoClient(env);
 const keysOf = async (tableName: string) =>
   (await client.send(new DescribeTableCommand({ TableName: tableName }))).Table?.KeySchema;
 
-it("cria as seis tabelas com suas chaves, com TTL na inbox e o índice byUser", async () => {
+it("cria as sete tabelas com suas chaves, TTL na inbox e na outbox e os índices byUser e pending", async () => {
   const tables = uniqueTables();
 
   await ensureTables(client, tables);
@@ -41,9 +41,23 @@ it("cria as seis tabelas com suas chaves, com TTL na inbox e o índice byUser", 
   ]);
   expect(await keysOf(tables.inbox)).toEqual([{ AttributeName: "messageId", KeyType: "HASH" }]);
 
-  const ttl = await client.send(new DescribeTimeToLiveCommand({ TableName: tables.inbox }));
+  expect(await keysOf(tables.outbox)).toEqual([{ AttributeName: "messageId", KeyType: "HASH" }]);
 
-  expect(ttl.TimeToLiveDescription?.AttributeName).toBe("expiresAt");
+  const outbox = await client.send(new DescribeTableCommand({ TableName: tables.outbox }));
+
+  expect(outbox.Table?.GlobalSecondaryIndexes?.[0]).toMatchObject({
+    IndexName: "pending",
+    KeySchema: [
+      { AttributeName: "pendingKey", KeyType: "HASH" },
+      { AttributeName: "pendingAt", KeyType: "RANGE" },
+    ],
+  });
+
+  for (const tableName of [tables.inbox, tables.outbox]) {
+    const ttl = await client.send(new DescribeTimeToLiveCommand({ TableName: tableName }));
+
+    expect(ttl.TimeToLiveDescription?.AttributeName).toBe("expiresAt");
+  }
 });
 
 it("rodar de novo não dá erro", async () => {
