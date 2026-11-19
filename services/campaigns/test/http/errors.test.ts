@@ -5,10 +5,11 @@ import { buildApp } from "../../src/http/app.js";
 import { loadEnv } from "../../src/config.js";
 import { createCampaignService } from "../../src/services/campaigns.js";
 import { fakeRepositories } from "../fake-repositories.js";
+import { AUTH_ENV, accessToken } from "../tokens.js";
 
 function testApp({ busConnected = true, pingDatabase = async () => {} } = {}) {
   return buildApp({
-    env: loadEnv({}),
+    env: loadEnv(AUTH_ENV),
     campaigns: createCampaignService(fakeRepositories()),
     pingDatabase,
     isBusConnected: () => busConnected,
@@ -45,7 +46,10 @@ it("JSON malformado ou corpo vazio → 400 INVALID_REQUEST, não 500", async () 
     app.inject({
       method: "POST",
       url: "/campaigns",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${accessToken({ userId: "u-ana", username: "ana" })}`,
+      },
       payload,
     });
 

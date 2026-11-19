@@ -2,9 +2,14 @@ import type { Activity } from "./activity.js";
 import type { Member } from "./member.js";
 
 export interface Campaign {
+  /** Identificador interno (UUID), usado nas URLs e nos eventos. */
   campaignId: string;
   name: string;
-  gameMaster: string | null;
+  /** Quem criou a campanha; é o participante OWNER. */
+  ownerId: string;
+  ownerName: string;
+  /** Código que os jogadores digitam para entrar: sempre seis algarismos. */
+  joinCode: string;
   createdAt: string;
 }
 

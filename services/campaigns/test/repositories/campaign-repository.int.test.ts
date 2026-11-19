@@ -1,52 +1,61 @@
-import { randomUUID } from "node:crypto";
 import { beforeAll, expect, it } from "vitest";
-import { CampaignAlreadyExists } from "../../src/domain/errors.js";
+import { JoinCodeTaken } from "../../src/domain/errors.js";
 import {
   type CampaignRepository,
   createCampaignRepository,
 } from "../../src/repositories/campaign-repository.js";
+import {
+  createMemberRepository,
+  type MemberRepository,
+} from "../../src/repositories/member-repository.js";
+import { campaign, ownerOf } from "../db/fixtures.js";
 import { createTestDb } from "../db/test-db.js";
 
-const NOW = "2026-11-16T12:00:00.000Z";
 let campaigns: CampaignRepository;
+let members: MemberRepository;
 
 beforeAll(async () => {
-  campaigns = createCampaignRepository(await createTestDb());
+  const db = await createTestDb();
+
+  campaigns = createCampaignRepository(db);
+  members = createMemberRepository(db);
 });
 
-const newCampaign = () => ({
-  campaignId: `c-${randomUUID().slice(0, 8)}`,
-  name: "A Coroa de Cinzas",
-  gameMaster: null,
-  createdAt: NOW,
+it("grava a campanha com o dono como OWNER e acha pelo id e pelo código", async () => {
+  const created = campaign();
+
+  await campaigns.create(created, ownerOf(created));
+
+  expect(await campaigns.find(created.campaignId)).toEqual(created);
+  expect(await campaigns.findByJoinCode(created.joinCode)).toEqual(created);
+  expect(await members.list(created.campaignId)).toEqual([ownerOf(created)]);
 });
 
-it("grava e encontra a campanha pelo código", async () => {
-  const campaign = newCampaign();
+it("código já usado por outra campanha → JoinCodeTaken e nada gravado", async () => {
+  const first = campaign();
+  const second = campaign({ joinCode: first.joinCode });
 
-  await campaigns.create(campaign);
+  await campaigns.create(first, ownerOf(first));
 
-  expect(await campaigns.find(campaign.campaignId)).toEqual(campaign);
+  await expect(campaigns.create(second, ownerOf(second))).rejects.toBeInstanceOf(JoinCodeTaken);
+  expect(await campaigns.find(second.campaignId)).toBeNull();
+  expect(await members.list(second.campaignId)).toEqual([]);
 });
 
-it("gravar com um código que já existe lança CampaignAlreadyExists", async () => {
-  const campaign = newCampaign();
-
-  await campaigns.create(campaign);
-
-  await expect(campaigns.create({ ...campaign, name: "Outra" })).rejects.toBeInstanceOf(
-    CampaignAlreadyExists,
-  );
-});
-
-it("campanha inexistente → null", async () => {
+it("inexistente → null, pelo id e pelo código", async () => {
   expect(await campaigns.find("nao-existe")).toBeNull();
+  expect(await campaigns.findByJoinCode("abcdef")).toBeNull();
 });
 
-it("lista as campanhas gravadas", async () => {
-  const campaign = newCampaign();
+it("findMany devolve as que existem e ignora as que não", async () => {
+  const one = campaign();
+  const two = campaign();
 
-  await campaigns.create(campaign);
+  await campaigns.create(one, ownerOf(one));
+  await campaigns.create(two, ownerOf(two));
 
-  expect((await campaigns.list()).map((c) => c.campaignId)).toContain(campaign.campaignId);
+  const found = await campaigns.findMany([one.campaignId, "nao-existe", two.campaignId]);
+
+  expect(found.map((c) => c.campaignId).sort()).toEqual([one.campaignId, two.campaignId].sort());
+  expect(await campaigns.findMany([])).toEqual([]);
 });

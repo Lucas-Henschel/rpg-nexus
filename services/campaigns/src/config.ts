@@ -19,12 +19,18 @@ const EnvSchema = z.object({
   AWS_REGION: z.string().default("us-east-1"),
 
   TABLE_CAMPAIGNS: z.string().default("campaigns"),
+  TABLE_JOIN_CODES: z.string().default("campaign_join_codes"),
   TABLE_MEMBERS: z.string().default("campaign_members"),
   TABLE_ACTIVITY: z.string().default("campaign_activity"),
   TABLE_OPERATIONS: z.string().default("campaign_operations"),
   TABLE_INBOX: z.string().default("campaign_inbox"),
 
   INBOX_TTL_DAYS: count(7),
+
+  // Access token do S4 (HS256). O segredo é o mesmo do S4 e não tem padrão: sem ele o serviço não sobe.
+  JWT_SECRET: z.string().min(32),
+  JWT_ISSUER: z.string().default("rpg-nexus-identity"),
+  JWT_AUDIENCE: z.string().default("rpg-nexus-services"),
 
   RABBITMQ_URL: z.string().default("amqp://dev:dev@localhost:5672/"),
   RABBITMQ_EXCHANGE: z.string().default("rpg.events"),

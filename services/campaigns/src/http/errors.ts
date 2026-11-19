@@ -1,6 +1,15 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 import { hasZodFastifySchemaValidationErrors } from "fastify-type-provider-zod";
-import { CampaignAlreadyExists, CampaignNotFound } from "../domain/errors.js";
+import {
+  CampaignNotFound,
+  CharacterInUse,
+  JoinCodeNotFound,
+  MemberNotFound,
+  NotCampaignMember,
+  NotCampaignOwner,
+  OwnerCannotLeave,
+  Unauthenticated,
+} from "../domain/errors.js";
 
 /** Formato de erro combinado entre os serviços: {"error": {"code", "message", "details"}}. */
 export function errorBody(code: string, message: string, details?: unknown) {
@@ -18,20 +27,10 @@ export function errorHandler(error: FastifyError, request: FastifyRequest, reply
     return reply.status(422).send(errorBody("VALIDATION_ERROR", "requisição inválida", details));
   }
 
-  if (error instanceof CampaignNotFound) {
-    const details = { campaignId: error.campaignId };
+  const known = domainError(error);
 
-    return reply
-      .status(404)
-      .send(errorBody("CAMPAIGN_NOT_FOUND", "campanha não encontrada", details));
-  }
-
-  if (error instanceof CampaignAlreadyExists) {
-    const details = { campaignId: error.campaignId };
-
-    return reply
-      .status(409)
-      .send(errorBody("CAMPAIGN_ALREADY_EXISTS", "campanha já existe", details));
+  if (known) {
+    return reply.status(known.status).send(errorBody(known.code, known.message, known.details));
   }
 
   // Erros do próprio Fastify por culpa de quem chamou (JSON malformado, corpo vazio, tipo de conteúdo).
@@ -46,4 +45,65 @@ export function errorHandler(error: FastifyError, request: FastifyRequest, reply
   request.log.error({ err: error }, "http.unhandled_error");
 
   return reply.status(500).send(errorBody("INTERNAL_ERROR", "erro interno"));
+}
+
+/** Erros das regras de campanha: status, código e mensagem de cada um. */
+function domainError(error: unknown) {
+  if (error instanceof Unauthenticated) {
+    return { status: 401, code: "UNAUTHENTICATED", message: "faça login para continuar" };
+  }
+
+  if (error instanceof NotCampaignMember) {
+    const details = { campaignId: error.campaignId };
+
+    return {
+      status: 403,
+      code: "NOT_A_MEMBER",
+      message: "você não participa da campanha",
+      details,
+    };
+  }
+
+  if (error instanceof NotCampaignOwner) {
+    const details = { campaignId: error.campaignId };
+    const message = "só o dono da campanha pode fazer isso";
+
+    return { status: 403, code: "NOT_CAMPAIGN_OWNER", message, details };
+  }
+
+  if (error instanceof CampaignNotFound) {
+    const details = { campaignId: error.campaignId };
+
+    return { status: 404, code: "CAMPAIGN_NOT_FOUND", message: "campanha não encontrada", details };
+  }
+
+  if (error instanceof JoinCodeNotFound) {
+    const details = { joinCode: error.joinCode };
+    const message = "nenhuma campanha com esse código";
+
+    return { status: 404, code: "JOIN_CODE_NOT_FOUND", message, details };
+  }
+
+  if (error instanceof MemberNotFound) {
+    const details = { campaignId: error.campaignId, userId: error.userId };
+    const message = "esse usuário não participa da campanha";
+
+    return { status: 404, code: "MEMBER_NOT_FOUND", message, details };
+  }
+
+  if (error instanceof OwnerCannotLeave) {
+    const details = { campaignId: error.campaignId };
+    const message = "o dono não pode sair da campanha";
+
+    return { status: 409, code: "OWNER_CANNOT_LEAVE", message, details };
+  }
+
+  if (error instanceof CharacterInUse) {
+    const details = { campaignId: error.campaignId, characterId: error.characterId };
+    const message = "outro participante já usa esse personagem";
+
+    return { status: 409, code: "CHARACTER_IN_USE", message, details };
+  }
+
+  return null;
 }

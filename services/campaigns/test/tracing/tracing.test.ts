@@ -9,6 +9,7 @@ import { createCampaignService } from "../../src/services/campaigns.js";
 import { startTracing, stopTracing } from "../../src/tracing/setup.js";
 import { traceHeaders, withConsumerSpan } from "../../src/tracing/spans.js";
 import { fakeRepositories } from "../fake-repositories.js";
+import { AUTH_ENV, accessToken } from "../tokens.js";
 
 const exporter = new InMemorySpanExporter();
 const processor = new SimpleSpanProcessor({ exporter });
@@ -65,6 +66,7 @@ it("sem traceparent, o consumo abre um trace novo", async () => {
 it("cada comando do DynamoDB vira um span filho, com erro quando falha", async () => {
   const client = createDynamoClient(
     loadEnv({
+      ...AUTH_ENV,
       AWS_ENDPOINT_URL: "http://127.0.0.1:9",
       AWS_ACCESS_KEY_ID: "x",
       AWS_SECRET_ACCESS_KEY: "x",
@@ -90,7 +92,7 @@ it("cada comando do DynamoDB vira um span filho, com erro quando falha", async (
 
 it("cada requisição HTTP vira um span 'MÉTODO /rota'; /health e /ready não", async () => {
   const app = buildApp({
-    env: loadEnv({}),
+    env: loadEnv(AUTH_ENV),
     campaigns: createCampaignService(fakeRepositories()),
     pingDatabase: async () => {},
     isBusConnected: () => true,
@@ -100,7 +102,8 @@ it("cada requisição HTTP vira um span 'MÉTODO /rota'; /health e /ready não",
   await app.inject({
     method: "POST",
     url: "/campaigns",
-    payload: { name: "Um", campaignId: "c1" },
+    headers: { authorization: `Bearer ${accessToken({ userId: "u-ana", username: "ana" })}` },
+    payload: { name: "Um" },
   });
   await app.inject({ method: "GET", url: "/health" });
 

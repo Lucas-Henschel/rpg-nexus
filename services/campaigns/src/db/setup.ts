@@ -8,6 +8,7 @@ import {
   UpdateTimeToLiveCommand,
   waitUntilTableExists,
 } from "@aws-sdk/client-dynamodb";
+import { MEMBERS_BY_USER_INDEX } from "../repositories/member-repository.js";
 import type { Tables } from "./tables.js";
 
 /** Tabela com chave de partição e, se informada, chave de ordenação. Todas as chaves são texto. */
@@ -25,10 +26,28 @@ function table(name: string, partitionKey: string, sortKey?: string): CreateTabl
   };
 }
 
+/** Participantes de uma campanha, com o índice byUser para achar as campanhas de um usuário. */
+function membersTable(name: string): CreateTableCommandInput {
+  return {
+    ...table(name, "campaignId", "userId"),
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: MEMBERS_BY_USER_INDEX,
+        KeySchema: [
+          { AttributeName: "userId", KeyType: "HASH" },
+          { AttributeName: "campaignId", KeyType: "RANGE" },
+        ],
+        Projection: { ProjectionType: "KEYS_ONLY" },
+      },
+    ],
+  };
+}
+
 const definitions = (tables: Tables): CreateTableCommandInput[] => [
   table(tables.campaigns, "campaignId"),
-  // participantes de uma campanha
-  table(tables.members, "campaignId", "characterId"),
+  // códigos de entrada em uso: cada código aponta para uma campanha
+  table(tables.joinCodes, "joinCode"),
+  membersTable(tables.members),
   // atividade de uma campanha, ordenada pela data (activityKey = occurredAt#operationId)
   table(tables.activity, "campaignId", "activityKey"),
   // operações já contadas
