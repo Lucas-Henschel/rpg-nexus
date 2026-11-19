@@ -118,7 +118,11 @@ resource "aws_s3_bucket_cors_configuration" "assets" {
 
   cors_rule {
     allowed_methods = ["GET", "PUT", "HEAD"]
-    allowed_origins = [var.cors_allowed_origin]
+    # No ambiente local, o Vite pode ser aberto pelos dois nomes do loopback.
+    allowed_origins = distinct([
+      var.cors_allowed_origin,
+      replace(var.cors_allowed_origin, "localhost", "127.0.0.1"),
+    ])
     allowed_headers = ["*"]
     max_age_seconds = 300
   }

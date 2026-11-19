@@ -15,6 +15,9 @@ serviços só sobem depois que ele termina com sucesso.
 | Tabela DynamoDB | `character_inbox` | `characters.tf` | Mensagens já processadas (S2); TTL em `expiresAt`. |
 | Tabela DynamoDB | `character_outbox` | `characters.tf` | Eventos a publicar (S2); índice `pending`; TTL em `expiresAt`. |
 | Tabela DynamoDB | `character_read_model` | `characters.tf` | Modelo de leitura (CQRS) do S2. |
+| Tabela DynamoDB | `identity_users` | `identity.tf` | Usuários e credenciais protegidas do S4. |
+| Tabela DynamoDB | `identity_unique_identifiers` | `identity.tf` | Unicidade de e-mail e nome de usuário do S4. |
+| Tabela DynamoDB | `identity_sessions` | `identity.tf` | Sessões e refresh tokens do S4; TTL em `expiresAt`. |
 | Bucket S3 | `rpg-assets` | `characters.tf` | Retratos, com CORS para o front-end. |
 | Tabelas DynamoDB | `inventory_items`, `inventory_stocks`, `inventory_inventory`, `inventory_acquisition_sagas`, `inventory_inventory_inbox`, `inventory_inventory_outbox` | `inventory.tf` | Catálogo, estoque, inventário, Saga, inbox e outbox (S3); chave `id`. |
 | Exchange, filas e ligações | `rpg.events`, ... | `rabbitmq.tf` | Topologia de `infra/rabbitmq/definitions.json`. |
@@ -24,9 +27,10 @@ serviços só sobem depois que ele termina com sucesso.
 Nada de nome fixo no Terraform:
 
 - **tabelas:** dos mesmos arquivos de ambiente que o Compose entrega aos serviços,
-  `services/campaigns/.env.example` e `services/characters/.env.example` (`env.tf` lê as linhas
-  `TABLE_*`) e `services/inventory/.env.example` (`INVENTORY_TABLE_PREFIX`, mais o nome de cada
-  tabela). Trocar um nome ali troca no serviço e no Terraform ao mesmo tempo;
+  `services/campaigns/.env.example`, `services/characters/.env.example` e
+  `services/identity/.env.example` (`env.tf` lê as linhas `TABLE_*`), além de
+  `services/inventory/.env.example` (`INVENTORY_TABLE_PREFIX`, mais o nome de cada tabela).
+  Trocar um nome ali troca no serviço e no Terraform ao mesmo tempo;
 - **filas, exchange e ligações:** de `infra/rabbitmq/definitions.json`, o arquivo que o teste de
   `contracts/` confere contra os esquemas dos eventos;
 - **bucket, endpoints e credenciais:** do `.env` da raiz, pelas variáveis `TF_VAR_*` que o
@@ -85,6 +89,7 @@ docker compose exec rabbitmq rabbitmqctl list_queues name arguments
 | `env.tf` | Lê os nomes das tabelas dos `.env.example` dos serviços. |
 | `campaigns.tf` | As cinco tabelas do S1. |
 | `characters.tf` | As quatro tabelas do S2, o bucket e o CORS. |
+| `identity.tf` | As três tabelas do S4. |
 | `rabbitmq.tf` | Exchange, filas e ligações de `definitions.json`. |
 | `outputs.tf` | Nomes dos recursos criados. |
 

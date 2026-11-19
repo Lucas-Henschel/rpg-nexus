@@ -19,4 +19,9 @@ locals {
     for match in regexall(local.env_line, file("${path.module}/../../services/inventory/.env.example")) :
     match[0] => trimspace(match[1])
   }
+
+  identity_env = {
+    for match in regexall(local.env_line, file("${path.module}/../../services/identity/.env.example")) :
+    match[0] => trimspace(match[1])
+  }
 }

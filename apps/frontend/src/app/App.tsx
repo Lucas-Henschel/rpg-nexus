@@ -10,12 +10,29 @@ import { CampaignPage } from "../features/campaigns/CampaignPage";
 import { CampaignsPage } from "../features/campaigns/CampaignsPage";
 import { HistoryPage } from "../features/placeholders/pages";
 import { ItemsPage } from "../features/inventory/ItemsPage";
+import { AuthProvider } from "../features/auth/AuthProvider";
+import { useAuth } from "../features/auth/auth-context";
+import { LoginPage } from "../features/auth/LoginPage";
 import { matchPath, usePath } from "./navigation";
 import { queryClient } from "./queryClient";
 import { Link, Router } from "./router";
 
 function Routes() {
   const path = usePath();
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <main className="auth-loading" aria-live="polite">
+        <span className="auth-loading__mark" aria-hidden="true" />
+        <p>Preparando a mesa…</p>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage returnTo={path} />;
+  }
 
   if (path === "/") {
     return <HomePage />;
@@ -67,13 +84,25 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
-        <ToastProvider>
-          <DiceProvider>
-            <Header />
-            <Routes />
-          </DiceProvider>
-        </ToastProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <DiceProvider>
+              <AuthenticatedLayout />
+            </DiceProvider>
+          </ToastProvider>
+        </AuthProvider>
       </Router>
     </QueryClientProvider>
+  );
+}
+
+function AuthenticatedLayout() {
+  const { user, isLoading } = useAuth();
+
+  return (
+    <>
+      {!isLoading && user ? <Header /> : null}
+      <Routes />
+    </>
   );
 }

@@ -32,4 +32,7 @@ export const services = {
   },
 } as const;
 
+/** Identidade fica separada da lista exibida na página inicial. */
+export const identityUrl = url(env.VITE_IDENTITY_URL, "http://localhost:3002");
+
 export type ServiceKey = keyof typeof services;
