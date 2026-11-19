@@ -1,43 +1,30 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  currentUser,
-  endSession,
-  login,
-  register,
-  refreshSession,
-  type AuthSession,
-  type AuthTokens,
-  type AuthUser,
-} from "./api";
+import { currentUser, endSession, login, register, type AuthUser } from "./api";
 import { AuthContext, type AuthContextValue } from "./auth-context";
-
-const STORAGE_KEY = "rpg-nexus.auth";
-
-function readSession(): AuthSession | null {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-
-    return stored ? (JSON.parse(stored) as AuthSession) : null;
-  } catch {
-    localStorage.removeItem(STORAGE_KEY);
-
-    return null;
-  }
-}
-
-function saveSession(user: AuthUser, tokens: AuthTokens): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, tokens } satisfies AuthSession));
-}
+import {
+  accessToken,
+  clearSession,
+  isUnauthorized,
+  onSessionEnded,
+  readSession,
+  renewSession,
+  saveSession,
+  saveUser,
+} from "./session";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Refresh recusado em qualquer chamada: volta ao login.
+  useEffect(() => onSessionEnded(() => setUser(null)), []);
 
   useEffect(() => {
     let active = true;
 
     async function restore() {
       const saved = readSession();
+
       if (!saved) {
         setIsLoading(false);
 
@@ -45,21 +32,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        let tokens = saved.tokens;
-        let restoredUser: AuthUser;
-        try {
-          restoredUser = await currentUser(tokens.accessToken);
-        } catch {
-          tokens = await refreshSession(tokens.refreshToken);
-          restoredUser = await currentUser(tokens.accessToken);
-        }
+        // accessToken() renova se preciso; a sessão renovada já fica gravada.
+        const restored = await currentUser(await accessToken()).catch(async (error: unknown) => {
+          // Token ainda no prazo, mas recusado (ex.: o S4 trocou o segredo): renova uma vez.
+          if (!isUnauthorized(error)) {
+            throw error;
+          }
+
+          return currentUser((await renewSession()).tokens.accessToken);
+        });
+        saveUser(restored);
 
         if (active) {
-          saveSession(restoredUser, tokens);
-          setUser(restoredUser);
+          setUser(restored);
         }
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
+      } catch (error) {
+        if (isUnauthorized(error)) {
+          clearSession();
+        } else if (active) {
+          // S4 fora do ar ou sem rede: mantém a pessoa logada com o que estava salvo.
+          setUser(saved.user);
+        }
       } finally {
         if (active) {
           setIsLoading(false);
@@ -88,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const session = readSession();
-    localStorage.removeItem(STORAGE_KEY);
+    clearSession();
     setUser(null);
 
     if (session) {
