@@ -15,6 +15,11 @@ output "dynamodb_tables" {
       aws_dynamodb_table.read_model.name,
     ]
     inventory = sort([for table in aws_dynamodb_table.inventory : table.name])
+    identity = [
+      aws_dynamodb_table.identity_users.name,
+      aws_dynamodb_table.identity_unique_identifiers.name,
+      aws_dynamodb_table.identity_sessions.name,
+    ]
   }
 }
 

@@ -115,6 +115,63 @@ code {
   flex-wrap: wrap;
 }
 
+.topbar__account {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding-left: 1.2rem;
+  border-left: 1px solid var(--feltro-linha);
+}
+
+.topbar__avatar {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--latao);
+  border-radius: 50%;
+  color: var(--latao-claro);
+  font-family: var(--fonte-titulo);
+  font-weight: 800;
+}
+
+.topbar__username {
+  max-width: 10rem;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar__logout {
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--texto-suave);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.topbar__logout:hover {
+  color: var(--texto);
+}
+
+@media (max-width: 760px) {
+  .topbar__nav {
+    order: 3;
+    width: 100%;
+  }
+
+  .topbar__account {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .topbar__username {
+    display: none;
+  }
+}
+
 .topbar__link {
   padding: 0.3rem 0;
   color: var(--texto-suave);

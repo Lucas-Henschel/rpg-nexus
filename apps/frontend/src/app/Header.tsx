@@ -1,5 +1,6 @@
-import { usePath } from "./navigation";
+import { navigate, usePath } from "./navigation";
 import { Link } from "./router";
+import { useAuth } from "../features/auth/auth-context";
 
 const NAV = [
   { to: "/personagens", label: "Personagens" },
@@ -19,6 +20,12 @@ export function Logo() {
 
 export function Header() {
   const path = usePath();
+  const { user, signOut } = useAuth();
+
+  async function leave() {
+    await signOut();
+    navigate("/login");
+  }
 
   return (
     <header className="topbar">
@@ -39,6 +46,16 @@ export function Header() {
           </Link>
         ))}
       </nav>
+
+      <div className="topbar__account">
+        <span className="topbar__avatar" aria-hidden="true">
+          {user?.username.slice(0, 1).toUpperCase()}
+        </span>
+        <span className="topbar__username">{user?.username}</span>
+        <button type="button" className="topbar__logout" onClick={() => void leave()}>
+          Sair
+        </button>
+      </div>
     </header>
   );
 }

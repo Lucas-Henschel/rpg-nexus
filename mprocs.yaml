@@ -12,6 +12,8 @@ procs:
     cmd: ["docker", "compose", "logs", "--follow", "--tail", "200", "campaigns-worker"]
   characters:
     cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "characters"]
+  identity:
+    cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "identity"]
   frontend:
     cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "frontend"]
   rabbitmq:

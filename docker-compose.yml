@@ -24,7 +24,7 @@ x-characters: &characters
     S3_BUCKET: ${RPG_ASSETS_BUCKET:-rpg-assets}
     # Endereços vistos pelo NAVEGADOR (URLs pré-assinadas do S3 e origem do front).
     S3_PUBLIC_ENDPOINT_URL: http://localhost:${MINISTACK_PORT:-4566}
-    CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173}
+    CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
     FAULT_CRASH_BEFORE_ACK: ${FAULT_CRASH_BEFORE_ACK:-off}
     CONSUMER_SIMULATED_DELAY_MS: ${CONSUMER_SIMULATED_DELAY_MS:-0}
     JAEGER_QUERY_URL: http://jaeger:16686
@@ -40,8 +40,20 @@ x-campaigns: &campaigns
   env_file: services/campaigns/.env.example
   environment:
     <<: *backend-env
-    CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173}
+    CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
     CONTRACTS_DIR: /app/contracts
+  networks:
+    - rpg
+
+# Base comum do S4 Identidade. Nesta primeira etapa o serviço não consome RabbitMQ.
+x-identity: &identity
+  build:
+    context: services/identity
+  env_file: services/identity/.env.example
+  environment:
+    <<: *aws-env
+    CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
+    JWT_SECRET: ${JWT_SECRET:-dev-only-change-this-jwt-secret-32-characters}
   networks:
     - rpg
 
@@ -236,7 +248,8 @@ services:
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-dev}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev}
       SAGA_TIMEOUT_SECONDS: ${SAGA_TIMEOUT_SECONDS:-60}
-      CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173}
+      MAX_RETRIES: ${MAX_RETRIES:-3}
+      CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
     ports:
       - "127.0.0.1:${INVENTORY_PORT:-8080}:8080"
     depends_on:
@@ -249,6 +262,15 @@ services:
     networks:
       - rpg
 
+  identity:
+    <<: *identity
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${IDENTITY_PORT:-3002}:3002"
+    depends_on:
+      terraform:
+        condition: service_completed_successfully
+
   frontend:
     build:
       context: apps/frontend
@@ -256,6 +278,7 @@ services:
         VITE_CHARACTERS_URL: http://localhost:${CHARACTERS_PORT:-8000}
         VITE_INVENTORY_URL: http://localhost:${INVENTORY_PORT:-8080}
         VITE_CAMPAIGNS_URL: http://localhost:${CAMPAIGNS_PORT:-3001}
+        VITE_IDENTITY_URL: http://localhost:${IDENTITY_PORT:-3002}
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
     networks:
