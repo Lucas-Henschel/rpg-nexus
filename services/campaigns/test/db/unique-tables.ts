@@ -12,5 +12,6 @@ export function uniqueTables(): Tables {
     activity: `campaign_activity_${suffix}`,
     operations: `campaign_operations_${suffix}`,
     inbox: `campaign_inbox_${suffix}`,
+    outbox: `campaign_outbox_${suffix}`,
   };
 }

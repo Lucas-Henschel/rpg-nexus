@@ -10,6 +10,8 @@ import type { Db } from "../db/client.js";
 import type { Campaign } from "../domain/campaign.js";
 import { JoinCodeTaken } from "../domain/errors.js";
 import type { Member } from "../domain/member.js";
+import type { OutboxMessage } from "../messaging/outgoing.js";
+import { outboxPut } from "./outbox-repository.js";
 
 type Item = Record<string, unknown>;
 
@@ -36,10 +38,10 @@ export function createCampaignRepository(db: Db) {
 
   return {
     /**
-     * Grava a campanha, reserva o código de entrada e registra o dono como participante, tudo numa
-     * transação. Lança JoinCodeTaken se o código já é de outra campanha.
+     * Grava a campanha, reserva o código de entrada, registra o dono como participante e grava os
+     * eventos na outbox, tudo numa transação. Lança JoinCodeTaken se o código já é de outra campanha.
      */
-    async create(campaign: Campaign, owner: Member): Promise<void> {
+    async create(campaign: Campaign, owner: Member, events: OutboxMessage[]): Promise<void> {
       try {
         // A ordem importa: o índice de cada operação identifica a condição que falhou.
         await db.doc.send(
@@ -68,6 +70,8 @@ export function createCampaignRepository(db: Db) {
                   Item: { campaignId: campaign.campaignId, ...owner },
                 },
               },
+              // 3 em diante: os eventos
+              ...events.map((event, position) => outboxPut(db, event, position)),
             ],
           }),
         );

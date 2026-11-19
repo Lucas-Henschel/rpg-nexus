@@ -1,5 +1,5 @@
 // Liga na fila de atividade (RABBITMQ_QUEUE) e aplica no RabbitMQ a decisão do handleDelivery.
-import amqp from "amqp-connection-manager";
+import type { AmqpConnectionManager } from "amqp-connection-manager";
 import type { ConsumeMessage } from "amqplib";
 import type { FastifyBaseLogger } from "fastify";
 import type { Outcome } from "./handle-delivery.js";
@@ -10,7 +10,7 @@ import { requeueLater, settle } from "./settle.js";
 const UNEXPECTED_ERROR_REQUEUE_MS = 1000;
 
 export interface ConsumerOptions {
-  url: string;
+  connection: AmqpConnectionManager;
   queue: string;
   retryQueue: string;
   prefetch: number;
@@ -19,7 +19,6 @@ export interface ConsumerOptions {
 }
 
 export interface Consumer {
-  isConnected(): boolean;
   close(): Promise<void>;
 }
 
@@ -53,20 +52,15 @@ function logOutcome(log: FastifyBaseLogger, messageId: string | undefined, outco
 }
 
 export function startConsumer({
-  url,
+  connection,
   queue,
   retryQueue,
   prefetch,
   handle,
   log,
 }: ConsumerOptions): Consumer {
-  const connection = amqp.connect([url]);
   const channel = connection.createChannel({ confirm: true });
 
-  connection.on("connect", () => log.info({ queue }, "rabbitmq.connected"));
-  connection.on("disconnect", ({ err }) => log.warn({ err }, "rabbitmq.disconnected"));
-  // Endereço ou senha errados, broker fora: sem este log o serviço tentaria em silêncio.
-  connection.on("connectFailed", ({ err }) => log.warn({ err }, "rabbitmq.connect_failed"));
   // Falha ao preparar o canal ou o consumidor (por exemplo, fila inexistente). O canal tenta de novo
   // sozinho; sem quem escute, o evento "error" derrubaria o processo.
   channel.on("error", (err) => log.error({ err }, "rabbitmq.channel_error"));
@@ -113,10 +107,8 @@ export function startConsumer({
     .catch((err: unknown) => log.error({ err, queue }, "rabbitmq.consume_failed"));
 
   return {
-    isConnected: () => connection.isConnected(),
     async close() {
       await channel.close();
-      await connection.close();
     },
   };
 }

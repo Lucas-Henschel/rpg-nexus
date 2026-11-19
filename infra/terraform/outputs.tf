@@ -8,6 +8,7 @@ output "dynamodb_tables" {
       aws_dynamodb_table.campaign_activity.name,
       aws_dynamodb_table.campaign_operations.name,
       aws_dynamodb_table.campaign_inbox.name,
+      aws_dynamodb_table.campaign_outbox.name,
     ]
     characters = [
       aws_dynamodb_table.characters.name,

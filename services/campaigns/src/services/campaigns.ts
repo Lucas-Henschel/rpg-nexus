@@ -15,6 +15,7 @@ import {
 import { randomJoinCode } from "../domain/join-code.js";
 import type { Member } from "../domain/member.js";
 import type { AuthUser } from "../domain/user.js";
+import { campaignCreated, memberJoined, memberRemoved } from "../messaging/outgoing.js";
 import type { AcquisitionRepository } from "../repositories/acquisition-repository.js";
 import type { ActivityRepository } from "../repositories/activity-repository.js";
 import type { CampaignRepository } from "../repositories/campaign-repository.js";
@@ -85,7 +86,10 @@ export function createCampaignService(
   });
 
   return {
-    /** Quem cria vira o dono (OWNER). A campanha ganha um código de entrada de seis dígitos que não se repete. */
+    /**
+     * Quem cria vira o dono (OWNER). A campanha ganha um código de entrada de seis dígitos que não se
+     * repete. Publica CampaignCreated e a entrada do dono (CampaignMemberJoined).
+     */
     async create({ name }: NewCampaign, user: AuthUser): Promise<Campaign> {
       for (let attempt = 1; attempt <= JOIN_CODE_ATTEMPTS; attempt++) {
         const campaign: Campaign = {
@@ -97,8 +101,13 @@ export function createCampaignService(
           createdAt: clock(),
         };
 
+        const owner = newMember(user, "OWNER");
+
         try {
-          await campaigns.create(campaign, newMember(user, "OWNER"));
+          await campaigns.create(campaign, owner, [
+            campaignCreated(campaign),
+            memberJoined(campaign.campaignId, owner),
+          ]);
 
           return campaign;
         } catch (error) {
@@ -136,7 +145,7 @@ export function createCampaignService(
       return sortMembers(await members.list(campaignId));
     },
 
-    /** Entra como PLAYER pelo código. Repetir não duplica nem rebaixa o dono. */
+    /** Entra como PLAYER pelo código e publica CampaignMemberJoined. Repetir não duplica nem rebaixa o dono. */
     async join(code: string, user: AuthUser): Promise<{ campaign: Campaign; created: boolean }> {
       const campaign = await campaigns.findByJoinCode(code);
 
@@ -144,7 +153,12 @@ export function createCampaignService(
         throw new JoinCodeNotFound(code);
       }
 
-      const { created } = await members.add(campaign.campaignId, newMember(user, "PLAYER"));
+      const member = newMember(user, "PLAYER");
+      const { created } = await members.add(
+        campaign.campaignId,
+        member,
+        memberJoined(campaign.campaignId, member),
+      );
 
       return { campaign, created };
     },
@@ -164,7 +178,7 @@ export function createCampaignService(
       return members.setCharacter(campaignId, user.userId, character);
     },
 
-    /** O jogador sai, ou o dono remove um jogador. O dono não sai. */
+    /** O jogador sai, ou o dono remove um jogador, e publica CampaignMemberRemoved. O dono não sai. */
     async removeMember(campaignId: string, user: AuthUser, userId: string): Promise<void> {
       const { member: actor } = await requireMember(campaignId, user);
 
@@ -182,7 +196,19 @@ export function createCampaignService(
         throw new OwnerCannotLeave(campaignId);
       }
 
-      await members.remove(campaignId, userId);
+      const leaving = userId === user.userId;
+
+      // Se outra requisição removeu antes, não há o que fazer: o evento dela já foi gravado.
+      await members.remove(
+        campaignId,
+        userId,
+        memberRemoved(campaignId, {
+          userId,
+          removedBy: user.userId,
+          reason: leaving ? "LEFT" : "REMOVED",
+          removedAt: clock(),
+        }),
+      );
     },
 
     /** Item conquistado (evento do RabbitMQ): vira atividade e soma no participante que usa o personagem. */

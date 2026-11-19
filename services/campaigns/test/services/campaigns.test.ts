@@ -261,3 +261,93 @@ describe("recordAcquisition", () => {
     expect(record).toHaveBeenCalledWith(acquisition(campaignId), NOW, null);
   });
 });
+
+describe("eventos na outbox", () => {
+  function withOutbox() {
+    const repositories = fakeRepositories();
+    const service = createCampaignService(repositories, {
+      clock: () => NOW,
+      joinCode: codes("482731"),
+    });
+    const events = () =>
+      repositories.outbox.map((message) => {
+        const { type, payload } = JSON.parse(message.body);
+
+        return { type, payload };
+      });
+
+    return { service, events };
+  }
+
+  it("criar publica CampaignCreated e a entrada do dono como OWNER", async () => {
+    const { service, events } = withOutbox();
+    const { campaignId } = await service.create({ name: "Um" }, ANA);
+
+    expect(events()).toEqual([
+      { type: "rpg.campaign.created.v1", payload: expect.objectContaining({ campaignId }) },
+      {
+        type: "rpg.campaign.member.joined.v1",
+        payload: expect.objectContaining({ campaignId, userId: "u-ana", role: "OWNER" }),
+      },
+    ]);
+  });
+
+  it("entrar publica CampaignMemberJoined uma vez só", async () => {
+    const { service, events } = withOutbox();
+    const { campaignId } = await service.create({ name: "Um" }, ANA);
+
+    await service.join("482731", BETO);
+    await service.join("482731", BETO);
+
+    expect(events().slice(2)).toEqual([
+      {
+        type: "rpg.campaign.member.joined.v1",
+        payload: expect.objectContaining({ campaignId, userId: "u-beto", role: "PLAYER" }),
+      },
+    ]);
+  });
+
+  it("sair publica CampaignMemberRemoved com LEFT; ser removido, com REMOVED", async () => {
+    const { service, events } = withOutbox();
+    const { campaignId } = await service.create({ name: "Um" }, ANA);
+
+    await service.join("482731", BETO);
+    await service.join("482731", CAIO);
+    await service.removeMember(campaignId, BETO, "u-beto");
+    await service.removeMember(campaignId, ANA, "u-caio");
+
+    expect(events().slice(4)).toEqual([
+      {
+        type: "rpg.campaign.member.removed.v1",
+        payload: {
+          campaignId,
+          userId: "u-beto",
+          removedBy: "u-beto",
+          reason: "LEFT",
+          removedAt: NOW,
+        },
+      },
+      {
+        type: "rpg.campaign.member.removed.v1",
+        payload: {
+          campaignId,
+          userId: "u-caio",
+          removedBy: "u-ana",
+          reason: "REMOVED",
+          removedAt: NOW,
+        },
+      },
+    ]);
+  });
+
+  it("recusas não publicam nada", async () => {
+    const { service, events } = withOutbox();
+    const { campaignId } = await service.create({ name: "Um" }, ANA);
+
+    await service.join("482731", BETO);
+    await expect(service.removeMember(campaignId, ANA, "u-ana")).rejects.toThrow();
+    await expect(service.removeMember(campaignId, BETO, "u-ana")).rejects.toThrow();
+
+    expect(events()).toHaveLength(3);
+  });
+});

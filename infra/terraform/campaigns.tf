@@ -95,3 +95,39 @@ resource "aws_dynamodb_table" "campaign_inbox" {
     enabled        = true
   }
 }
+
+# Eventos a publicar (outbox), gravados na mesma transação da mudança. O índice esparso `pending`
+# guarda só os pendentes, na ordem em que foram gravados; o DynamoDB apaga os publicados quando
+# passa o `expiresAt`.
+resource "aws_dynamodb_table" "campaign_outbox" {
+  name         = local.campaigns_env["TABLE_OUTBOX"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "messageId"
+
+  attribute {
+    name = "messageId"
+    type = "S"
+  }
+
+  attribute {
+    name = "pendingKey"
+    type = "S"
+  }
+
+  attribute {
+    name = "pendingAt"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "pending"
+    hash_key        = "pendingKey"
+    range_key       = "pendingAt"
+    projection_type = "KEYS_ONLY"
+  }
+
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+}

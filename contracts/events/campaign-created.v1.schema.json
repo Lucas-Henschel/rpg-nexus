@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:campaign-created:v1",
+  "title": "CampaignCreated v1",
+  "description": "Uma campanha foi criada. Quem criou é o dono; a entrada dele como participante chega em seguida, num CampaignMemberJoined com role OWNER. correlationId = campaignId.",
+  "x-routing": {
+    "exchange": "rpg.events",
+    "routingKey": "campaign.created.v1",
+    "producer": "campaigns (S1, P1)",
+    "consumers": [
+      "inventory (S3, P3) — fila inventory.campaign-members.v1",
+      "actions (S4, P4) — fila actions.history.v1"
+    ]
+  },
+  "type": "object",
+  "allOf": [{ "$ref": "urn:rpg-nexus:envelope:v1" }],
+  "properties": {
+    "type": { "const": "rpg.campaign.created.v1" },
+    "version": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["campaignId", "name", "ownerId", "ownerName", "createdAt"],
+      "additionalProperties": true,
+      "properties": {
+        "campaignId": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "ownerId": { "$ref": "#/$defs/id" },
+        "ownerName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" }
+  }
+}

@@ -7,7 +7,12 @@ import { createDynamoClient } from "../../src/db/client.js";
 import { buildApp } from "../../src/http/app.js";
 import { createCampaignService } from "../../src/services/campaigns.js";
 import { startTracing, stopTracing } from "../../src/tracing/setup.js";
-import { traceHeaders, withConsumerSpan } from "../../src/tracing/spans.js";
+import {
+  traceHeaders,
+  untraced,
+  withConsumerSpan,
+  withProducerSpan,
+} from "../../src/tracing/spans.js";
 import { fakeRepositories } from "../fake-repositories.js";
 import { AUTH_ENV, accessToken } from "../tokens.js";
 
@@ -88,6 +93,48 @@ it("cada comando do DynamoDB vira um span filho, com erro quando falha", async (
     "aws.dynamodb.table_names": ["t"],
   });
   expect(dynamo?.status.code).toBe(2); // ERROR
+});
+
+const unreachableDynamo = () =>
+  createDynamoClient(
+    loadEnv({
+      ...AUTH_ENV,
+      AWS_ENDPOINT_URL: "http://127.0.0.1:9",
+      AWS_ACCESS_KEY_ID: "x",
+      AWS_SECRET_ACCESS_KEY: "x",
+    }),
+  );
+
+it("dentro de untraced, os comandos do DynamoDB não viram span (a outbox é consultada sem parar)", async () => {
+  const client = unreachableDynamo();
+
+  await untraced(() =>
+    client
+      .send(new GetItemCommand({ TableName: "t", Key: { id: { S: "1" } } }))
+      .catch(() => undefined),
+  );
+
+  expect(await exported()).toEqual([]);
+});
+
+it("a publicação continua o trace guardado com o evento, mesmo de fora de untraced", async () => {
+  const request = trace.getTracer("test").startSpan("POST /campaigns");
+  const stored = traceHeaders(trace.setSpan(context.active(), request));
+  request.end();
+
+  await untraced(() =>
+    withProducerSpan(
+      "campaign.created.v1",
+      { "messaging.message.id": "m1" },
+      async () => {},
+      stored,
+    ),
+  );
+
+  const [published] = await finished("campaign.created.v1 publish");
+
+  expect(published?.spanContext().traceId).toBe(request.spanContext().traceId);
+  expect(published?.parentSpanContext?.spanId).toBe(request.spanContext().spanId);
 });
 
 it("cada requisição HTTP vira um span 'MÉTODO /rota'; /health e /ready não", async () => {

@@ -8,6 +8,7 @@ export interface Tables {
   activity: string;
   operations: string;
   inbox: string;
+  outbox: string;
 }
 
 export function tablesFromEnv(env: Env): Tables {
@@ -18,5 +19,6 @@ export function tablesFromEnv(env: Env): Tables {
     activity: env.TABLE_ACTIVITY,
     operations: env.TABLE_OPERATIONS,
     inbox: env.TABLE_INBOX,
+    outbox: env.TABLE_OUTBOX,
   };
 }

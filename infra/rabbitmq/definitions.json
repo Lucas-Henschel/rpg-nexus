@@ -93,6 +93,33 @@
       "arguments": {}
     },
     {
+      "name": "inventory.campaign-members.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "inventory.campaign-members.v1.dlq"
+      }
+    },
+    {
+      "name": "inventory.campaign-members.v1.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "inventory.campaign-members.v1"
+      }
+    },
+    {
+      "name": "inventory.campaign-members.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
       "name": "actions.validation-requested.v1",
       "vhost": "/",
       "durable": true,
@@ -269,6 +296,54 @@
       "destination": "campaigns.activity.v1",
       "destination_type": "queue",
       "routing_key": "item.acquired.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.campaign-members.v1",
+      "destination_type": "queue",
+      "routing_key": "campaign.created.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.campaign-members.v1",
+      "destination_type": "queue",
+      "routing_key": "campaign.member.joined.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.campaign-members.v1",
+      "destination_type": "queue",
+      "routing_key": "campaign.member.removed.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "actions.history.v1",
+      "destination_type": "queue",
+      "routing_key": "campaign.created.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "actions.history.v1",
+      "destination_type": "queue",
+      "routing_key": "campaign.member.joined.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "actions.history.v1",
+      "destination_type": "queue",
+      "routing_key": "campaign.member.removed.v1",
       "arguments": {}
     }
   ]

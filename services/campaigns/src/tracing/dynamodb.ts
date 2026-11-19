@@ -1,7 +1,8 @@
-// Cada comando enviado ao DynamoDB vira um span `DynamoDB <Operação>`, filho de quem chamou.
+// Cada comando enviado ao DynamoDB vira um span `DynamoDB <Operação>`, filho de quem chamou, a não
+// ser dentro de `untraced`.
 import type { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { context, SpanKind } from "@opentelemetry/api";
-import { inSpan } from "./spans.js";
+import { inSpan, isUntraced } from "./spans.js";
 
 interface CommandInput {
   TableName?: string;
@@ -27,6 +28,10 @@ export function traceDynamoCommands(client: DynamoDBClient): void {
   client.middlewareStack.add(
     (next, { commandName = "Command" }) =>
       (args) => {
+        if (isUntraced()) {
+          return next(args);
+        }
+
         const operation = commandName.replace(/Command$/, ""); // GetItemCommand → GetItem
 
         const attributes = {

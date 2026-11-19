@@ -24,8 +24,16 @@ const EnvSchema = z.object({
   TABLE_ACTIVITY: z.string().default("campaign_activity"),
   TABLE_OPERATIONS: z.string().default("campaign_operations"),
   TABLE_INBOX: z.string().default("campaign_inbox"),
+  TABLE_OUTBOX: z.string().default("campaign_outbox"),
 
   INBOX_TTL_DAYS: count(7),
+
+  // Outbox: de quanto em quanto tempo o relay procura eventos pendentes, quantos pega por vez, por
+  // quanto tempo um evento fica reservado para uma réplica e quantos dias o publicado fica gravado.
+  OUTBOX_POLL_MS: z.coerce.number().int().positive().default(500),
+  OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().default(25),
+  OUTBOX_LEASE_MS: z.coerce.number().int().positive().default(30000),
+  OUTBOX_TTL_DAYS: count(3),
 
   // Access token do S4 (HS256). O segredo é o mesmo do S4 e não tem padrão: sem ele o serviço não sobe.
   JWT_SECRET: z.string().min(32),

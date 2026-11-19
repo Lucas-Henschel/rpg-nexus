@@ -8,7 +8,11 @@
       "type": "topic",
       "durable": true
     },
-    "publishes": [],
+    "publishes": [
+      "campaign.created.v1",
+      "campaign.member.joined.v1",
+      "campaign.member.removed.v1"
+    ],
     "queues": [
       {
         "name": "campaigns.activity.v1",
