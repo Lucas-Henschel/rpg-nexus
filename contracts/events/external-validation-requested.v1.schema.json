@@ -1,10 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:rpg-nexus:event:external-validation-requested:v1",
-  "allOf": [{"$ref": "urn:rpg-nexus:envelope:v1"}],
-  "x-routing": {"exchange": "rpg.events", "routingKey": "external.validation.requested.v1", "producer": "inventory", "consumers": ["actions"]},
-  "properties": {"type": {"const": "rpg.external.validation-requested.v1"}, "version": {"const": 1}, "payload": {"$ref": "#/$defs/payload"}},
-  "$defs": {"payload": {"type": "object", "required": ["operationId", "campaignId", "characterId", "itemId", "quantity"], "properties": {"operationId": {"type": "string"}, "campaignId": {"type": "string"}, "characterId": {"type": "string"}, "itemId": {"type": "string"}, "quantity": {"const": 1}}}}
   "title": "ExternalValidationRequested v1",
   "description": "O personagem foi aprovado pelo S2 e a Saga de aquisição (S3 Inventário) pede ao S4 Ações a validação na dependência externa instável.",
   "x-routing": {

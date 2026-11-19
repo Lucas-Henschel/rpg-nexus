@@ -21,7 +21,7 @@ class ResultConsumer {
     ResultConsumer(SagaPort saga,ObjectMapper json,RabbitTemplate rabbit,@Value("${inventory.max-retries}") int maxRetries) {
         this.saga=saga;this.json=json;this.rabbit=rabbit;this.maxRetries=maxRetries;
     }
-    @RabbitListener(queues="rpg.inventory.results.v1")
+    @RabbitListener(queues="inventory.saga-replies.v1")
     void consume(Message message,Channel channel) throws Exception {
         long tag=message.getMessageProperties().getDeliveryTag();
         try {
@@ -30,7 +30,8 @@ class ResultConsumer {
             saga.receive(new ValidationResult(envelope.path("messageId").asText(),
                 envelope.path("correlationId").asText(),payload.path("operationId").asText(),envelope.path("type").asText(),
                 envelope.path("version").asInt(),payload.path("campaignId").asText(),
-                payload.path("characterId").asText(),payload.path("itemId").asText()));
+                payload.path("userId").asText(),payload.path("characterId").asText(),payload.path("itemId").asText(),
+                payload.path("amount").asLong()));
             channel.basicAck(tag,false);
         } catch(Exception failure) {
             Integer previous=(Integer)message.getMessageProperties().getHeaders().getOrDefault("x-inventory-attempt",0);

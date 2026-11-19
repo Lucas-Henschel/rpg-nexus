@@ -1,6 +1,7 @@
 package br.furb.rpg.inventory.adapters.dynamodb;
 
 import br.furb.rpg.inventory.ports.CatalogPort;
+import br.furb.rpg.inventory.ports.CommercePort;
 import br.furb.rpg.inventory.ports.OutboxPort;
 import java.time.Instant;
 import java.util.*;
@@ -10,7 +11,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 
 @Component
-public class DynamoStore implements CatalogPort, OutboxPort {
+public class DynamoStore implements CatalogPort, CommercePort, OutboxPort {
     private final DynamoDbClient db;
     final String prefix;
     public DynamoStore(DynamoDbClient db, @Value("${inventory.table-prefix}") String prefix) { this.db=db; this.prefix=prefix; }
@@ -19,6 +20,9 @@ public class DynamoStore implements CatalogPort, OutboxPort {
     public static AttributeValue n(long value) { return AttributeValue.builder().n(Long.toString(value)).build(); }
     public static String str(Map<String,AttributeValue> row, String key) { return row.get(key).s(); }
     public static long num(Map<String,AttributeValue> row, String key) { return Long.parseLong(row.get(key).n()); }
+    public static String optional(Map<String,AttributeValue> row, String key) {
+        var value=row.get(key); return value==null || value.s()==null ? "" : value.s();
+    }
     public Map<String,AttributeValue> get(String table, String key) {
         return db.getItem(r -> r.tableName(table(table)).key(Map.of("id",s(key))).consistentRead(true)).item();
     }
@@ -87,6 +91,75 @@ public class DynamoStore implements CatalogPort, OutboxPort {
     @Override public List<InventoryEntry> findInventory(String characterId) {
         return scan("inventory","characterId = :c",Map.of(":c",s(characterId))).stream()
             .map(r -> new InventoryEntry(str(r,"id"),str(r,"campaignId"),str(r,"itemId"),num(r,"quantity"))).toList();
+    }
+    @Override public Shop findShop(String campaignId) {
+        var row=get("shops",campaignId);
+        return row.isEmpty()?null:new Shop(campaignId,str(row,"name"),row.get("active").bool());
+    }
+    @Override public Shop saveShop(String campaignId,String name,boolean active) {
+        var row=Map.of("id",s(campaignId),"campaignId",s(campaignId),"name",s(name),
+            "active",AttributeValue.builder().bool(active).build(),"updatedAt",s(Instant.now().toString()));
+        db.putItem(r -> r.tableName(table("shops")).item(row));
+        return new Shop(campaignId,name,active);
+    }
+    @Override public List<ShopItem> listShopItems(String campaignId) {
+        return scan("shop_items","campaignId = :campaign",Map.of(":campaign",s(campaignId))).stream()
+            .map(this::shopItem).toList();
+    }
+    private ShopItem shopItem(Map<String,AttributeValue> row) {
+        var stock=get("stocks",str(row,"campaignId")+"#"+str(row,"itemId"));
+        long available=stock.isEmpty()?0:num(stock,"available");
+        long reserved=stock.isEmpty()||!stock.containsKey("reserved")?0:num(stock,"reserved");
+        return new ShopItem(str(row,"campaignId"),str(row,"itemId"),str(row,"name"),
+            optional(row,"description"),num(row,"price"),available,reserved);
+    }
+    @Override public ShopItem findShopItem(String campaignId,String itemId) {
+        var row=get("shop_items",campaignId+"#"+itemId);
+        return row.isEmpty()?null:shopItem(row);
+    }
+    @Override public ShopItem saveShopItem(String campaignId,String itemId,String name,String description,long price,long available) {
+        var item=Map.of("id",s(campaignId+"#"+itemId),"campaignId",s(campaignId),"itemId",s(itemId),
+            "name",s(name),"description",s(description),"price",n(price));
+        var stock=Map.of("id",s(campaignId+"#"+itemId),"campaignId",s(campaignId),"itemId",s(itemId),
+            "available",n(available),"reserved",n(0));
+        db.transactWriteItems(r -> r.transactItems(
+            TransactWriteItem.builder().put(Put.builder().tableName(table("shop_items")).item(item).build()).build(),
+            TransactWriteItem.builder().put(Put.builder().tableName(table("stocks")).item(stock).build()).build()));
+        return new ShopItem(campaignId,itemId,name,description,price,available,0);
+    }
+    @Override public boolean removeShopItem(String campaignId,String itemId) {
+        var key=Map.of("id",s(campaignId+"#"+itemId));
+        if(get("shop_items",campaignId+"#"+itemId).isEmpty()) return false;
+        db.transactWriteItems(r -> r.transactItems(
+            TransactWriteItem.builder().delete(Delete.builder().tableName(table("shop_items")).key(key).build()).build(),
+            TransactWriteItem.builder().delete(Delete.builder().tableName(table("stocks")).key(key).build()).build()));
+        return true;
+    }
+    @Override public Membership findMembership(String campaignId,String userId) {
+        var row=get("campaign_members",campaignId+"#"+userId);
+        return row.isEmpty()?null:new Membership(campaignId,userId,str(row,"role"),optional(row,"characterId"));
+    }
+    @Override public void projectCampaignEvent(String messageId,String type,String campaignId,String userId,
+                                                String role,String characterId) {
+        var inbox=insert("inventory_inbox",Map.of("id",s(messageId),"type",s(type),
+            "receivedAt",s(Instant.now().toString())));
+        var key=Map.of("id",s(campaignId+"#"+userId));
+        TransactWriteItem projection;
+        if(type.equals("rpg.campaign.member-removed.v1")) {
+            projection=TransactWriteItem.builder().delete(Delete.builder().tableName(table("campaign_members"))
+                .key(key).build()).build();
+        } else {
+            var row=new HashMap<String,AttributeValue>();
+            row.put("id",key.get("id")); row.put("campaignId",s(campaignId)); row.put("userId",s(userId));
+            row.put("role",s(role)); row.put("characterId",s(characterId==null?"":characterId));
+            projection=TransactWriteItem.builder().put(Put.builder().tableName(table("campaign_members"))
+                .item(row).build()).build();
+        }
+        try { transact(List.of(inbox,projection)); }
+        catch(TransactionCanceledException e) {
+            if(!get("inventory_inbox",messageId).isEmpty()) return;
+            throw e;
+        }
     }
     @Override public List<PendingEvent> pendingEvents() {
         return scan("inventory_outbox","#st = :pending",Map.of(":pending",s("PENDING"))).stream()

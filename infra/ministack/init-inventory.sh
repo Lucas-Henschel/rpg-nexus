@@ -4,7 +4,7 @@ set -eu
 : "${AWS_ENDPOINT_URL:?}"
 : "${AWS_REGION:?}"
 
-for name in items stocks inventory acquisition_sagas inventory_inbox inventory_outbox; do
+for name in items stocks inventory acquisition_sagas inventory_inbox inventory_outbox shops shop_items campaign_members saga_history; do
   table="inventory_$name"
   if aws --endpoint-url "$AWS_ENDPOINT_URL" --region "$AWS_REGION" dynamodb describe-table --table-name "$table" >/dev/null 2>&1; then
     printf 'DynamoDB table already exists: %s\n' "$table"

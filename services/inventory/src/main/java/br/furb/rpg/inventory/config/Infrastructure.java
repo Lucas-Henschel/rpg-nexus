@@ -23,13 +23,19 @@ class Infrastructure {
     @Bean Declarables inventoryTopology() {
         var exchange = new TopicExchange("rpg.events", true, false);
         var dlx = new DirectExchange("rpg.inventory.dlx", true, false);
-        var queue = QueueBuilder.durable("rpg.inventory.results.v1").build();
-        var dead = QueueBuilder.durable("rpg.inventory.results.dlq.v1").build();
-        return new Declarables(exchange, dlx, queue, dead,
-            BindingBuilder.bind(queue).to(exchange).with("character.validated.v1"),
-            BindingBuilder.bind(queue).to(exchange).with("character.rejected.v1"),
-            BindingBuilder.bind(queue).to(exchange).with("external.validation.succeeded.v1"),
-            BindingBuilder.bind(queue).to(exchange).with("external.validation.failed.v1"),
+        var queue = QueueBuilder.durable("inventory.saga-replies.v1")
+            .deadLetterExchange("").deadLetterRoutingKey("inventory.saga-replies.v1.dlq").build();
+        var campaignQueue = QueueBuilder.durable("rpg.inventory.campaign-events.v1").build();
+        var campaignDead = QueueBuilder.durable("rpg.inventory.campaign-events.dlq.v1").build();
+        var dead = QueueBuilder.durable("inventory.saga-replies.v1.dlq").build();
+        return new Declarables(exchange, dlx, queue, campaignQueue, dead, campaignDead,
+            BindingBuilder.bind(queue).to(exchange).with("money.debited.v1"),
+            BindingBuilder.bind(queue).to(exchange).with("money.debit-rejected.v1"),
+            BindingBuilder.bind(queue).to(exchange).with("money.refunded.v1"),
+            BindingBuilder.bind(campaignQueue).to(exchange).with("campaign.created.v1"),
+            BindingBuilder.bind(campaignQueue).to(exchange).with("campaign.member-joined.v1"),
+            BindingBuilder.bind(campaignQueue).to(exchange).with("campaign.member-removed.v1"),
+            BindingBuilder.bind(campaignDead).to(dlx).with("campaign-failed"),
             BindingBuilder.bind(dead).to(dlx).with("failed"));
     }
     @Bean RabbitTemplate publisher(CachingConnectionFactory factory) {

@@ -27,6 +27,7 @@ para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
 | --- | --- | --- |
 | Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns-init`, `campaigns` |
 | Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters-init`, `characters`, `characters-worker` |
+| Inventário e Loja (S3, Java) | [`services/inventory`](services/inventory/README.md) | `inventory-init`, `inventory` |
 | Front-end (React + Vite) | [`apps/frontend`](apps/frontend/README.md) | `frontend` |
 
 ## Pré-requisitos
@@ -126,6 +127,7 @@ resolvidos entre contêineres na rede Compose, e não no host.
 | MiniStack S3 / DynamoDB | `http://localhost:4566` | `http://ministack:4566` |
 | Campanhas (API) | [localhost:3001/campaigns](http://localhost:3001/campaigns) | `http://campaigns:3001` |
 | Personagens (API) | [localhost:8000/docs](http://localhost:8000/docs) | `http://characters:8000` |
+| Inventário e Loja (API) | [localhost:8080/health](http://localhost:8080/health) | `http://inventory:8080` |
 | Front-end | [localhost:5173](http://localhost:5173) | — |
 | Jaeger (traces) | [localhost:16686](http://localhost:16686) | OTLP/HTTP em `http://jaeger:4318` |
 
@@ -143,6 +145,7 @@ resolvidos entre contêineres na rede Compose, e não no host.
 | `RPG_ASSETS_BUCKET` | `rpg-assets` | Bucket criado pelo inicializador e usado pelo serviço de Personagens. |
 | `CAMPAIGNS_PORT` | `3001` | Porta da API de Campanhas no host; também é o endereço gravado no build do front-end. |
 | `CHARACTERS_PORT` | `8000` | Porta da API de Personagens no host; também é o endereço gravado no build do front-end. |
+| `INVENTORY_PORT` | `8080` | Porta da API de Inventário e Loja no host; também é o endereço gravado no build do front-end. |
 | `TRACING_ENABLED` | `true` | Liga o envio de spans ao Jaeger nos serviços. |
 | `JAEGER_UI_PORT` | `16686` | Porta da interface do Jaeger no host. |
 | `OTLP_HTTP_PORT` | `4318` | Porta OTLP/HTTP do Jaeger no host, para serviços rodando fora do Docker. |

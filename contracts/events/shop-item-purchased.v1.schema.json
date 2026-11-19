@@ -1,0 +1,6 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:rpg-nexus:event:shop-item-purchased:v1",
+  "title":"ShopItemPurchased v1","x-routing":{"exchange":"rpg.events","routingKey":"shop.item.purchased.v1","producer":"inventory (S3, P3)","consumers":["campaigns (S1, P1) — fila campaigns.activity.v1","actions (S4, P4) — fila actions.history.v1"]},
+  "type":"object","allOf":[{"$ref":"urn:rpg-nexus:envelope:v1"}],"properties":{"type":{"const":"rpg.shop.item-purchased.v1"},"version":{"const":1},"payload":{"$ref":"#/$defs/payload"}},
+  "$defs":{"id":{"type":"string","minLength":1,"maxLength":64},"payload":{"type":"object","required":["operationId","campaignId","userId","characterId","itemId","amount","quantity"],"additionalProperties":true,"properties":{"operationId":{"$ref":"#/$defs/id"},"campaignId":{"$ref":"#/$defs/id"},"userId":{"$ref":"#/$defs/id"},"characterId":{"$ref":"#/$defs/id"},"itemId":{"$ref":"#/$defs/id"},"amount":{"type":"integer","minimum":0},"quantity":{"const":1}}}}
+}

@@ -33,6 +33,12 @@ Todos passam pelo exchange `rpg.events` (tipo `topic`). As filas ficam em
 | `ExternalValidationFailed` | `external.validation.failed.v1` | S4 Ações | S3 (`inventory.saga-replies.v1`) |
 | `ItemAcquired` | `item.acquired.v1` | S3 Inventário | S1 (`campaigns.activity.v1`), S2 (`characters.acquisition-outcomes.v1`), S4 (`actions.history.v1`) |
 | `AcquisitionCancelled` | `acquisition.cancelled.v1` | S3 Inventário | S2 (`characters.acquisition-outcomes.v1`), S4 (`actions.history.v1`) |
+| `MoneyDebitRequested` | `money.debit.requested.v1` | S3 Inventário | S2 (`characters.money-commands.v1`) |
+| `MoneyDebitRejected` | `money.debit-rejected.v1` | S2 Personagens | S3 (`inventory.saga-replies.v1`) |
+| `MoneyDebited` | `money.debited.v1` | S2 Personagens | S3 (`inventory.saga-replies.v1`) |
+| `MoneyRefundRequested` | `money.refund.requested.v1` | S3 Inventário | S2 (`characters.money-commands.v1`) |
+| `MoneyRefunded` | `money.refunded.v1` | S2 Personagens | S3 (`inventory.saga-replies.v1`) |
+| `ShopItemPurchased` | `shop.item.purchased.v1` | S3 Inventário | S1 (`campaigns.activity.v1`), S4 (`actions.history.v1`) |
 
 Todos os payloads têm `operationId`, `campaignId`, `characterId`, `itemId` e `quantity`. Os campos
 próprios de cada evento estão descritos no esquema dele. O S3 publica `AcquisitionCancelled` sempre

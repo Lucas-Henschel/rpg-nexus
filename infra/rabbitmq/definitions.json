@@ -172,6 +172,27 @@
       "durable": true,
       "auto_delete": false,
       "arguments": {}
+    },
+    {
+      "name": "characters.money-commands.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {"x-dead-letter-exchange": "", "x-dead-letter-routing-key": "characters.money-commands.v1.dlq"}
+    },
+    {
+      "name": "characters.money-commands.v1.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {"x-dead-letter-exchange": "", "x-dead-letter-routing-key": "characters.money-commands.v1"}
+    },
+    {
+      "name": "characters.money-commands.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
     }
   ],
   "bindings": [
@@ -270,6 +291,34 @@
       "destination_type": "queue",
       "routing_key": "item.acquired.v1",
       "arguments": {}
+    },
+    {
+      "source": "rpg.events", "vhost": "/", "destination": "characters.money-commands.v1",
+      "destination_type": "queue", "routing_key": "money.debit.requested.v1", "arguments": {}
+    },
+    {
+      "source": "rpg.events", "vhost": "/", "destination": "characters.money-commands.v1",
+      "destination_type": "queue", "routing_key": "money.refund.requested.v1", "arguments": {}
+    },
+    {
+      "source": "rpg.events", "vhost": "/", "destination": "inventory.saga-replies.v1",
+      "destination_type": "queue", "routing_key": "money.debited.v1", "arguments": {}
+    },
+    {
+      "source": "rpg.events", "vhost": "/", "destination": "inventory.saga-replies.v1",
+      "destination_type": "queue", "routing_key": "money.debit-rejected.v1", "arguments": {}
+    },
+    {
+      "source": "rpg.events", "vhost": "/", "destination": "inventory.saga-replies.v1",
+      "destination_type": "queue", "routing_key": "money.refunded.v1", "arguments": {}
+    },
+    {
+      "source": "rpg.events", "vhost": "/", "destination": "campaigns.activity.v1",
+      "destination_type": "queue", "routing_key": "shop.item.purchased.v1", "arguments": {}
+    },
+    {
+      "source": "rpg.events", "vhost": "/", "destination": "actions.history.v1",
+      "destination_type": "queue", "routing_key": "shop.item.purchased.v1", "arguments": {}
     }
   ]
 }

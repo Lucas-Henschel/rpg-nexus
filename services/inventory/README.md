@@ -1,6 +1,6 @@
 # S3 Inventário e Saga
 
-Serviço Java 21 / Spring Boot na porta 8080. Usa apenas tabelas `inventory_*` no DynamoDB. RabbitMQ: exchange `rpg.events` (topic), fila própria `rpg.inventory.results.v1`, fila morta `rpg.inventory.results.dlq.v1`.
+Serviço Java 21 / Spring Boot na porta 8080. Usa apenas tabelas `inventory_*` no DynamoDB. Além do catálogo e inventário, mantém lojas por campanha, estoque disponível/reservado, uma projeção local de membros e o histórico da Saga comercial.
 
 ## Organização do código
 
@@ -24,14 +24,21 @@ No monorepo, `docker compose up --build` cria as seis tabelas do manifesto `infr
 
 - `POST /items` → `{ "itemId":"sword", "name":"Espada" }` (201).
 - `GET /items` → catálogo de itens cadastrados.
-- `POST /stocks` → `{ "campaignId":"c1", "itemId":"sword", "available":10 }` (201); evita sobrescrever estoque já criado.
+- `PUT /shops/{campaignId}` com `X-User-Id` → cria ou edita a loja; somente a projeção `OWNER` pode executar.
+- `GET /shops/{campaignId}` e `GET /shops/{campaignId}/items` → consulta pública da loja.
+- `PUT /shops/{campaignId}/items/{itemId}` com `X-User-Id` → grava nome, descrição, preço e estoque; exige `OWNER`.
+- `DELETE /shops/{campaignId}/items/{itemId}` com `X-User-Id` → remove item e estoque; exige `OWNER`.
+- `POST /stocks` → endpoint legado de estoque, agora também protegido por `X-User-Id` e papel `OWNER`.
 - `GET /stocks?campaignId=c1` → estoques cadastrados da campanha.
 - `GET /stocks/{campaignId}/{itemId}` → saldo disponível.
 - `GET /inventory/{characterId}` → itens confirmados.
-- `POST /acquisitions` com `Idempotency-Key: chave-unica` e `{ "campaignId":"c1", "characterId":"p1", "itemId":"sword" }` → 202 `{ "operationId":"...", "statusUrl":"/acquisitions/..." }`.
+- `POST /acquisitions` com `Idempotency-Key`, `X-User-Id` e `{ "campaignId":"c1", "characterId":"p1", "itemId":"sword" }` → reserva estoque, publica o pedido de débito e responde 202.
 - `GET /acquisitions/{operationId}` → estado e prazo.
+- `GET /acquisitions/{operationId}/history` → transições persistidas da Saga em ordem cronológica.
 
-Quantidade fixa: 1. Uma chave de idempotência representa uma aquisição; reutilizá-la com outro corpo retorna 409. Estoque esgotado gera operação `REJECTED` ainda consultável pelo mesmo ID. A reserva, Saga e outbox entram na mesma transação. Resultados do broker são aplicados com inbox, versão otimista e transação local. Falha ou prazo expirado devolve a unidade em uma única transação com a mudança terminal e evento de cancelamento. Mensagens tardias ou fora de ordem são registradas na inbox sem alterar a Saga.
+Quantidade fixa: 1. Uma chave de idempotência representa uma compra; reutilizá-la com outro corpo retorna 409. Usuários fora da campanha ou com outro personagem ativo recebem 403. A reserva, Saga, histórico e outbox entram na mesma transação. `MoneyDebitRejected` ou expiração devolve a unidade. Um `MoneyDebited` tardio não ressuscita a Saga e gera `MoneyRefundRequested` idempotente.
+
+Enquanto o S4 ainda não fornece JWT, `X-User-Id` identifica o usuário para desenvolvimento. A autorização real continua no backend e usa a projeção atualizada por `CampaignCreated`, `CampaignMemberJoined` e `CampaignMemberRemoved`. O header deve ser substituído pelas claims validadas quando a integração de identidade estiver disponível.
 
 ## Integração RabbitMQ
 
@@ -46,4 +53,4 @@ Envelope JSON: `messageId`, `correlationId` (= operationId), `type`, `version:1`
 
 Consome `character.validated.v1` / `character.rejected.v1` com types `rpg.character.validated.v1` / `rpg.character.rejected.v1`; e `external.validation.succeeded.v1` / `external.validation.failed.v1` com types `rpg.external.validation.succeeded.v1` / `rpg.external.validation.failed.v1`. Cada produtor deve publicar envelopes únicos com o mesmo `correlationId` da requisição. O consumidor confirma ACK após transação; erros são republicados com contador `x-inventory-attempt` até MAX_RETRIES e enviados à DLQ. O worker de outbox usa publisher confirms e retenta eventos pendentes. Duplicações entre confirmação do broker e marcação `PUBLISHED` são esperadas: consumidores devem usar inbox.
 
-O evento `CharacterValidationRequested` inclui `deadlineAt`, necessário para o S2 não reservar capacidade após o prazo. O S2 já reconhece os eventos `ItemAcquired` e `AcquisitionCancelled`; o S4 ainda deve implementar sua fila para a validação externa. Os schemas dos eventos publicados pelo Inventário estão em `contracts/events/`.
+O fluxo monetário publica `MoneyDebitRequested`, `MoneyRefundRequested` e `ShopItemPurchased`; consome `MoneyDebited`, `MoneyDebitRejected` e `MoneyRefunded`. Por compatibilidade, a conclusão e o cancelamento ainda publicam `ItemAcquired` e `AcquisitionCancelled`. Os schemas ficam em `contracts/events/`.

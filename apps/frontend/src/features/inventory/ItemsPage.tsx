@@ -5,10 +5,11 @@ import { errorMessage, ApiError } from "../../shared/http";
 import { useToast } from "../../shared/ui/toast-context";
 import { Link } from "../../app/router";
 import { useCharacters } from "../characters/queries";
-import { useAcquisition, useCatalog, useInventory, useInventoryActions, useStock } from "./queries";
+import { useAcquisition, useCatalog, useInventory, useInventoryActions, useShop, useStock } from "./queries";
 
 const TERMINAL = new Set(["COMPLETED", "COMPENSATED", "REJECTED", "EXPIRED"]);
 const STATUS: Record<string, string> = {
+  WAITING_MONEY: "Aguardando dÃ©bito do personagem",
   PENDING: "Aguardando reserva", RESERVED: "Item reservado",
   VALIDATING_CHARACTER: "Validando personagem", VALIDATING_EXTERNAL: "Validando aquisição",
   COMPLETED: "Item entregue", COMPENSATING: "Devolvendo ao estoque",
@@ -22,7 +23,11 @@ export function ItemsPage() {
   const [itemDraft, setItemDraft] = useState("");
   const [itemId, setItemId] = useState("");
   const [itemName, setItemName] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("0");
   const [quantity, setQuantity] = useState("1");
+  const [userId, setUserId] = useState(() => window.localStorage.getItem("rpg-nexus.user-id") || "user-1");
+  const [shopName, setShopName] = useState("Loja da campanha");
   const [characterId, setCharacterId] = useState("");
   const [operationId, setOperationId] = useState("");
   const [problem, setProblem] = useState("");
@@ -30,6 +35,7 @@ export function ItemsPage() {
   const client = useQueryClient();
   const characters = useCharacters(campaign);
   const catalog = useCatalog(campaign);
+  const shop = useShop(campaign);
   const stock = useStock(campaign, itemId);
   const inventory = useInventory(characterId);
   const acquisition = useAcquisition(operationId);
@@ -41,6 +47,10 @@ export function ItemsPage() {
     void client.invalidateQueries({ queryKey: ["inventory", "stocks", campaign] });
     if (characterId) void client.invalidateQueries({ queryKey: ["inventory", "character", characterId] });
   }, [operationId, acquisition.data?.status, campaign, itemId, characterId, client]);
+
+  useEffect(() => {
+    if (shop.shop.data?.name) setShopName(shop.shop.data.name);
+  }, [shop.shop.data?.name]);
 
   const changeCampaign = (event: FormEvent) => {
     event.preventDefault();
@@ -75,10 +85,36 @@ export function ItemsPage() {
     if (!Number.isSafeInteger(amount) || amount < 0) return setProblem("Informe uma quantidade inteira não negativa.");
     setProblem("");
     try {
-      await actions.createStock.mutateAsync({ campaignId: campaign, itemId, available: amount });
+      await actions.createStock.mutateAsync({ campaignId: campaign, itemId, available: amount, userId });
       toast("ok", `Estoque de ${itemId} criado na campanha ${campaign}.`);
       await stock.refetch();
     } catch (error) { setProblem(errorMessage(error, "Não foi possível criar o estoque.")); }
+  };
+
+  const saveShop = async () => {
+    setProblem("");
+    try {
+      window.localStorage.setItem("rpg-nexus.user-id", userId);
+      await actions.saveShop.mutateAsync({ campaignId: campaign, name: shopName.trim(), active: true, userId });
+      toast("ok", "Loja salva.");
+    } catch (error) { setProblem(errorMessage(error, "NÃ£o foi possÃ­vel salvar a loja.")); }
+  };
+
+  const saveShopItem = async (event: FormEvent) => {
+    event.preventDefault();
+    const available = Number(quantity);
+    const itemPrice = Number(price);
+    if (!Number.isSafeInteger(available) || available < 0 || !Number.isSafeInteger(itemPrice) || itemPrice < 0) {
+      setProblem("PreÃ§o e estoque devem ser inteiros nÃ£o negativos.");
+      return;
+    }
+    try {
+      await actions.saveShopItem.mutateAsync({ campaignId: campaign, userId, item: {
+        itemId: itemDraft.trim(), name: itemName.trim(), description: description.trim(), price: itemPrice, available,
+      }});
+      setItemId(itemDraft.trim());
+      toast("ok", "Item da loja salvo.");
+    } catch (error) { setProblem(errorMessage(error, "NÃ£o foi possÃ­vel salvar o item da loja.")); }
   };
 
   const acquire = async () => {
@@ -86,7 +122,7 @@ export function ItemsPage() {
     setProblem("");
     setOperationId("");
     try {
-      const accepted = await actions.acquire.mutateAsync({ campaignId: campaign, characterId, itemId });
+      const accepted = await actions.acquire.mutateAsync({ campaignId: campaign, characterId, itemId, userId });
       setOperationId(accepted.operationId);
       toast("ok", "Pedido recebido. Acompanhando o resultado.");
     } catch (error) { setProblem(errorMessage(error, "Não foi possível pedir o item.")); }
@@ -108,6 +144,16 @@ export function ItemsPage() {
               </button>
             )}
           </form>
+          <div className="inventory-inline">
+            <label className="inventory-field">UsuÃ¡rio atual
+              <input value={userId} onChange={(event) => setUserId(event.target.value)} />
+            </label>
+            <label className="inventory-field">Nome da loja
+              <input value={shopName} onChange={(event) => setShopName(event.target.value)} />
+            </label>
+            <button type="button" className="button button--ghost-felt button--small" onClick={() => void saveShop()}
+              disabled={!userId.trim() || !shopName.trim() || actions.saveShop.isPending}>Salvar loja</button>
+          </div>
         </div>
       </header>
 
@@ -163,6 +209,24 @@ export function ItemsPage() {
               Cadastrar {itemDraft.trim() || "item"}
             </button>
           </form>
+          <form className="inventory-form" onSubmit={saveShopItem}>
+            <label className="inventory-field">DescriÃ§Ã£o
+              <input value={description} onChange={(event) => setDescription(event.target.value)} />
+            </label>
+            <label className="inventory-field">PreÃ§o em moedas
+              <input type="number" min="0" step="1" value={price} onChange={(event) => setPrice(event.target.value)} required />
+            </label>
+            <label className="inventory-field">Estoque da loja
+              <input type="number" min="0" step="1" value={quantity} onChange={(event) => setQuantity(event.target.value)} required />
+            </label>
+            <button className="button button--ghost-ink"
+              disabled={!userId.trim() || !itemDraft.trim() || !itemName.trim() || actions.saveShopItem.isPending}>
+              Salvar na loja
+            </button>
+          </form>
+          {shop.items.data && shop.items.data.length > 0 && (
+            <p className="inventory-panel__hint">{shop.items.data.length} item(ns) configurado(s) na loja.</p>
+          )}
           {itemId && (
             <form className="inventory-inline inventory-stock-form" onSubmit={addStock}>
               <label className="inventory-field">Quantidade inicial
