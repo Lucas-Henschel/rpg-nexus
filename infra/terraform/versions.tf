@@ -6,6 +6,11 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+
+    rabbitmq = {
+      source  = "cyrilgdn/rabbitmq"
+      version = "~> 1.8"
+    }
   }
 
   # Estado local. No Compose o caminho vem de -backend-config (volume terraform-state).
@@ -28,4 +33,11 @@ provider "aws" {
     dynamodb = var.aws_endpoint_url
     s3       = var.aws_endpoint_url
   }
+}
+
+# Fala com a API de gerenciamento do RabbitMQ (a mesma do painel web).
+provider "rabbitmq" {
+  endpoint = var.rabbitmq_management_url
+  username = var.rabbitmq_user
+  password = var.rabbitmq_password
 }

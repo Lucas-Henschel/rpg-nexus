@@ -1,0 +1,133 @@
+# Tabelas DynamoDB do S1 Campanhas. Os nomes vêm de services/campaigns/.env.example (env.tf).
+# As mesmas tabelas são descritas em services/campaigns/src/db/setup.ts, usado nos testes e fora do Docker.
+
+resource "aws_dynamodb_table" "campaigns" {
+  name         = local.campaigns_env["TABLE_CAMPAIGNS"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "campaignId"
+
+  attribute {
+    name = "campaignId"
+    type = "S"
+  }
+}
+
+# Códigos de entrada em uso: cada código de seis dígitos aponta para uma campanha.
+resource "aws_dynamodb_table" "campaign_join_codes" {
+  name         = local.campaigns_env["TABLE_JOIN_CODES"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "joinCode"
+
+  attribute {
+    name = "joinCode"
+    type = "S"
+  }
+}
+
+# Participantes de uma campanha (um por usuário). O índice byUser acha as campanhas de um usuário.
+resource "aws_dynamodb_table" "campaign_members" {
+  name         = local.campaigns_env["TABLE_MEMBERS"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "campaignId"
+  range_key    = "userId"
+
+  attribute {
+    name = "campaignId"
+    type = "S"
+  }
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "byUser"
+    hash_key        = "userId"
+    range_key       = "campaignId"
+    projection_type = "KEYS_ONLY"
+  }
+}
+
+# Atividade de uma campanha, ordenada pela data (activityKey = occurredAt#operationId).
+resource "aws_dynamodb_table" "campaign_activity" {
+  name         = local.campaigns_env["TABLE_ACTIVITY"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "campaignId"
+  range_key    = "activityKey"
+
+  attribute {
+    name = "campaignId"
+    type = "S"
+  }
+
+  attribute {
+    name = "activityKey"
+    type = "S"
+  }
+}
+
+# Operações já contadas (uma aquisição conta uma vez só, mesmo vinda em mensagens diferentes).
+resource "aws_dynamodb_table" "campaign_operations" {
+  name         = local.campaigns_env["TABLE_OPERATIONS"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "operationId"
+
+  attribute {
+    name = "operationId"
+    type = "S"
+  }
+}
+
+# Mensagens já processadas; o DynamoDB apaga cada uma quando passa o `expiresAt`.
+resource "aws_dynamodb_table" "campaign_inbox" {
+  name         = local.campaigns_env["TABLE_INBOX"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "messageId"
+
+  attribute {
+    name = "messageId"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+}
+
+# Eventos a publicar (outbox), gravados na mesma transação da mudança. O índice esparso `pending`
+# guarda só os pendentes, na ordem em que foram gravados; o DynamoDB apaga os publicados quando
+# passa o `expiresAt`.
+resource "aws_dynamodb_table" "campaign_outbox" {
+  name         = local.campaigns_env["TABLE_OUTBOX"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "messageId"
+
+  attribute {
+    name = "messageId"
+    type = "S"
+  }
+
+  attribute {
+    name = "pendingKey"
+    type = "S"
+  }
+
+  attribute {
+    name = "pendingAt"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "pending"
+    hash_key        = "pendingKey"
+    range_key       = "pendingAt"
+    projection_type = "KEYS_ONLY"
+  }
+
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+}

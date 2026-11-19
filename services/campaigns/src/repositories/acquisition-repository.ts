@@ -1,4 +1,5 @@
-// Aquisições de itens vindas do RabbitMQ: viram atividade da campanha e somam no contador do participante.
+// Aquisições de itens vindas do RabbitMQ: viram atividade da campanha e somam no contador do participante
+// que usa o personagem.
 // É o único repositório que grava em várias tabelas, porque tudo precisa acontecer numa transação só.
 import { TransactionCanceledException } from "@aws-sdk/client-dynamodb";
 import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
@@ -7,7 +8,12 @@ import type { Acquisition, AcquisitionResult } from "../domain/acquisition.js";
 
 export function createAcquisitionRepository(db: Db, inboxTtlDays: number) {
   return {
-    async record(event: Acquisition, now: string): Promise<AcquisitionResult> {
+    /** `userId`: o participante que usa o personagem; null se ninguém o escolheu (só a atividade é gravada). */
+    async record(
+      event: Acquisition,
+      now: string,
+      userId: string | null,
+    ): Promise<AcquisitionResult> {
       const expiresAt = Math.floor(Date.parse(now) / 1000) + inboxTtlDays * 24 * 60 * 60;
 
       try {
@@ -35,7 +41,11 @@ export function createAcquisitionRepository(db: Db, inboxTtlDays: number) {
               {
                 Put: {
                   TableName: db.tables.operations,
-                  Item: { operationId: event.operationId, messageId: event.messageId, processedAt: now },
+                  Item: {
+                    operationId: event.operationId,
+                    messageId: event.messageId,
+                    processedAt: now,
+                  },
                   ConditionExpression: "attribute_not_exists(operationId)",
                 },
               },
@@ -55,15 +65,23 @@ export function createAcquisitionRepository(db: Db, inboxTtlDays: number) {
                   },
                 },
               },
-              // 4: soma a quantidade no participante, criando-o se ainda não participa
-              {
-                Update: {
-                  TableName: db.tables.members,
-                  Key: { campaignId: event.campaignId, characterId: event.characterId },
-                  UpdateExpression: "SET joinedAt = if_not_exists(joinedAt, :now) ADD itemsAcquired :quantity",
-                  ExpressionAttributeValues: { ":now": now, ":quantity": event.quantity },
-                },
-              },
+              // 4: soma a quantidade no participante, se ele ainda usa o personagem
+              ...(userId
+                ? [
+                    {
+                      Update: {
+                        TableName: db.tables.members,
+                        Key: { campaignId: event.campaignId, userId },
+                        UpdateExpression: "ADD itemsAcquired :quantity",
+                        ConditionExpression: "characterId = :characterId",
+                        ExpressionAttributeValues: {
+                          ":quantity": event.quantity,
+                          ":characterId": event.characterId,
+                        },
+                      },
+                    },
+                  ]
+                : []),
             ],
           }),
         );
@@ -72,7 +90,8 @@ export function createAcquisitionRepository(db: Db, inboxTtlDays: number) {
           throw error;
         }
 
-        const failed = (index: number) => error.CancellationReasons?.[index]?.Code === "ConditionalCheckFailed";
+        const failed = (index: number) =>
+          error.CancellationReasons?.[index]?.Code === "ConditionalCheckFailed";
 
         if (failed(0) || failed(2)) {
           return "duplicate";
@@ -82,6 +101,7 @@ export function createAcquisitionRepository(db: Db, inboxTtlDays: number) {
           return "unknown-campaign";
         }
 
+        // 4: o participante trocou de personagem ou saiu no meio; a mensagem volta e é refeita.
         throw error;
       }
 

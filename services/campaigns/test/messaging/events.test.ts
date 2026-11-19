@@ -3,11 +3,13 @@ import { resolve } from "node:path";
 import { expect, it } from "vitest";
 import { loadEnv } from "../../src/config.js";
 import { createItemAcquiredParser, PoisonMessage } from "../../src/messaging/events.js";
+import { AUTH_ENV } from "../tokens.js";
 
-const contractsDir = resolve(loadEnv({}).CONTRACTS_DIR);
+const contractsDir = resolve(loadEnv(AUTH_ENV).CONTRACTS_DIR);
 const parse = createItemAcquiredParser(contractsDir);
 
-const example = (kind: "valid" | "invalid") => readFile(resolve(contractsDir, `examples/item-acquired.v1.${kind}.json`));
+const example = (kind: "valid" | "invalid") =>
+  readFile(resolve(contractsDir, `examples/item-acquired.v1.${kind}.json`));
 
 it("aceita o exemplo válido do contrato e devolve a aquisição", async () => {
   expect(parse(await example("valid"))).toEqual({

@@ -1,14 +1,18 @@
 {
   "service": "campaigns",
   "owner": "P1",
-  "description": "Filas do S1 Campanhas, conferidas pelo teste de contracts/. As tabelas DynamoDB são criadas pelo script services/campaigns/src/scripts/create-tables.ts (contêiner campaigns-init).",
+  "description": "Filas do S1 Campanhas, conferidas pelo teste de contracts/. As tabelas DynamoDB são criadas pelo Terraform (infra/terraform/campaigns.tf).",
   "rabbitmq": {
     "exchange": {
       "name": "rpg.events",
       "type": "topic",
       "durable": true
     },
-    "publishes": [],
+    "publishes": [
+      "campaign.created.v1",
+      "campaign.member.joined.v1",
+      "campaign.member.removed.v1"
+    ],
     "queues": [
       {
         "name": "campaigns.activity.v1",

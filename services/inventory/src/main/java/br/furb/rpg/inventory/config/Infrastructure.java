@@ -20,23 +20,21 @@ class Infrastructure {
         if (!endpoint.isBlank()) builder.endpointOverride(URI.create(endpoint));
         return builder.build();
     }
-    @Bean Declarables inventoryTopology() {
-        var exchange = new TopicExchange("rpg.events", true, false);
-        var dlx = new DirectExchange("rpg.inventory.dlx", true, false);
-        var queue = QueueBuilder.durable("inventory.saga-replies.v1")
+    @Bean Declarables inventoryTopology(@Value("${inventory.exchange}") String exchangeName) {
+        var exchange = new TopicExchange(exchangeName, true, false);
+        var replies = QueueBuilder.durable("inventory.saga-replies.v1")
             .deadLetterExchange("").deadLetterRoutingKey("inventory.saga-replies.v1.dlq").build();
-        var campaignQueue = QueueBuilder.durable("rpg.inventory.campaign-events.v1").build();
-        var campaignDead = QueueBuilder.durable("rpg.inventory.campaign-events.dlq.v1").build();
+        var campaignMembers = QueueBuilder.durable("inventory.campaign-members.v1")
+            .deadLetterExchange("").deadLetterRoutingKey("inventory.campaign-members.v1.dlq").build();
         var dead = QueueBuilder.durable("inventory.saga-replies.v1.dlq").build();
-        return new Declarables(exchange, dlx, queue, campaignQueue, dead, campaignDead,
-            BindingBuilder.bind(queue).to(exchange).with("money.debited.v1"),
-            BindingBuilder.bind(queue).to(exchange).with("money.debit-rejected.v1"),
-            BindingBuilder.bind(queue).to(exchange).with("money.refunded.v1"),
-            BindingBuilder.bind(campaignQueue).to(exchange).with("campaign.created.v1"),
-            BindingBuilder.bind(campaignQueue).to(exchange).with("campaign.member-joined.v1"),
-            BindingBuilder.bind(campaignQueue).to(exchange).with("campaign.member-removed.v1"),
-            BindingBuilder.bind(campaignDead).to(dlx).with("campaign-failed"),
-            BindingBuilder.bind(dead).to(dlx).with("failed"));
+        var membersDead = QueueBuilder.durable("inventory.campaign-members.v1.dlq").build();
+        return new Declarables(exchange, replies, campaignMembers, dead, membersDead,
+            BindingBuilder.bind(replies).to(exchange).with("money.debited.v1"),
+            BindingBuilder.bind(replies).to(exchange).with("money.debit-rejected.v1"),
+            BindingBuilder.bind(replies).to(exchange).with("money.refunded.v1"),
+            BindingBuilder.bind(campaignMembers).to(exchange).with("campaign.created.v1"),
+            BindingBuilder.bind(campaignMembers).to(exchange).with("campaign.member.joined.v1"),
+            BindingBuilder.bind(campaignMembers).to(exchange).with("campaign.member.removed.v1"));
     }
     @Bean RabbitTemplate publisher(CachingConnectionFactory factory) {
         var template = new RabbitTemplate(factory);

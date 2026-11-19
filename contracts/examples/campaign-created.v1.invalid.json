@@ -1,0 +1,13 @@
+{
+  "messageId": "3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a60",
+  "correlationId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "type": "rpg.campaign.created.v1",
+  "version": 1,
+  "occurredAt": "2026-11-19T12:00:00Z",
+  "payload": {
+    "campaignId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "name": "A Coroa de Cinzas",
+    "ownerName": "ana",
+    "createdAt": "2026-11-19T12:00:00Z"
+  }
+}

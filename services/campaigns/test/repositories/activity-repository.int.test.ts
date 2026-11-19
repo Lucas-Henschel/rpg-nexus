@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, expect, it } from "vitest";
 import { createAcquisitionRepository } from "../../src/repositories/acquisition-repository.js";
-import { type ActivityRepository, createActivityRepository } from "../../src/repositories/activity-repository.js";
+import {
+  type ActivityRepository,
+  createActivityRepository,
+} from "../../src/repositories/activity-repository.js";
 import { createCampaignRepository } from "../../src/repositories/campaign-repository.js";
+import { campaign, ownerOf } from "../db/fixtures.js";
 import { createTestDb } from "../db/test-db.js";
 
 const NOW = "2026-11-16T12:00:00.000Z";
@@ -14,9 +18,10 @@ beforeAll(async () => {
   const acquisitions = createAcquisitionRepository(db, 7);
 
   activity = createActivityRepository(db);
-  campaignId = `c-${randomUUID().slice(0, 8)}`;
+  const created = campaign();
 
-  await createCampaignRepository(db).create({ campaignId, name: "Um", gameMaster: null, createdAt: NOW });
+  campaignId = created.campaignId;
+  await createCampaignRepository(db).create(created, ownerOf(created), []);
 
   // 21 aquisições, uma por minuto, de 12:10 a 12:30.
   for (let minute = 10; minute < 31; minute++) {
@@ -31,6 +36,7 @@ beforeAll(async () => {
         quantity: 1,
       },
       NOW,
+      null,
     );
   }
 });

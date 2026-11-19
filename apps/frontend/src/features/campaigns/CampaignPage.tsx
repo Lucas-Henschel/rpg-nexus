@@ -1,14 +1,15 @@
 import { useState, type FormEvent } from "react";
+import { navigate } from "../../app/navigation";
 import { Link } from "../../app/router";
 import { errorMessage } from "../../shared/http";
 import { useToast } from "../../shared/ui/toast-context";
+import { useAuth } from "../auth/auth-context";
 import { useCharacters } from "../characters/queries";
 import type { CampaignView, Member } from "./api";
 import { formatDate, formatDateTime } from "./format";
-import { useAddMember, useCampaignView } from "./queries";
+import { useCampaignView, useChooseCharacter, useRemoveMember } from "./queries";
 
-/** Nome para mostrar: quem entrou sozinho, ao conquistar um item, ainda não tem nome. */
-const memberName = (member: Member) => member.characterName ?? member.characterId;
+const ROLE_LABEL = { OWNER: "Mestre", PLAYER: "Jogador" } as const;
 
 export function CampaignPage({ id }: { id: string }) {
   const campaign = useCampaignView(id);
@@ -19,7 +20,7 @@ export function CampaignPage({ id }: { id: string }) {
         Voltar às campanhas
       </Link>
 
-      {campaign.isPending && <p className="page__status">Buscando a campanha {id}…</p>}
+      {campaign.isPending && <p className="page__status">Buscando a campanha…</p>}
 
       {campaign.isError && (
         <div className="notice">
@@ -44,35 +45,38 @@ export function CampaignPage({ id }: { id: string }) {
 }
 
 function CampaignDetail({ campaign }: { campaign: CampaignView }) {
-  const names = new Map(campaign.members.map((member) => [member.characterId, memberName(member)]));
+  const { user } = useAuth();
+  const me = campaign.members.find((member) => member.userId === user?.userId);
+  const isOwner = me?.role === "OWNER";
+  const names = new Map(
+    campaign.members
+      .filter((member) => member.characterId)
+      .map((member) => [member.characterId, member.characterName ?? member.username]),
+  );
 
   return (
     <>
       <h1 className="page__title">{campaign.name}</h1>
       <p className="page__lead">
-        Código {campaign.campaignId}
-        {campaign.gameMaster && ` · Mestre: ${campaign.gameMaster}`} · Criada em{" "}
-        {formatDate(campaign.createdAt)}
+        Código de entrada <strong>{campaign.joinCode}</strong> · Mestre: {campaign.ownerName} ·
+        Criada em {formatDate(campaign.createdAt)}
       </p>
 
       <div className="campaign-columns">
         <section className="paper">
           <h2 className="sheet__heading">Participantes</h2>
-          {campaign.members.length === 0 ? (
-            <p className="campaign-empty">Ninguém participa ainda.</p>
-          ) : (
-            <ul className="campaign-list">
-              {campaign.members.map((member) => (
-                <li key={member.characterId} className="campaign-list__row">
-                  <span className="campaign-list__main">{memberName(member)}</span>
-                  <span className="campaign-list__side">
-                    {member.itemsAcquired === 1 ? "1 item" : `${member.itemsAcquired} itens`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <AddMemberForm campaign={campaign} />
+          <ul className="campaign-list">
+            {campaign.members.map((member) => (
+              <MemberRow
+                key={member.userId}
+                campaignId={campaign.campaignId}
+                member={member}
+                isMe={member.userId === user?.userId}
+                canRemove={isOwner && member.role === "PLAYER"}
+              />
+            ))}
+          </ul>
+          {me && <CharacterForm campaign={campaign} me={me} />}
         </section>
 
         <section className="paper">
@@ -98,16 +102,84 @@ function CampaignDetail({ campaign }: { campaign: CampaignView }) {
   );
 }
 
-/** Lista os personagens da campanha no S2 que ainda não participam. */
-function AddMemberForm({ campaign }: { campaign: CampaignView }) {
+interface MemberRowProps {
+  campaignId: string;
+  member: Member;
+  isMe: boolean;
+  canRemove: boolean;
+}
+
+/** Um participante; o jogador logado pode sair, e o mestre pode remover jogadores. */
+function MemberRow({ campaignId, member, isMe, canRemove }: MemberRowProps) {
+  const toast = useToast();
+  const remove = useRemoveMember(campaignId);
+  const leaving = isMe && member.role === "PLAYER";
+
+  const run = async () => {
+    const question = leaving
+      ? "Sair desta campanha?"
+      : `Remover ${member.username} da campanha?`;
+    if (!window.confirm(question)) {
+      return;
+    }
+
+    try {
+      await remove.mutateAsync(member.userId);
+      if (leaving) {
+        toast("ok", "Você saiu da campanha.");
+        navigate("/campanhas");
+      } else {
+        toast("ok", `${member.username} foi removido.`);
+      }
+    } catch (error) {
+      toast("error", errorMessage(error, "Não foi possível remover o participante."));
+    }
+  };
+
+  const items = member.itemsAcquired === 1 ? "1 item" : `${member.itemsAcquired} itens`;
+
+  return (
+    <li className="campaign-list__row">
+      <span className="campaign-list__main">
+        {member.username}
+        {isMe && " (você)"} · {ROLE_LABEL[member.role]}
+        <br />
+        <small>{member.characterName ?? "sem personagem"}</small>
+      </span>
+      <span className="campaign-list__side">
+        {items}
+        {(leaving || canRemove) && (
+          <>
+            {" · "}
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => void run()}
+              disabled={remove.isPending}
+            >
+              {leaving ? "Sair" : "Remover"}
+            </button>
+          </>
+        )}
+      </span>
+    </li>
+  );
+}
+
+/** O personagem que a pessoa logada usa na campanha, entre os personagens da campanha no S2. */
+function CharacterForm({ campaign, me }: { campaign: CampaignView; me: Member }) {
   const toast = useToast();
   const characters = useCharacters(campaign.campaignId);
-  const addMember = useAddMember(campaign.campaignId);
-  const [chosen, setChosen] = useState("");
+  const choose = useChooseCharacter(campaign.campaignId);
+  const [chosen, setChosen] = useState(me.characterId ?? "");
   const [problem, setProblem] = useState<string | null>(null);
 
-  const joined = new Set(campaign.members.map((member) => member.characterId));
-  const available = (characters.data ?? []).filter((character) => !joined.has(character.id));
+  const takenByOthers = new Set(
+    campaign.members
+      .filter((member) => member.userId !== me.userId && member.characterId)
+      .map((member) => member.characterId),
+  );
+  const available = (characters.data ?? []).filter((character) => !takenByOthers.has(character.id));
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -118,11 +190,10 @@ function AddMemberForm({ campaign }: { campaign: CampaignView }) {
 
     setProblem(null);
     try {
-      await addMember.mutateAsync({ characterId: character.id, characterName: character.name });
-      toast("ok", `${character.name} entrou na campanha.`);
-      setChosen("");
+      await choose.mutateAsync({ characterId: character.id, characterName: character.name });
+      toast("ok", `Você joga com ${character.name}.`);
     } catch (error) {
-      setProblem(errorMessage(error, "Não foi possível adicionar o participante."));
+      setProblem(errorMessage(error, "Não foi possível escolher o personagem."));
     }
   };
 
@@ -137,7 +208,7 @@ function AddMemberForm({ campaign }: { campaign: CampaignView }) {
   if (characters.isSuccess && available.length === 0) {
     return (
       <p className="campaign-empty">
-        Todos os personagens da campanha já participam.{" "}
+        Nenhum personagem livre nesta campanha.{" "}
         <Link to="/personagens/novo" className="text-button">
           Criar personagem
         </Link>
@@ -147,9 +218,9 @@ function AddMemberForm({ campaign }: { campaign: CampaignView }) {
 
   return (
     <form className="campaign-add" onSubmit={(e) => void submit(e)}>
-      <label htmlFor="new-member">Adicionar participante</label>
+      <label htmlFor="my-character">Seu personagem</label>
       <select
-        id="new-member"
+        id="my-character"
         className="ink-input"
         value={chosen}
         onChange={(e) => setChosen(e.target.value)}
@@ -165,9 +236,9 @@ function AddMemberForm({ campaign }: { campaign: CampaignView }) {
       <button
         type="submit"
         className="button button--ink button--small"
-        disabled={!chosen || addMember.isPending}
+        disabled={!chosen || chosen === me.characterId || choose.isPending}
       >
-        Adicionar
+        Usar
       </button>
       {problem && <p className="field-error">{problem}</p>}
     </form>

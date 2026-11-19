@@ -11,7 +11,11 @@ it("espera 1000, 2000, 4000 ms e manda para a DLQ na 4ª falha", () => {
 });
 
 it("não espera mais que o teto", () => {
-  expect(decideRetry({ ...policy, maxRetries: 10 }, 7)).toEqual({ action: "retry", attempt: 8, delayMs: 15000 });
+  expect(decideRetry({ ...policy, maxRetries: 10 }, 7)).toEqual({
+    action: "retry",
+    attempt: 8,
+    delayMs: 15000,
+  });
 });
 
 it("readRetryCount: ausente ou inválido vale 0", () => {

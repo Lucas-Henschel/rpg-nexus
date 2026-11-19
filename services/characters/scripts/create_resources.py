@@ -1,7 +1,7 @@
 """Cria (de forma idempotente) as tabelas DynamoDB e o bucket S3 do S2 a partir do manifesto.
 
-É executado pelo serviço `characters-init` do docker-compose.yml da raiz. O bucket já é criado
-pelo `aws-init`; aqui ele só é reaproveitado e recebe a configuração de CORS.
+No Compose quem cria esses recursos é o Terraform (infra/terraform); este script serve para usar
+sem ele. O bucket precisa existir; aqui ele só recebe a configuração de CORS.
 
     python -m scripts.create_resources            # usa AWS_ENDPOINT_URL / AWS_REGION do ambiente
     python -m scripts.create_resources --wait 30  # aguarda o MiniStack ficar disponível

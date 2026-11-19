@@ -1,72 +1,107 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, expect, it } from "vitest";
-import { createAcquisitionRepository } from "../../src/repositories/acquisition-repository.js";
 import { createCampaignRepository } from "../../src/repositories/campaign-repository.js";
-import { createMemberRepository, type MemberRepository } from "../../src/repositories/member-repository.js";
+import {
+  createMemberRepository,
+  type MemberRepository,
+} from "../../src/repositories/member-repository.js";
+import { memberJoined, memberRemoved } from "../../src/messaging/outgoing.js";
+import { campaign, member, NOW, ownerOf } from "../db/fixtures.js";
 import { createTestDb } from "../db/test-db.js";
 
-const NOW = "2026-11-16T12:00:00.000Z";
 let members: MemberRepository;
-let addItems: (campaignId: string, quantity: number) => Promise<unknown>;
 let newCampaign: () => Promise<string>;
 
 beforeAll(async () => {
   const db = await createTestDb();
   const campaigns = createCampaignRepository(db);
-  const acquisitions = createAcquisitionRepository(db, 7);
 
   members = createMemberRepository(db);
-
   newCampaign = async () => {
-    const campaignId = `c-${randomUUID().slice(0, 8)}`;
+    const created = campaign();
 
-    await campaigns.create({ campaignId, name: "A Coroa de Cinzas", gameMaster: null, createdAt: NOW });
+    await campaigns.create(created, ownerOf(created), []);
 
-    return campaignId;
+    return created.campaignId;
   };
-
-  addItems = (campaignId, quantity) =>
-    acquisitions.record(
-      {
-        messageId: randomUUID(),
-        occurredAt: NOW,
-        operationId: randomUUID(),
-        campaignId,
-        characterId: "ch1",
-        itemId: "espada",
-        quantity,
-      },
-      NOW,
-    );
 });
 
-it("primeira vez cria; segunda troca o nome e mantém o contador e a data de entrada", async () => {
+const beto = member({ userId: "u-beto", username: "beto" });
+const left = (campaignId: string) =>
+  memberRemoved(campaignId, {
+    userId: "u-beto",
+    removedBy: "u-beto",
+    reason: "LEFT",
+    removedAt: NOW,
+  });
+
+it("add: primeira vez cria; segunda devolve o que estava gravado", async () => {
   const campaignId = await newCampaign();
 
-  const first = await members.save(campaignId, { characterId: "ch1", characterName: "Lyra" }, NOW);
-  await addItems(campaignId, 3);
-  const second = await members.save(
+  const first = await members.add(campaignId, beto, memberJoined(campaignId, beto));
+  const second = await members.add(
     campaignId,
-    { characterId: "ch1", characterName: "Lyra, a Ladina" },
-    "2026-11-17T00:00:00.000Z",
+    { ...beto, joinedAt: "2026-11-17T00:00:00.000Z" },
+    memberJoined(campaignId, beto),
   );
 
-  expect(first).toEqual({
-    created: true,
-    member: { characterId: "ch1", characterName: "Lyra", itemsAcquired: 0, joinedAt: NOW },
-  });
-  expect(second).toEqual({
-    created: false,
-    member: { characterId: "ch1", characterName: "Lyra, a Ladina", itemsAcquired: 3, joinedAt: NOW },
-  });
+  expect(first).toEqual({ member: beto, created: true });
+  expect(second).toEqual({ member: beto, created: false });
 });
 
-it("lista só os participantes da campanha", async () => {
+it("add não rebaixa o dono", async () => {
   const campaignId = await newCampaign();
-  const other = await newCampaign();
 
-  await members.save(campaignId, { characterId: "ch1", characterName: "Lyra" }, NOW);
-  await members.save(other, { characterId: "ch2", characterName: "Borin" }, NOW);
+  const { created, member: kept } = await members.add(
+    campaignId,
+    member({ userId: "u-ana" }),
+    memberJoined(campaignId, beto),
+  );
 
-  expect((await members.list(campaignId)).map((m) => m.characterId)).toEqual(["ch1"]);
+  expect(created).toBe(false);
+  expect(kept.role).toBe("OWNER");
+});
+
+it("find e remove", async () => {
+  const campaignId = await newCampaign();
+
+  await members.add(campaignId, beto, memberJoined(campaignId, beto));
+  expect(await members.find(campaignId, "u-beto")).toEqual(beto);
+
+  expect(await members.remove(campaignId, "u-beto", left(campaignId))).toBe(true);
+  expect(await members.find(campaignId, "u-beto")).toBeNull();
+  expect(await members.remove(campaignId, "u-beto", left(campaignId))).toBe(false);
+});
+
+it("campaignIdsOf: as campanhas em que o usuário participa", async () => {
+  const one = await newCampaign();
+  const two = await newCampaign();
+  await newCampaign();
+
+  // Usuário só deste teste: os outros também põem o beto em campanhas da mesma tabela.
+  const caio = member({ userId: `u-caio-${randomUUID().slice(0, 8)}`, username: "caio" });
+
+  await members.add(one, caio, memberJoined(one, caio));
+  await members.add(two, caio, memberJoined(two, caio));
+
+  expect((await members.campaignIdsOf(caio.userId)).sort()).toEqual([one, two].sort());
+});
+
+it("setCharacter grava o personagem e mantém o resto", async () => {
+  const campaignId = await newCampaign();
+
+  await members.add(campaignId, beto, memberJoined(campaignId, beto));
+
+  expect(
+    await members.setCharacter(campaignId, "u-beto", { characterId: "ch1", characterName: "Lyra" }),
+  ).toEqual({ ...beto, characterId: "ch1", characterName: "Lyra" });
+});
+
+it("setCharacter de quem não participa falha, sem criar o participante", async () => {
+  const campaignId = await newCampaign();
+
+  await expect(
+    members.setCharacter(campaignId, "u-zeca", { characterId: "ch1", characterName: "Lyra" }),
+  ).rejects.toThrow();
+  expect(await members.find(campaignId, "u-zeca")).toBeNull();
 });

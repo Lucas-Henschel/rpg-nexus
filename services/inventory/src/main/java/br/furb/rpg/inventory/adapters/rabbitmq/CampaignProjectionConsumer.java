@@ -24,19 +24,20 @@ class CampaignProjectionConsumer {
         this.commerce=commerce;this.json=json;this.rabbit=rabbit;this.maxRetries=maxRetries;
     }
 
-    @RabbitListener(queues="rpg.inventory.campaign-events.v1")
+    @RabbitListener(queues="inventory.campaign-members.v1")
     void consume(Message message,Channel channel) throws Exception {
         long tag=message.getMessageProperties().getDeliveryTag();
         try {
             var envelope=json.readTree(message.getBody());
             var payload=envelope.path("payload");
             String type=envelope.path("type").asText();
-            if(!Set.of("rpg.campaign.created.v1","rpg.campaign.member-joined.v1",
-                    "rpg.campaign.member-removed.v1").contains(type))
+            if(!Set.of("rpg.campaign.created.v1","rpg.campaign.member.joined.v1",
+                    "rpg.campaign.member.removed.v1").contains(type))
                 throw new IllegalArgumentException("unsupported campaign event");
-            String userId=type.equals("rpg.campaign.created.v1")
-                ? payload.path("ownerId").asText() : payload.path("userId").asText();
-            String role=type.equals("rpg.campaign.created.v1") ? "OWNER" : payload.path("role").asText("PLAYER");
+            String userId=payload.path("userId").asText();
+            String role=payload.path("role").asText("PLAYER");
+            if(userId.isBlank() && type.equals("rpg.campaign.created.v1")) userId=payload.path("ownerId").asText();
+            if(type.equals("rpg.campaign.created.v1") && role.isBlank()) role="OWNER";
             commerce.projectCampaignEvent(envelope.path("messageId").asText(),type,
                 payload.path("campaignId").asText(),userId,role,payload.path("characterId").asText(""));
             channel.basicAck(tag,false);

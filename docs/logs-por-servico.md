@@ -88,9 +88,8 @@ Para sair, `q`. Os contêineres continuam rodando; para pará-los, `docker compo
 | `v` | Modo de seleção, para copiar um trecho (`c` copia, `Esc` sai) |
 | `q` | Sai |
 
-O painel **inicializadores** mostra `aws-init`, `rabbitmq-init`, `campaigns-init` e
-`characters-init`, que preparam o ambiente e terminam. Ele não fica acompanhando: mostra o
-que eles escreveram e para. Se algum deles falhou, o erro aparece ali.
+O painel **terraform** mostra o contêiner que cria a infraestrutura e termina. Ele não fica
+acompanhando: mostra o que o Terraform escreveu e para. Se ele falhou, o erro aparece ali.
 
 ## Adicionar um serviço
 

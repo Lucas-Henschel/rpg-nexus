@@ -7,9 +7,11 @@ export function uniqueTables(): Tables {
 
   return {
     campaigns: `campaigns_${suffix}`,
+    joinCodes: `campaign_join_codes_${suffix}`,
     members: `campaign_members_${suffix}`,
     activity: `campaign_activity_${suffix}`,
     operations: `campaign_operations_${suffix}`,
     inbox: `campaign_inbox_${suffix}`,
+    outbox: `campaign_outbox_${suffix}`,
   };
 }

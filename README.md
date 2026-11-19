@@ -19,7 +19,7 @@ endpoint de health check, e é declarado no `docker-compose.yml`. Os projetos s�
 independentes: cada um tem suas próprias dependências e lockfile (`package.json`,
 `pom.xml`, `requirements.txt`) e seu Dockerfile usa a própria pasta como contexto,
 podendo ser construído isoladamente com `docker build services/<serviço>`. As exceções
-são `services/characters` e `services/campaigns`, cujo build usa a raiz como contexto
+são `services/characters`, `services/campaigns` e `services/inventory`, cujo build usa a raiz como contexto
 para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
 `docker build -f services/<serviço>/Dockerfile .`.
 
@@ -28,6 +28,10 @@ para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
 | Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns-init`, `campaigns` |
 | Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters-init`, `characters`, `characters-worker` |
 | Inventário e Loja (S3, Java) | [`services/inventory`](services/inventory/README.md) | `inventory-init`, `inventory` |
+| Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns`, `campaigns-worker` |
+| Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters`, `characters-worker` |
+| Inventário (S3, Java) | [`services/inventory`](services/inventory/README.md) | `inventory` |
+| Identidade (S4, Node.js) | [`services/identity`](services/identity/README.md) | `identity` |
 | Front-end (React + Vite) | [`apps/frontend`](apps/frontend/README.md) | `frontend` |
 
 ## Pré-requisitos
@@ -37,7 +41,7 @@ para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
 - Opcional: dekit (mprocs), para ver os logs de cada serviço num painel separado. Veja
   [Logs por serviço no terminal](docs/logs-por-servico.md).
 - Docker Engine ou Docker Desktop em execução, com Docker Compose v2.
-- Portas locais `5672`, `15672`, `4566`, `3001`, `8000` e `5173` livres, ou portas alternativas no `.env`.
+- Portas locais `5672`, `15672`, `4566`, `3001`, `3002`, `8000`, `8080` e `5173` livres, ou portas alternativas no `.env`.
 
 ## Primeiro uso
 
@@ -54,17 +58,15 @@ e exclusivas deste ambiente local.
 
 **`docker compose up --build` é a entrada principal**, subindo
 a infraestrutura e todos os serviços declarados no Compose, com os logs anexados
-ao terminal. O inicializador `aws-init` aguarda o MiniStack saudável, cria o
-bucket caso necessário e termina; repetir a inicialização preserva um bucket
-existente. Em paralelo, depois que o RabbitMQ fica saudável, o inicializador
-`rabbitmq-init` declara o exchange, as filas e as ligações de
-`infra/rabbitmq/definitions.json` e termina. Os serviços esperam a conclusão com
-sucesso dos inicializadores de que dependem, e uma falha de qualquer um deles faz
-o `docker compose up` falhar.
+ao terminal. Depois que o MiniStack e o RabbitMQ ficam saudáveis, o contêiner
+`terraform` cria toda a infraestrutura e termina: as tabelas DynamoDB dos serviços,
+o bucket S3 com CORS e o exchange, as filas e as ligações de
+`infra/rabbitmq/definitions.json`. Rodar de novo não muda nada, e um recurso apagado
+é recriado no próximo `up`. Os serviços só sobem depois que ele termina com sucesso;
+se ele falhar, o `docker compose up` falha. Detalhes em
+[`infra/terraform/README.md`](infra/terraform/README.md).
 
-Em seguida, `campaigns-init` e `characters-init` criam as tabelas DynamoDB dos
-serviços de Campanhas e Personagens (o segundo também aplica o CORS do bucket), e só
-então `campaigns` e `characters` sobem. Com a pilha no ar, abra o
+Com a pilha no ar, abra o
 front-end em [localhost:5173](http://localhost:5173).
 
 ### Logs separados por serviço
@@ -96,12 +98,11 @@ contêiner no Docker Desktop.
 
 ### Serviços opcionais (perfis)
 
-Dois serviços só sobem quando o perfil é pedido, e não mudam o `docker compose up` padrão:
+Um serviço só sobe quando o perfil é pedido e não muda o `docker compose up` padrão:
 
 | Perfil | Serviço | O que faz | Detalhes |
 | --- | --- | --- | --- |
 | `autoscale` | `autoscaler` | Ajusta as réplicas de `characters-worker` pelo tamanho da fila. | [infra/autoscaler](infra/autoscaler/README.md) |
-| `iac` | `terraform` | Recria do zero as tabelas DynamoDB e o bucket S3 no MiniStack. | [infra/terraform](infra/terraform/README.md) |
 
 ## Higiene Git e reprodução
 
@@ -126,8 +127,10 @@ resolvidos entre contêineres na rede Compose, e não no host.
 | RabbitMQ Management | [localhost:15672](http://localhost:15672) | `http://rabbitmq:15672` |
 | MiniStack S3 / DynamoDB | `http://localhost:4566` | `http://ministack:4566` |
 | Campanhas (API) | [localhost:3001/campaigns](http://localhost:3001/campaigns) | `http://campaigns:3001` |
+| Identidade (API) | [localhost:3002/health](http://localhost:3002/health) | `http://identity:3002` |
 | Personagens (API) | [localhost:8000/docs](http://localhost:8000/docs) | `http://characters:8000` |
 | Inventário e Loja (API) | [localhost:8080/health](http://localhost:8080/health) | `http://inventory:8080` |
+| Inventário (API) | [localhost:8080](http://localhost:8080) | `http://inventory:8080` |
 | Front-end | [localhost:5173](http://localhost:5173) | — |
 | Jaeger (traces) | [localhost:16686](http://localhost:16686) | OTLP/HTTP em `http://jaeger:4318` |
 
@@ -144,8 +147,11 @@ resolvidos entre contêineres na rede Compose, e não no host.
 | `AWS_SECRET_ACCESS_KEY` | `test` | Segredo fictício para o MiniStack. |
 | `RPG_ASSETS_BUCKET` | `rpg-assets` | Bucket criado pelo inicializador e usado pelo serviço de Personagens. |
 | `CAMPAIGNS_PORT` | `3001` | Porta da API de Campanhas no host; também é o endereço gravado no build do front-end. |
+| `IDENTITY_PORT` | `3002` | Porta da API de cadastro e autenticação no host. |
 | `CHARACTERS_PORT` | `8000` | Porta da API de Personagens no host; também é o endereço gravado no build do front-end. |
 | `INVENTORY_PORT` | `8080` | Porta da API de Inventário e Loja no host; também é o endereço gravado no build do front-end. |
+| `INVENTORY_PORT` | `8080` | Porta da API de Inventário no host; também é o endereço gravado no build do front-end. |
+| `JWT_SECRET` | segredo local fictício | Assina os tokens do S4; deve ser substituído e protegido fora do ambiente local. |
 | `TRACING_ENABLED` | `true` | Liga o envio de spans ao Jaeger nos serviços. |
 | `JAEGER_UI_PORT` | `16686` | Porta da interface do Jaeger no host. |
 | `OTLP_HTTP_PORT` | `4318` | Porta OTLP/HTTP do Jaeger no host, para serviços rodando fora do Docker. |

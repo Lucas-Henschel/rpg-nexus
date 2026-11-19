@@ -8,18 +8,37 @@ const EnvSchema = z.object({
   CORS_ORIGINS: z
     .string()
     .default("http://localhost:5173")
-    .transform((value) => value.split(",").map((origin) => origin.trim()).filter(Boolean)),
+    .transform((value) =>
+      value
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    ),
 
   AWS_ENDPOINT_URL: z.url().optional(),
   AWS_REGION: z.string().default("us-east-1"),
 
   TABLE_CAMPAIGNS: z.string().default("campaigns"),
+  TABLE_JOIN_CODES: z.string().default("campaign_join_codes"),
   TABLE_MEMBERS: z.string().default("campaign_members"),
   TABLE_ACTIVITY: z.string().default("campaign_activity"),
   TABLE_OPERATIONS: z.string().default("campaign_operations"),
   TABLE_INBOX: z.string().default("campaign_inbox"),
-  
+  TABLE_OUTBOX: z.string().default("campaign_outbox"),
+
   INBOX_TTL_DAYS: count(7),
+
+  // Outbox: de quanto em quanto tempo o relay procura eventos pendentes, quantos pega por vez, por
+  // quanto tempo um evento fica reservado para uma réplica e quantos dias o publicado fica gravado.
+  OUTBOX_POLL_MS: z.coerce.number().int().positive().default(500),
+  OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().default(25),
+  OUTBOX_LEASE_MS: z.coerce.number().int().positive().default(30000),
+  OUTBOX_TTL_DAYS: count(3),
+
+  // Access token do S4 (HS256). O segredo é o mesmo do S4 e não tem padrão: sem ele o serviço não sobe.
+  JWT_SECRET: z.string().min(32),
+  JWT_ISSUER: z.string().default("rpg-nexus-identity"),
+  JWT_AUDIENCE: z.string().default("rpg-nexus-services"),
 
   RABBITMQ_URL: z.string().default("amqp://dev:dev@localhost:5672/"),
   RABBITMQ_EXCHANGE: z.string().default("rpg.events"),
@@ -31,6 +50,10 @@ const EnvSchema = z.object({
   RETRY_MAX_DELAY_MS: count(15000),
 
   CONTRACTS_DIR: z.string().default("../../contracts"),
+
+  // Tracing (OpenTelemetry). O endereço do Jaeger vem de OTEL_EXPORTER_OTLP_ENDPOINT, lido pelo exportador.
+  TRACING_ENABLED: z.stringbool().default(false),
+  SERVICE_NAME: z.string().default("campaigns"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

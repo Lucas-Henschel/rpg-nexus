@@ -1,4 +1,5 @@
-// Cria as tabelas DynamoDB do S1, se ainda não existirem. Só o script create-tables usa.
+// Cria as tabelas DynamoDB do S1, se ainda não existirem. No Compose quem cria é o Terraform;
+// isto é usado pelo script create-tables e pelos testes de integração.
 import {
   CreateTableCommand,
   type CreateTableCommandInput,
@@ -7,6 +8,8 @@ import {
   UpdateTimeToLiveCommand,
   waitUntilTableExists,
 } from "@aws-sdk/client-dynamodb";
+import { MEMBERS_BY_USER_INDEX } from "../repositories/member-repository.js";
+import { OUTBOX_PENDING_INDEX } from "../repositories/outbox-repository.js";
 import type { Tables } from "./tables.js";
 
 /** Tabela com chave de partição e, se informada, chave de ordenação. Todas as chaves são texto. */
@@ -16,24 +19,68 @@ function table(name: string, partitionKey: string, sortKey?: string): CreateTabl
   return {
     TableName: name,
     BillingMode: "PAY_PER_REQUEST",
-    KeySchema: keys.map((key, index) => ({ AttributeName: key, KeyType: index === 0 ? "HASH" : "RANGE" })),
+    KeySchema: keys.map((key, index) => ({
+      AttributeName: key,
+      KeyType: index === 0 ? "HASH" : "RANGE",
+    })),
     AttributeDefinitions: keys.map((key) => ({ AttributeName: key, AttributeType: "S" })),
+  };
+}
+
+/** Participantes de uma campanha, com o índice byUser para achar as campanhas de um usuário. */
+function membersTable(name: string): CreateTableCommandInput {
+  return {
+    ...table(name, "campaignId", "userId"),
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: MEMBERS_BY_USER_INDEX,
+        KeySchema: [
+          { AttributeName: "userId", KeyType: "HASH" },
+          { AttributeName: "campaignId", KeyType: "RANGE" },
+        ],
+        Projection: { ProjectionType: "KEYS_ONLY" },
+      },
+    ],
+  };
+}
+
+/** Eventos a publicar, com o índice esparso `pending` (só os pendentes, na ordem em que foram gravados). */
+function outboxTable(name: string): CreateTableCommandInput {
+  return {
+    ...table(name, "messageId"),
+    AttributeDefinitions: ["messageId", "pendingKey", "pendingAt"].map((key) => ({
+      AttributeName: key,
+      AttributeType: "S",
+    })),
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: OUTBOX_PENDING_INDEX,
+        KeySchema: [
+          { AttributeName: "pendingKey", KeyType: "HASH" },
+          { AttributeName: "pendingAt", KeyType: "RANGE" },
+        ],
+        Projection: { ProjectionType: "KEYS_ONLY" },
+      },
+    ],
   };
 }
 
 const definitions = (tables: Tables): CreateTableCommandInput[] => [
   table(tables.campaigns, "campaignId"),
-  // participantes de uma campanha
-  table(tables.members, "campaignId", "characterId"),
+  // códigos de entrada em uso: cada código aponta para uma campanha
+  table(tables.joinCodes, "joinCode"),
+  membersTable(tables.members),
   // atividade de uma campanha, ordenada pela data (activityKey = occurredAt#operationId)
   table(tables.activity, "campaignId", "activityKey"),
   // operações já contadas
   table(tables.operations, "operationId"),
   // mensagens já processadas; o DynamoDB apaga cada uma quando passa o `expiresAt`
   table(tables.inbox, "messageId"),
+  // eventos a publicar (outbox); o DynamoDB apaga os publicados quando passa o `expiresAt`
+  outboxTable(tables.outbox),
 ];
 
-const INBOX_TTL_ATTRIBUTE = "expiresAt";
+const TTL_ATTRIBUTE = "expiresAt";
 
 async function createTable(client: DynamoDBClient, input: CreateTableCommandInput): Promise<void> {
   try {
@@ -49,7 +96,11 @@ async function createTable(client: DynamoDBClient, input: CreateTableCommandInpu
 }
 
 // O CreateTable não aceita TTL; ele é ligado depois, numa chamada separada.
-async function enableTtl(client: DynamoDBClient, tableName: string, attribute: string): Promise<void> {
+async function enableTtl(
+  client: DynamoDBClient,
+  tableName: string,
+  attribute: string,
+): Promise<void> {
   try {
     await client.send(
       new UpdateTimeToLiveCommand({
@@ -60,7 +111,7 @@ async function enableTtl(client: DynamoDBClient, tableName: string, attribute: s
   } catch (error) {
     // Ligar de novo dá erro; só é problema se o TTL não estiver no atributo certo.
     const { TimeToLiveDescription } = await client.send(
-      new DescribeTimeToLiveCommand({ TableName: tableName })
+      new DescribeTimeToLiveCommand({ TableName: tableName }),
     );
 
     if (TimeToLiveDescription?.AttributeName !== attribute) {
@@ -71,5 +122,6 @@ async function enableTtl(client: DynamoDBClient, tableName: string, attribute: s
 
 export async function ensureTables(client: DynamoDBClient, tables: Tables): Promise<void> {
   await Promise.all(definitions(tables).map((input) => createTable(client, input)));
-  await enableTtl(client, tables.inbox, INBOX_TTL_ATTRIBUTE);
+  await enableTtl(client, tables.inbox, TTL_ATTRIBUTE);
+  await enableTtl(client, tables.outbox, TTL_ATTRIBUTE);
 }
