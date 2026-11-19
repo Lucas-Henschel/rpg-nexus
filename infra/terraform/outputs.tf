@@ -3,6 +3,7 @@ output "dynamodb_tables" {
   value = {
     campaigns = [
       aws_dynamodb_table.campaigns.name,
+      aws_dynamodb_table.campaign_join_codes.name,
       aws_dynamodb_table.campaign_members.name,
       aws_dynamodb_table.campaign_activity.name,
       aws_dynamodb_table.campaign_operations.name,

@@ -42,6 +42,8 @@ x-campaigns: &campaigns
     <<: *backend-env
     CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
     CONTRACTS_DIR: /app/contracts
+    # O mesmo segredo do S4, para validar o access token.
+    JWT_SECRET: ${JWT_SECRET:-dev-only-change-this-jwt-secret-32-characters}
   networks:
     - rpg
 
@@ -248,7 +250,6 @@ services:
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-dev}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev}
       SAGA_TIMEOUT_SECONDS: ${SAGA_TIMEOUT_SECONDS:-60}
-      MAX_RETRIES: ${MAX_RETRIES:-3}
       CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
     ports:
       - "127.0.0.1:${INVENTORY_PORT:-8080}:8080"

@@ -12,12 +12,24 @@ resource "aws_dynamodb_table" "campaigns" {
   }
 }
 
-# Participantes de uma campanha.
+# Códigos de entrada em uso: cada código de seis dígitos aponta para uma campanha.
+resource "aws_dynamodb_table" "campaign_join_codes" {
+  name         = local.campaigns_env["TABLE_JOIN_CODES"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "joinCode"
+
+  attribute {
+    name = "joinCode"
+    type = "S"
+  }
+}
+
+# Participantes de uma campanha (um por usuário). O índice byUser acha as campanhas de um usuário.
 resource "aws_dynamodb_table" "campaign_members" {
   name         = local.campaigns_env["TABLE_MEMBERS"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "campaignId"
-  range_key    = "characterId"
+  range_key    = "userId"
 
   attribute {
     name = "campaignId"
@@ -25,8 +37,15 @@ resource "aws_dynamodb_table" "campaign_members" {
   }
 
   attribute {
-    name = "characterId"
+    name = "userId"
     type = "S"
+  }
+
+  global_secondary_index {
+    name            = "byUser"
+    hash_key        = "userId"
+    range_key       = "campaignId"
+    projection_type = "KEYS_ONLY"
   }
 }
 
