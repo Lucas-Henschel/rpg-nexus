@@ -199,6 +199,60 @@
       "durable": true,
       "auto_delete": false,
       "arguments": {}
+    },
+    {
+      "name": "characters.money-requests.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "characters.money-requests.v1.dlq"
+      }
+    },
+    {
+      "name": "characters.money-requests.v1.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "characters.money-requests.v1"
+      }
+    },
+    {
+      "name": "characters.money-requests.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "inventory.money-replies.v1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "inventory.money-replies.v1.dlq"
+      }
+    },
+    {
+      "name": "inventory.money-replies.v1.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "inventory.money-replies.v1"
+      }
+    },
+    {
+      "name": "inventory.money-replies.v1.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
     }
   ],
   "bindings": [
@@ -344,6 +398,70 @@
       "destination": "actions.history.v1",
       "destination_type": "queue",
       "routing_key": "campaign.member.removed.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "characters.money-requests.v1",
+      "destination_type": "queue",
+      "routing_key": "money.debit.requested.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "characters.money-requests.v1",
+      "destination_type": "queue",
+      "routing_key": "money.refund.requested.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.money-replies.v1",
+      "destination_type": "queue",
+      "routing_key": "money.debited.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "actions.history.v1",
+      "destination_type": "queue",
+      "routing_key": "money.debited.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.money-replies.v1",
+      "destination_type": "queue",
+      "routing_key": "money.debit.rejected.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "actions.history.v1",
+      "destination_type": "queue",
+      "routing_key": "money.debit.rejected.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.money-replies.v1",
+      "destination_type": "queue",
+      "routing_key": "money.refunded.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "actions.history.v1",
+      "destination_type": "queue",
+      "routing_key": "money.refunded.v1",
       "arguments": {}
     }
   ]

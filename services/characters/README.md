@@ -17,6 +17,9 @@ e **RabbitMQ** (eventos).
 | **Reservar capacidade** atomicamente e compensá-la quando a Saga é cancelada | Ler tabelas de outros serviços |
 | Publicar `CharacterValidated` / `CharacterRejected` pela outbox | Chamadas HTTP síncronas para outros serviços |
 | Retratos no S3 (URL pré-assinada ou upload pelo backend) | |
+| Modelos de ficha privados, com versões, e fichas criadas a partir deles | Emitir login ou token (é do S4) |
+| **Dinheiro**: saldo, débito e reembolso atômicos e idempotentes por eventos da compra | Preço, loja e estoque (são do S3) |
+| Garantir que só o dono mexe na ficha e nos modelos dele | Papéis na campanha (dono/jogador são do S1) |
 
 ## 2. Participação na Saga
 
@@ -163,6 +166,51 @@ O S2 envia spans ao Jaeger da pilha (http://localhost:16686) e propaga o W3C `tr
 Ligado por `TRACING_ENABLED=true` (padrão no Compose); com `false`, nenhum span é exportado. O item só vale com os
 quatro serviços no mesmo trace.
 
+### Login e dono da ficha
+
+Toda rota de fichas, modelos e dinheiro exige o access token do S4 (`Authorization: Bearer ...`), validado
+aqui com o mesmo segredo (`JWT_SECRET`), algoritmo (HS256), emissor (`iss`), audiência (`aud`) e validade
+(`exp`). Ficam abertos só `/health`, `/ready`, `/internal/*` e o conteúdo do retrato (o `<img>` do navegador
+não manda token; o endereço só é conhecido por quem já leu a ficha).
+
+- **Dono:** quem cria a ficha (`ownerId` = `sub` do token). Só ele lê, edita, vê reservas, mexe no dinheiro e
+  no retrato; os outros recebem `403 NOT_OWNER`. O dono não muda por PATCH (`422 OWNER_IMMUTABLE`).
+- **Listagem:** `GET /characters?campaignId=` traz só as fichas de quem pergunta.
+- **Fichas antigas**, criadas antes do login, não têm dono e ficam inacessíveis pela API: crie de novo.
+- `app/security.py` valida o token; o código foi conferido com um token emitido pelo próprio S4.
+
+### Dinheiro (Saga de compra da loja)
+
+O saldo (`currency.amount`) é do S2 e só muda por escrita condicional: nunca fica negativo, e duas compras ao
+mesmo tempo não gastam o mesmo dinheiro (condição `currencyAmount >= preço` no `TransactWriteItems`).
+
+| Evento recebido | O que o S2 faz | Resposta |
+|---|---|---|
+| `MoneyDebitRequested` | confere dono (`userId`), campanha, ficha ativa e saldo; debita e registra `MONEY#{operationId}` = `DEBITED` | `MoneyDebited` ou `MoneyDebitRejected` |
+| `MoneyRefundRequested` | devolve o que foi debitado para a operação: `DEBITED` → `REFUNDED` | `MoneyRefunded` |
+
+- **Idempotência dupla:** a inbox barra o mesmo `messageId`; o registro por `operationId` barra o mesmo pedido
+  com outro `messageId` (responde `MoneyDebited` de novo sem cobrar; reembolso repetido não credita de novo).
+- **Reordenação:** reembolso que chega antes do débito vira lápide (`REFUNDED`, valor 0), e o débito atrasado é
+  recusado com `OPERATION_CLOSED`, como nas reservas de capacidade.
+- **Ajuste manual:** `POST /characters/{id}/money/adjustments` (`delta` com sinal, `Idempotency-Key` opcional)
+  para o dono registrar dinheiro ganho ou gasto fora da loja. `GET .../money/transactions` mostra tudo.
+- O PATCH da ficha muda só o nome da moeda: se mudasse o saldo, uma edição com a ficha antiga desfaria um débito
+  feito nesse meio-tempo.
+
+### Modelos de ficha (templates)
+
+Modelo = estrutura da ficha + valores iniciais (atributos, perícias, vida máxima, mochila, moeda e saldo
+inicial). Fica na tabela `character_templates`, privado de quem criou.
+
+- **Sem dados pessoais:** ao salvar, o serviço esvazia anotações, listas e o cabeçalho, e volta contadores ao
+  máximo. Rolagens ficam (são estrutura).
+- **Versões:** cada `PATCH /templates/{id}` grava uma versão nova e imutável (`V#000002`), com `If-Match` para
+  não sobrescrever outra edição (`412`). A versão atual fica no cabeçalho (`HEAD`).
+- **Criar a partir do modelo:** `POST /characters/from-template/{id}` copia a versão (atual ou `version`
+  pedida) e grava `sourceTemplate` na ficha. Editar o modelo depois **não** muda fichas existentes.
+- **Apagar:** o modelo sai da lista e não cria fichas novas; as versões continuam gravadas.
+
 ## 5. Mensageria
 
 | Direção | Evento | Routing key | Fila do S2 |
@@ -173,6 +221,11 @@ quatro serviços no mesmo trace.
 | consome | `AcquisitionCancelled` (`rpg.acquisition.cancelled.v1`) | `acquisition.cancelled.v1` | `characters.acquisition-outcomes.v1` |
 | publica | `CharacterValidated` (`rpg.character.validated.v1`) | `character.validated.v1` | — |
 | publica | `CharacterRejected` (`rpg.character.rejected.v1`) | `character.rejected.v1` | — |
+| consome | `MoneyDebitRequested` (`rpg.money.debit-requested.v1`) | `money.debit.requested.v1` | `characters.money-requests.v1` |
+| consome | `MoneyRefundRequested` (`rpg.money.refund-requested.v1`) | `money.refund.requested.v1` | `characters.money-requests.v1` |
+| publica | `MoneyDebited` (`rpg.money.debited.v1`) | `money.debited.v1` | S3 em `inventory.money-replies.v1`, S4 em `actions.history.v1` |
+| publica | `MoneyDebitRejected` (`rpg.money.debit-rejected.v1`) | `money.debit.rejected.v1` | idem |
+| publica | `MoneyRefunded` (`rpg.money.refunded.v1`) | `money.refunded.v1` | idem |
 
 Cada fila tem `.retry` e `.dlq`. Schemas: `contracts/events/character-*.schema.json`, com exemplos
 válidos e inválidos em `contracts/examples/`. Todo evento produzido é validado contra o schema antes de
@@ -224,6 +277,14 @@ Documentação interativa: `http://localhost:8000/docs`.
 | GET | `/characters?campaignId=c1&limit=50&cursor=` | lista por campanha (paginada) |
 | GET | `/characters/{id}` | consulta; header `ETag` = versão |
 | PATCH | `/characters/{id}` | JSON Merge Patch (`null` remove atributo/perícia); `If-Match` → `412` se desatualizado. O campo `sheet` (organização livre da ficha em blocos) é substituído por inteiro; `null` volta à ficha padrão |
+| POST | `/characters/from-template/{templateId}` | cria ficha copiando o modelo (`version` opcional); grava `sourceTemplate` |
+| POST | `/characters/{id}/money/adjustments` | ajuste do saldo pelo dono (`delta` com sinal); `409 INSUFFICIENT_FUNDS` se ficaria negativo |
+| GET | `/characters/{id}/money/transactions` | débitos, reembolsos e ajustes da ficha |
+| POST | `/templates` | salva modelo privado (v1) |
+| GET | `/templates` | meus modelos |
+| GET | `/templates/{id}?version=` | modelo (versão atual ou pedida) |
+| PATCH | `/templates/{id}` | grava versão nova; `If-Match` → `412` se desatualizado |
+| DELETE | `/templates/{id}` | tira da lista; fichas já criadas não mudam |
 | GET | `/campaigns/{campaignId}/roster` | **consulta (CQRS)**: resumo de cada personagem e totais da campanha, lidos do modelo de leitura |
 | GET | `/characters/{id}/holds` | reservas da Saga (evidência na defesa) |
 | POST | `/characters/{id}/portrait-upload` | URL pré-assinada `PUT` para o S3 |
@@ -237,6 +298,7 @@ Documentação interativa: `http://localhost:8000/docs`.
 | GET | `/internal/read-model` | contadores do projetor |
 | GET | `/internal/messaging` | conexão, reconexões, retries, DLQ, desfechos |
 
+Rotas de fichas, modelos e dinheiro exigem `Authorization: Bearer <access token do S4>`.
 Erros sempre no formato `{"error": {"code", "message", "details"}}`.
 
 ```bash
@@ -328,6 +390,10 @@ contracts-consumed/  expectativas do S2 sobre eventos de P3 (consumer-driven con
    sucesso (inclusive por expiração); é isso que devolve a capacidade.
 3. `deadlineAt` em `CharacterValidationRequested` é **opcional**, mas recomendado.
 4. Nomes de `type`/routing key seguem o padrão do plano (`rpg.<dominio>.<evento>.v1`).
+5. **Compra na loja (P3):** os contratos `money-*.v1` em `contracts/events/` são a proposta do S2. O S3 publica
+   `MoneyDebitRequested` com `userId` do comprador e consome as respostas na fila nova
+   `inventory.money-replies.v1` (separada de `inventory.saga-replies.v1` para não chegar evento desconhecido ao
+   consumidor que já existe). Quando a compra falhar depois do débito, o S3 publica `MoneyRefundRequested`.
 
 ## 11. Limitações conhecidas
 
@@ -338,3 +404,6 @@ contracts-consumed/  expectativas do S2 sobre eventos de P3 (consumer-driven con
   mensagem com backoff menor pode esperar a da frente. Aceitável para o volume da demonstração.
 - Publicação duplicada é possível se o processo cair entre o *confirm* do broker e o `PUBLISHED`
   (entrega *at-least-once*); os consumidores deduplicam por `messageId`.
+- O ajuste manual do saldo é permitido ao dono da ficha. Quando o S1 expuser os papéis da campanha, o certo é
+  só o mestre (`OWNER`) poder dar dinheiro.
+- O S2 ainda não consome `CampaignTemplateAssigned` (o S1 não publica esse evento).

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
-from app.domain.models import CapacityHold, Character
+from app.domain.models import CapacityHold, Character, CharacterTemplate, MoneyEntry
 
 # --- Exceções de infraestrutura que os casos de uso sabem tratar -------------------------------
 
@@ -26,6 +26,10 @@ class ConcurrencyConflict(Exception):
 
 class CharacterAlreadyExists(Exception):
     pass
+
+
+class AdjustmentAlreadyApplied(Exception):
+    """O ajuste de saldo com esta chave já foi gravado: repetir a requisição não ajusta de novo."""
 
 
 class StoreUnavailable(Exception):
@@ -84,7 +88,9 @@ class CharacterStore(Protocol):
 
     def get_character(self, character_id: str) -> Character | None: ...
 
-    def list_characters(self, campaign_id: str, limit: int, cursor: str | None) -> Page: ...
+    def list_characters(self, campaign_id: str, limit: int, cursor: str | None, owner_id: str | None = None) -> Page:
+        """Fichas da campanha; com ``owner_id``, só as daquele usuário."""
+        ...
 
     def save_profile(self, character: Character, expected_version: int, max_items_delta: int) -> None:
         """Grava campos de perfil com condição ``version = expected_version``.
@@ -124,6 +130,30 @@ class CharacterStore(Protocol):
         """inbox(novo) + hold inexistente -> RELEASED (lápide para cancelamento que chegou antes)."""
         ...
 
+    # Dinheiro (todas as transações lançam DuplicateMessage / ConcurrencyConflict)
+    def get_money_entry(self, character_id: str, operation_id: str) -> MoneyEntry | None: ...
+
+    def list_money_entries(self, character_id: str) -> list[MoneyEntry]: ...
+
+    def debit_money(self, inbox: InboxRecord, entry: MoneyEntry, outbox: OutboxRecord) -> None:
+        """inbox(novo) + personagem(dono, campanha, ativo, saldo >= valor) -= valor + entrada DEBITED(nova) + outbox."""
+        ...
+
+    def refund_money(self, inbox: InboxRecord, entry: MoneyEntry, outbox: OutboxRecord) -> None:
+        """inbox(novo) + entrada DEBITED -> REFUNDED + personagem += valor + outbox."""
+        ...
+
+    def create_money_tombstone(self, inbox: InboxRecord, entry: MoneyEntry, outbox: OutboxRecord) -> None:
+        """inbox(novo) + entrada inexistente -> REFUNDED (lápide: reembolso chegou antes do débito) + outbox."""
+        ...
+
+    def adjust_money(self, entry: MoneyEntry) -> None:
+        """Ajuste manual: entrada nova + saldo += amount (com sinal), sem deixar o saldo negativo.
+
+        ``AdjustmentAlreadyApplied`` se a entrada já existe; ``ConcurrencyConflict`` se o saldo não comporta.
+        """
+        ...
+
     # Outbox
     def claim_outbox(self, limit: int, lease_seconds: int, owner: str, now: datetime) -> list[OutboxRecord]:
         """Reivindica até ``limit`` eventos PENDING com lease, para que réplicas não publiquem o mesmo ao mesmo tempo."""
@@ -134,6 +164,28 @@ class CharacterStore(Protocol):
     def release_outbox_claim(self, message_id: str, owner: str) -> None: ...
 
     def outbox_stats(self) -> OutboxStats: ...
+
+
+class TemplateStore(Protocol):
+    """Modelos de ficha: o cabeçalho guarda a versão atual; cada versão fica gravada e não muda mais."""
+
+    def ping(self) -> None: ...
+
+    def create_template(self, template: CharacterTemplate) -> None: ...
+
+    def get_template(self, template_id: str, version: int | None = None) -> CharacterTemplate | None:
+        """Versão pedida, ou a atual. Modelos apagados continuam legíveis por versão (fichas antigas apontam para eles)."""
+        ...
+
+    def list_templates(self, owner_id: str) -> list[CharacterTemplate]:
+        """Versão atual de cada modelo não apagado do usuário."""
+        ...
+
+    def add_version(self, template: CharacterTemplate, expected_version: int) -> None:
+        """Grava a versão nova; ``ConcurrencyConflict`` se a atual não for mais ``expected_version``."""
+        ...
+
+    def delete_template(self, template_id: str, owner_id: str) -> None: ...
 
 
 # --- Armazenamento de objetos -------------------------------------------------------------------

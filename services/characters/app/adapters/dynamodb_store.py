@@ -5,6 +5,7 @@ Modelo (tabelas privadas do S2, ver infra/manifests/characters.json):
 ``characters`` (pk, sk)
     CHAR#{id} / PROFILE          ficha + contadores ``slotsUsed`` / ``slotsAvailable``
     CHAR#{id} / HOLD#{opId}      reserva de capacidade da Saga
+    CHAR#{id} / MONEY#{opId}     operação de dinheiro (débito/reembolso da compra, ou ajuste manual)
     GSI ``byCampaign`` (gsi1pk=CAMPAIGN#{campaignId}, gsi1sk={createdAt}#{id}) — esparso, só perfis
 ``character_inbox`` (messageId)   mensagens já processadas (TTL ``expiresAt``)
 ``character_outbox`` (messageId)  eventos a publicar; GSI esparso ``pending`` (pendingKey, createdAt)
@@ -31,6 +32,7 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from app.application.ports import (
+    AdjustmentAlreadyApplied,
     CharacterAlreadyExists,
     ConcurrencyConflict,
     DuplicateMessage,
@@ -40,7 +42,7 @@ from app.application.ports import (
     Page,
     StoreUnavailable,
 )
-from app.domain.models import CapacityHold, Character, HitPoints, HoldStatus, Portrait
+from app.domain.models import CapacityHold, Character, HitPoints, HoldStatus, MoneyEntry, MoneyStatus, Portrait
 from app.messaging.envelope import format_timestamp
 
 log = logging.getLogger(__name__)
@@ -49,6 +51,7 @@ T = TypeVar("T")
 
 PROFILE_SK = "PROFILE"
 HOLD_PREFIX = "HOLD#"
+MONEY_PREFIX = "MONEY#"
 PENDING = "PENDING"
 _TRANSIENT_CODES = {
     "ProvisionedThroughputExceededException",
@@ -213,6 +216,10 @@ class DynamoDBCharacterStore:
                 "active": c.active,
                 "portrait": self._portrait_map(c.portrait),
                 "version": c.version,
+                "currencyName": c.currency_name,
+                "currencyAmount": c.currency_amount,
+                "sourceTemplateId": c.source_template_id,
+                "sourceTemplateVersion": c.source_template_version,
                 "createdAt": _ts(c.created_at),
                 "updatedAt": _ts(c.updated_at),
                 "gsi1pk": f"CAMPAIGN#{c.campaign_id}",
@@ -251,6 +258,11 @@ class DynamoDBCharacterStore:
             version=d["version"],
             created_at=_parse_ts(d["createdAt"]),
             updated_at=_parse_ts(d["updatedAt"]),
+            # fichas gravadas antes do dinheiro existir começam com saldo 0
+            currency_name=d.get("currencyName", "Moedas"),
+            currency_amount=int(d.get("currencyAmount", 0)),
+            source_template_id=d.get("sourceTemplateId"),
+            source_template_version=d.get("sourceTemplateVersion"),
         )
 
     def create_character(self, character: Character) -> None:
@@ -276,7 +288,7 @@ class DynamoDBCharacterStore:
         item = resp.get("Item")
         return self._character_from(item) if item else None
 
-    def list_characters(self, campaign_id: str, limit: int, cursor: str | None) -> Page:
+    def list_characters(self, campaign_id: str, limit: int, cursor: str | None, owner_id: str | None = None) -> Page:
         params: dict[str, Any] = {
             "TableName": self._t_chars,
             "IndexName": "byCampaign",
@@ -284,6 +296,10 @@ class DynamoDBCharacterStore:
             "ExpressionAttributeValues": {":p": {"S": f"CAMPAIGN#{campaign_id}"}},
             "Limit": limit,
         }
+        if owner_id is not None:
+            # o filtro roda depois do Limit: uma página pode vir com menos itens, mas o cursor continua valendo
+            params["FilterExpression"] = "ownerId = :o"
+            params["ExpressionAttributeValues"][":o"] = {"S": owner_id}
         if cursor:
             params["ExclusiveStartKey"] = json.loads(base64.urlsafe_b64decode(cursor.encode()))
         resp = self._call(self._client.query, **params)
@@ -302,6 +318,8 @@ class DynamoDBCharacterStore:
             f"{e.n('hpMax')} = {e.v(character.hp.max)}",
             f"{e.n('active')} = {e.v(character.active)}",
             f"{e.n('version')} = {e.v(character.version)}",
+            # só o nome da moeda: o saldo muda apenas pelas operações condicionais de dinheiro
+            f"{e.n('currencyName')} = {e.v(character.currency_name)}",
             f"{e.n('updatedAt')} = {e.v(_ts(character.updated_at))}",
         ]
         removes = []
@@ -539,6 +557,159 @@ class DynamoDBCharacterStore:
                 },
             ]
         )
+
+    # --- dinheiro -----------------------------------------------------------------------------
+
+    @staticmethod
+    def _money_item(m: MoneyEntry) -> dict[str, Any]:
+        return _to_item(
+            {
+                "pk": _char_pk(m.character_id),
+                "sk": f"{MONEY_PREFIX}{m.operation_id}",
+                "entity": "MONEY",
+                "operationId": m.operation_id,
+                "characterId": m.character_id,
+                "kind": m.kind,
+                "amount": m.amount,
+                "status": m.status.value if m.status else None,
+                "campaignId": m.campaign_id,
+                "userId": m.user_id,
+                "reason": m.reason,
+                "tombstone": m.tombstone,
+                "createdAt": _ts(m.created_at),
+                "updatedAt": _ts(m.updated_at),
+            }
+        )
+
+    @staticmethod
+    def _money_from(item: dict[str, Any]) -> MoneyEntry:
+        d = _from_item(item)
+        return MoneyEntry(
+            operation_id=d["operationId"],
+            character_id=d["characterId"],
+            kind=d["kind"],
+            amount=d["amount"],
+            status=MoneyStatus(d["status"]) if d.get("status") else None,
+            campaign_id=d.get("campaignId"),
+            user_id=d.get("userId"),
+            reason=d.get("reason"),
+            tombstone=bool(d.get("tombstone", False)),
+            created_at=_parse_ts(d["createdAt"]),
+            updated_at=_parse_ts(d["updatedAt"]),
+        )
+
+    def _money_put(self, entry: MoneyEntry) -> dict[str, Any]:
+        return {
+            "Put": {
+                "TableName": self._t_chars,
+                "Item": self._money_item(entry),
+                "ConditionExpression": "attribute_not_exists(pk)",
+            }
+        }
+
+    def _balance_update(self, character_id: str, delta: int, condition: str, e: _Expr) -> dict[str, Any]:
+        amount = e.n("currencyAmount")
+        return {
+            "Update": {
+                "TableName": self._t_chars,
+                "Key": _to_item({"pk": _char_pk(character_id), "sk": PROFILE_SK}),
+                # if_not_exists: fichas antigas não têm o atributo e começam em 0
+                "UpdateExpression": f"SET {amount} = if_not_exists({amount}, {e.v(0)}) + {e.v(delta)}",
+                "ConditionExpression": condition,
+                **e.params(),
+            }
+        }
+
+    def get_money_entry(self, character_id: str, operation_id: str) -> MoneyEntry | None:
+        resp = self._call(
+            self._client.get_item,
+            TableName=self._t_chars,
+            Key=_to_item({"pk": _char_pk(character_id), "sk": f"{MONEY_PREFIX}{operation_id}"}),
+            ConsistentRead=True,
+        )
+        item = resp.get("Item")
+        return self._money_from(item) if item else None
+
+    def list_money_entries(self, character_id: str) -> list[MoneyEntry]:
+        entries: list[MoneyEntry] = []
+        params: dict[str, Any] = {
+            "TableName": self._t_chars,
+            "KeyConditionExpression": "pk = :pk AND begins_with(sk, :m)",
+            "ExpressionAttributeValues": {":pk": {"S": _char_pk(character_id)}, ":m": {"S": MONEY_PREFIX}},
+            "ConsistentRead": True,
+        }
+        while True:
+            resp = self._call(self._client.query, **params)
+            entries.extend(self._money_from(i) for i in resp.get("Items", []))
+            if "LastEvaluatedKey" not in resp:
+                break
+            params["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+        return sorted(entries, key=lambda m: m.created_at)
+
+    def debit_money(self, inbox: InboxRecord, entry: MoneyEntry, outbox: OutboxRecord) -> None:
+        e = _Expr()
+        amount = e.n("currencyAmount")
+        # Débito atômico: o saldo só cai se ainda comportar o valor (duas compras nunca gastam o mesmo dinheiro).
+        condition = (
+            f"attribute_exists(pk) AND {amount} >= {e.v(entry.amount)} AND {e.n('ownerId')} = {e.v(entry.user_id or '')}"
+            f" AND {e.n('campaignId')} = {e.v(entry.campaign_id or '')} AND {e.n('active')} = {e.v(True)}"
+        )
+        self._transact(
+            [
+                self._inbox_put(inbox),
+                self._balance_update(entry.character_id, -entry.amount, condition, e),
+                self._money_put(entry),
+                self._outbox_put(outbox),
+            ]
+        )
+
+    def refund_money(self, inbox: InboxRecord, entry: MoneyEntry, outbox: OutboxRecord) -> None:
+        status_e = _Expr()
+        status = status_e.n("status")
+        balance_e = _Expr()
+        self._transact(
+            [
+                self._inbox_put(inbox),
+                {
+                    "Update": {
+                        "TableName": self._t_chars,
+                        "Key": _to_item({"pk": _char_pk(entry.character_id), "sk": f"{MONEY_PREFIX}{entry.operation_id}"}),
+                        "UpdateExpression": (
+                            f"SET {status} = {status_e.v(MoneyStatus.REFUNDED.value)}, "
+                            f"{status_e.n('updatedAt')} = {status_e.v(_ts(entry.updated_at))}"
+                        ),
+                        # só devolve o que foi debitado, e uma única vez
+                        "ConditionExpression": f"{status} = {status_e.v(MoneyStatus.DEBITED.value)}",
+                        **status_e.params(),
+                    }
+                },
+                self._balance_update(entry.character_id, entry.amount, "attribute_exists(pk)", balance_e),
+                self._outbox_put(outbox),
+            ]
+        )
+
+    def create_money_tombstone(self, inbox: InboxRecord, entry: MoneyEntry, outbox: OutboxRecord) -> None:
+        self._transact([self._inbox_put(inbox), self._money_put(entry), self._outbox_put(outbox)])
+
+    def adjust_money(self, entry: MoneyEntry) -> None:
+        e = _Expr()
+        condition = "attribute_exists(pk)"
+        if entry.amount < 0:
+            amount = e.n("currencyAmount")
+            condition += f" AND {amount} >= {e.v(-entry.amount)}"
+        items = [self._money_put(entry), self._balance_update(entry.character_id, entry.amount, condition, e)]
+        try:
+            self._call(self._client.transact_write_items, TransactItems=items)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") != "TransactionCanceledException":
+                raise
+            reasons = [r.get("Code") for r in exc.response.get("CancellationReasons") or []]
+            if not reasons:
+                match = re.search(r"\[(.*)\]", exc.response.get("Error", {}).get("Message", ""))
+                reasons = [r.strip() for r in match.group(1).split(",")] if match else []
+            if reasons and reasons[0] == "ConditionalCheckFailed":
+                raise AdjustmentAlreadyApplied(entry.operation_id) from exc
+            raise ConcurrencyConflict(",".join(str(r) for r in reasons)) from exc
 
     # --- outbox (relay) -----------------------------------------------------------------------
 

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:money-debited:v1",
+  "title": "MoneyDebited v1",
+  "description": "O S2 debitou o preço; a Saga pode entregar o item. Repetir o pedido da mesma operação confirma de novo sem cobrar outra vez.",
+  "x-routing": {
+    "exchange": "rpg.events",
+    "routingKey": "money.debited.v1",
+    "producer": "characters (S2, P2)",
+    "consumers": [
+      "inventory (S3, P3) — fila inventory.money-replies.v1",
+      "actions (S4, P4) — fila actions.history.v1"
+    ]
+  },
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "urn:rpg-nexus:envelope:v1"
+    }
+  ],
+  "properties": {
+    "type": {
+      "const": "rpg.money.debited.v1"
+    },
+    "version": {
+      "const": 1
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "operationId",
+        "campaignId",
+        "characterId",
+        "userId",
+        "amount",
+        "balance"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "operationId": {
+          "$ref": "#/$defs/id"
+        },
+        "campaignId": {
+          "$ref": "#/$defs/id"
+        },
+        "characterId": {
+          "$ref": "#/$defs/id"
+        },
+        "userId": {
+          "$ref": "#/$defs/id"
+        },
+        "amount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "balance": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Saldo depois do débito."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    }
+  }
+}

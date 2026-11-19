@@ -6,36 +6,12 @@ import pytest
 
 pytest.importorskip("fastapi")
 pytest.importorskip("httpx")
-from fastapi.testclient import TestClient  # noqa: E402
 
-from app.bootstrap import build_container  # noqa: E402
-from app.config import Settings  # noqa: E402
-from app.main import create_app  # noqa: E402
 
 from .conftest import validation_request  # noqa: E402
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 BODY = {"campaignId": "c1", "name": "Lyra", "hp": {"current": 10, "max": 10}, "attributes": {"forca": 15}, "maxItems": 3}
-
-
-@pytest.fixture
-def container():
-    settings = Settings.from_env(
-        {
-            "STORE_BACKEND": "memory",
-            "STORAGE_BACKEND": "memory",
-            "MESSAGING_ENABLED": "false",
-            "LOG_FORMAT": "text",
-            "PORTRAIT_MAX_BYTES": "2048",
-        }
-    )
-    return build_container(settings)
-
-
-@pytest.fixture
-def api(container):
-    with TestClient(create_app(container=container)) as client:
-        yield client
 
 
 def _create(api, **overrides):

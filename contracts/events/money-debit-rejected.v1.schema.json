@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:money-debit-rejected:v1",
+  "title": "MoneyDebitRejected v1",
+  "description": "O S2 recusou o débito; nada foi cobrado. O S3 deve liberar o estoque reservado.",
+  "x-routing": {
+    "exchange": "rpg.events",
+    "routingKey": "money.debit.rejected.v1",
+    "producer": "characters (S2, P2)",
+    "consumers": [
+      "inventory (S3, P3) — fila inventory.money-replies.v1",
+      "actions (S4, P4) — fila actions.history.v1"
+    ]
+  },
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "urn:rpg-nexus:envelope:v1"
+    }
+  ],
+  "properties": {
+    "type": {
+      "const": "rpg.money.debit-rejected.v1"
+    },
+    "version": {
+      "const": 1
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "operationId",
+        "campaignId",
+        "characterId",
+        "userId",
+        "amount",
+        "reason"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "operationId": {
+          "$ref": "#/$defs/id"
+        },
+        "campaignId": {
+          "$ref": "#/$defs/id"
+        },
+        "characterId": {
+          "$ref": "#/$defs/id"
+        },
+        "userId": {
+          "$ref": "#/$defs/id"
+        },
+        "amount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "CHARACTER_NOT_FOUND",
+            "NOT_OWNER",
+            "CAMPAIGN_MISMATCH",
+            "CHARACTER_INACTIVE",
+            "INSUFFICIENT_FUNDS",
+            "DEADLINE_EXPIRED",
+            "OPERATION_CLOSED"
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    }
+  }
+}

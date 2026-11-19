@@ -28,6 +28,8 @@ x-characters: &characters
     FAULT_CRASH_BEFORE_ACK: ${FAULT_CRASH_BEFORE_ACK:-off}
     CONSUMER_SIMULATED_DELAY_MS: ${CONSUMER_SIMULATED_DELAY_MS:-0}
     JAEGER_QUERY_URL: http://jaeger:16686
+    # O mesmo segredo do S4, para validar o access token.
+    JWT_SECRET: ${JWT_SECRET:-dev-only-change-this-jwt-secret-32-characters}
   networks:
     - rpg
 

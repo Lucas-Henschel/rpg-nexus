@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:money-refund-requested:v1",
+  "title": "MoneyRefundRequested v1",
+  "description": "Compensação da compra: o S3 pede ao S2 que devolva o que foi debitado para a operação. O S2 credita no máximo uma vez; se não houve débito, responde MoneyRefunded com amount 0 e recusa um débito atrasado da mesma operação.",
+  "x-routing": {
+    "exchange": "rpg.events",
+    "routingKey": "money.refund.requested.v1",
+    "producer": "inventory (S3, P3)",
+    "consumers": [
+      "characters (S2, P2) — fila characters.money-requests.v1"
+    ]
+  },
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "urn:rpg-nexus:envelope:v1"
+    }
+  ],
+  "properties": {
+    "type": {
+      "const": "rpg.money.refund-requested.v1"
+    },
+    "version": {
+      "const": 1
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "operationId",
+        "campaignId",
+        "characterId"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "operationId": {
+          "$ref": "#/$defs/id"
+        },
+        "campaignId": {
+          "$ref": "#/$defs/id"
+        },
+        "characterId": {
+          "$ref": "#/$defs/id"
+        },
+        "amount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Informativo; o S2 devolve o valor que ele mesmo registrou."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    }
+  }
+}

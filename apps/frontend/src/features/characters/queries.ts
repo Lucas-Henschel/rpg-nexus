@@ -1,19 +1,25 @@
 /** Consultas e alterações do S2 Personagens. As telas usam estes hooks em vez de chamar a API. */
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  adjustMoney,
+  createTemplate,
+  deleteTemplate,
   getCharacter,
   listCharacters,
   listHolds,
+  listTemplates,
   updateCharacter,
   uploadPortrait,
   type Character,
   type CharacterPatch,
+  type TemplateInput,
 } from "./api";
 
 export const characterKeys = {
   list: (campaignId: string) => ["characters", "list", campaignId] as const,
   detail: (id: string) => ["characters", "detail", id] as const,
   holds: (id: string) => ["characters", "holds", id] as const,
+  templates: ["characters", "templates"] as const,
 };
 
 export function useCharacters(campaignId: string) {
@@ -85,5 +91,37 @@ export function useUploadPortrait(id: string) {
   return useMutation({
     mutationFn: (file: File) => uploadPortrait(id, file),
     onSuccess: store,
+  });
+}
+
+/** Ajuste de saldo: a resposta é a ficha com o saldo novo, que vai direto para o cache. */
+export function useAdjustMoney(id: string) {
+  const store = useStoreCharacter();
+
+  return useMutation({
+    mutationFn: ({ delta, reason }: { delta: number; reason: string }) => adjustMoney(id, delta, reason),
+    onSuccess: store,
+  });
+}
+
+export function useTemplates() {
+  return useQuery({ queryKey: characterKeys.templates, queryFn: listTemplates });
+}
+
+export function useCreateTemplate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: TemplateInput) => createTemplate(input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: characterKeys.templates }),
+  });
+}
+
+export function useDeleteTemplate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (templateId: string) => deleteTemplate(templateId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: characterKeys.templates }),
   });
 }

@@ -72,6 +72,12 @@ class _Env:
         return tuple(part.strip() for part in self.str(name, default).split(",") if part.strip())
 
 
+def _jwt_secret(value: str) -> str:
+    if len(value) < 32:
+        raise ConfigError("JWT_SECRET deve ter ao menos 32 caracteres (o mesmo segredo do S4)")
+    return value
+
+
 def _default_dir(name: str) -> Path:
     """Localiza contracts/ tanto no monorepo quanto na imagem Docker (/app/contracts)."""
     here = Path(__file__).resolve()
@@ -103,6 +109,14 @@ class Settings:
     table_outbox: str = "character_outbox"
     #: Modelo de leitura (CQRS): resumo por personagem, consultado por campanha.
     table_read_model: str = "character_read_model"
+    table_templates: str = "character_templates"
+
+    # Autenticação: access token do S4 Identidade (HS256 com segredo compartilhado).
+    auth_required: bool = True
+    #: Mesmo valor padrão de desenvolvimento do S4 e do S1; em uso real vem de JWT_SECRET.
+    jwt_secret: str = "dev-only-change-this-jwt-secret-32-characters"  # noqa: S105
+    jwt_issuer: str = "rpg-nexus-identity"
+    jwt_audience: str = "rpg-nexus-services"
     inbox_ttl_days: int = 7
     outbox_published_ttl_days: int = 3
 
@@ -171,6 +185,11 @@ class Settings:
             table_inbox=e.str("TABLE_INBOX", defaults.table_inbox),
             table_outbox=e.str("TABLE_OUTBOX", defaults.table_outbox),
             table_read_model=e.str("TABLE_READ_MODEL", defaults.table_read_model),
+            table_templates=e.str("TABLE_TEMPLATES", defaults.table_templates),
+            auth_required=e.bool("AUTH_REQUIRED", True),
+            jwt_secret=_jwt_secret(e.str("JWT_SECRET", defaults.jwt_secret)),
+            jwt_issuer=e.str("JWT_ISSUER", defaults.jwt_issuer),
+            jwt_audience=e.str("JWT_AUDIENCE", defaults.jwt_audience),
             inbox_ttl_days=e.int("INBOX_TTL_DAYS", defaults.inbox_ttl_days, minimum=1),
             outbox_published_ttl_days=e.int("OUTBOX_PUBLISHED_TTL_DAYS", defaults.outbox_published_ttl_days, minimum=1),
             storage_backend=e.choice("STORAGE_BACKEND", "s3", {"s3", "memory"}),

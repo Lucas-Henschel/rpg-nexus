@@ -1,9 +1,9 @@
-import { useRef, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { PORTRAIT_MAX_BYTES, PORTRAIT_TYPES, portraitUrl, type Character } from "../api";
 import { errorMessage } from "../../../shared/http";
 import { Initials } from "../../../shared/ui/Sheet";
 import { useToast } from "../../../shared/ui/toast-context";
-import { useUploadPortrait } from "../queries";
+import { useAdjustMoney, useUploadPortrait } from "../queries";
 import type { Draft } from "./sheetDraft";
 
 function PortraitPicker({ character, name }: { character: Character; name: string }) {
@@ -33,6 +33,57 @@ function PortraitPicker({ character, name }: { character: Character; name: strin
   </div>;
 }
 
+/**
+ * Saldo do personagem. Ele não faz parte do rascunho: cada ajuste vai na hora para o S2, que nunca
+ * deixa o saldo negativo. As compras na loja também mexem nele, por isso não dá para editar à mão.
+ */
+function MoneyPanel({ character }: { character: Character }) {
+  const toast = useToast();
+  const adjust = useAdjustMoney(character.id);
+  const [amount, setAmount] = useState("");
+  const value = Number(amount);
+  const valid = Number.isSafeInteger(value) && value > 0;
+
+  const send = (sign: 1 | -1) => (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!valid) {
+      return toast("error", "Informe um valor inteiro maior que zero.");
+    }
+
+    adjust.mutate(
+      { delta: sign * value, reason: sign > 0 ? "ajuste na ficha (entrada)" : "ajuste na ficha (saída)" },
+      {
+        onSuccess: () => setAmount(""),
+        onError: (error) => toast("error", errorMessage(error, "Não foi possível ajustar o saldo.")),
+      },
+    );
+  };
+
+  return (
+    <form className="money" onSubmit={send(1)} aria-label="Dinheiro">
+      <span className="money__balance">
+        <strong>{character.currency.amount}</strong> {character.currency.name}
+      </span>
+      <input
+        className="ink-input money__amount"
+        type="number"
+        min={1}
+        step={1}
+        value={amount}
+        onChange={(event) => setAmount(event.target.value)}
+        placeholder="Valor"
+        aria-label="Valor do ajuste"
+      />
+      <button type="submit" className="button button--ghost-ink" disabled={adjust.isPending}>
+        Adicionar
+      </button>
+      <button type="button" className="button button--ghost-ink" onClick={send(-1)} disabled={adjust.isPending}>
+        Gastar
+      </button>
+    </form>
+  );
+}
+
 export function SheetIdentity({ character, draft, edit }: {
   character: Character; draft: Draft; edit: (changes: Partial<Draft>) => void;
 }) {
@@ -50,8 +101,9 @@ export function SheetIdentity({ character, draft, edit }: {
         <label>Nível <input className="ink-input" type="number" min={0} value={value("level")} onChange={event => setHeader("level", event.target.value)} /></label>
         <label>Descrição do nível <input className="ink-input" value={value("levelDescription")} onChange={event => setHeader("levelDescription", event.target.value)} placeholder="Ex.: Explorador" /></label>
         <label>Defesa <input className="ink-input" type="number" min={0} value={value("defense")} onChange={event => setHeader("defense", event.target.value)} /></label>
-        <label>Dinheiro <input className="ink-input" type="number" min={0} step="0.01" value={value("money")} onChange={event => setHeader("money", event.target.value)} /></label>
+        <label>Moeda <input className="ink-input" value={draft.currencyName} onChange={event => edit({ currencyName: event.target.value })} maxLength={30} /></label>
       </div>
+      <MoneyPanel character={character} />
       <div className="sheet__meta"><span>Campanha {character.campaignId}</span>
         <label className="switch"><input type="checkbox" checked={draft.active} onChange={event => edit({ active: event.target.checked })} />
           <span>{draft.active ? "Ativo: pode receber itens" : "Inativo: não recebe itens"}</span>

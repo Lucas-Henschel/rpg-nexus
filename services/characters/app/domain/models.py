@@ -27,6 +27,30 @@ class HoldStatus(StrEnum):
         return self is not HoldStatus.HELD
 
 
+class MoneyStatus(StrEnum):
+    """Estado de uma operação de dinheiro da Saga de compra, guardada por ``operationId``.
+
+    DEBITED   -> o valor saiu do saldo (MoneyDebitRequested aprovado).
+    REFUNDED  -> o valor voltou ao saldo (MoneyRefundRequested); terminal.
+
+    Uma entrada já REFUNDED sem débito anterior é uma *lápide*: o reembolso chegou antes do pedido de
+    débito (reordenação), e o débito atrasado é recusado em vez de cobrar uma compra já desfeita.
+    """
+
+    DEBITED = "DEBITED"
+    REFUNDED = "REFUNDED"
+
+
+class MoneyRejectionReason(StrEnum):
+    CHARACTER_NOT_FOUND = "CHARACTER_NOT_FOUND"
+    NOT_OWNER = "NOT_OWNER"
+    CAMPAIGN_MISMATCH = "CAMPAIGN_MISMATCH"
+    CHARACTER_INACTIVE = "CHARACTER_INACTIVE"
+    INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
+    DEADLINE_EXPIRED = "DEADLINE_EXPIRED"
+    OPERATION_CLOSED = "OPERATION_CLOSED"
+
+
 class RejectionReason(StrEnum):
     CHARACTER_NOT_FOUND = "CHARACTER_NOT_FOUND"
     CHARACTER_INACTIVE = "CHARACTER_INACTIVE"
@@ -77,6 +101,12 @@ class Character:
     #: Organização livre da ficha (colunas de blocos), definida pelo frontend. None = ficha padrão.
     sheet: dict[str, Any] | None = None
     version: int = 1
+    #: Dinheiro. Só o S2 altera ``currency_amount``, sempre com escrita condicional (nunca negativo).
+    currency_name: str = "Moedas"
+    currency_amount: int = 0
+    #: De qual modelo (e versão) a ficha foi copiada. A cópia é fixa: o modelo mudar depois não a altera.
+    source_template_id: str | None = None
+    source_template_version: int | None = None
 
     @property
     def slots_available(self) -> int:
@@ -106,4 +136,60 @@ class CapacityHold:
     tombstone: bool = False
 
     def evolve(self, **changes: object) -> CapacityHold:
+        return replace(self, **changes)  # type: ignore[arg-type]
+
+
+@dataclass(frozen=True)
+class MoneyEntry:
+    """Registro de uma operação de dinheiro do personagem (débito da Saga, reembolso ou ajuste manual).
+
+    Débitos/reembolsos têm uma entrada por ``operation_id`` (idempotência por operação, além da inbox).
+    Ajustes manuais do dono da ficha usam ``kind="ADJUSTMENT"`` e ``amount`` com sinal.
+    """
+
+    operation_id: str
+    character_id: str
+    kind: str  # "PURCHASE" | "ADJUSTMENT"
+    amount: int
+    status: MoneyStatus | None
+    created_at: datetime
+    updated_at: datetime
+    campaign_id: str | None = None
+    user_id: str | None = None
+    reason: str | None = None
+    tombstone: bool = False
+
+    def evolve(self, **changes: object) -> MoneyEntry:
+        return replace(self, **changes)  # type: ignore[arg-type]
+
+
+@dataclass(frozen=True)
+class TemplateDefinition:
+    """Estrutura e valores iniciais de uma ficha. Nada de dados atuais de um personagem."""
+
+    sheet: dict[str, Any] | None
+    attributes: dict[str, int]
+    skills: dict[str, int]
+    hp_max: int
+    max_items: int
+    currency_name: str
+    currency_amount: int
+
+
+@dataclass(frozen=True)
+class CharacterTemplate:
+    """Modelo de ficha privado do usuário. Cada edição cria uma versão nova e imutável."""
+
+    id: str
+    owner_id: str
+    name: str
+    description: str | None
+    version: int
+    definition: TemplateDefinition
+    created_at: datetime
+    updated_at: datetime
+    visibility: str = "PRIVATE"
+    deleted: bool = False
+
+    def evolve(self, **changes: object) -> CharacterTemplate:
         return replace(self, **changes)  # type: ignore[arg-type]
