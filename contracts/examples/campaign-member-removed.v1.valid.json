@@ -1,0 +1,14 @@
+{
+  "messageId": "5b4d0e3a-7c6f-4081-9d9c-3e4f5a6b7c82",
+  "correlationId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "type": "rpg.campaign.member.removed.v1",
+  "version": 1,
+  "occurredAt": "2026-11-19T12:00:00Z",
+  "payload": {
+    "campaignId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "userId": "u-beto",
+    "removedBy": "u-ana",
+    "reason": "REMOVED",
+    "removedAt": "2026-11-19T12:00:00Z"
+  }
+}

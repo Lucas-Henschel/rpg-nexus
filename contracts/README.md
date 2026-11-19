@@ -33,11 +33,20 @@ Todos passam pelo exchange `rpg.events` (tipo `topic`). As filas ficam em
 | `ExternalValidationFailed` | `external.validation.failed.v1` | S4 Ações | S3 (`inventory.saga-replies.v1`) |
 | `ItemAcquired` | `item.acquired.v1` | S3 Inventário | S1 (`campaigns.activity.v1`), S2 (`characters.acquisition-outcomes.v1`), S4 (`actions.history.v1`) |
 | `AcquisitionCancelled` | `acquisition.cancelled.v1` | S3 Inventário | S2 (`characters.acquisition-outcomes.v1`), S4 (`actions.history.v1`) |
+| `CampaignCreated` | `campaign.created.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`), S4 (`actions.history.v1`) |
+| `CampaignMemberJoined` | `campaign.member.joined.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`), S4 (`actions.history.v1`) |
+| `CampaignMemberRemoved` | `campaign.member.removed.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`), S4 (`actions.history.v1`) |
 
-Todos os payloads têm `operationId`, `campaignId`, `characterId`, `itemId` e `quantity`. Os campos
-próprios de cada evento estão descritos no esquema dele. O S3 publica `AcquisitionCancelled` sempre
+Os payloads da aquisição têm `operationId`, `campaignId`, `characterId`, `itemId` e `quantity`. Os
+campos próprios de cada evento estão descritos no esquema dele. O S3 publica `AcquisitionCancelled` sempre
 que uma Saga que já pediu a validação do personagem termina sem entregar o item: é esse evento que
 faz o S2 devolver o espaço reservado na mochila.
+
+Os eventos de campanha usam `correlationId = campaignId` e saem da outbox do S1, gravados na mesma
+transação da mudança. Criar uma campanha publica `CampaignCreated` e também `CampaignMemberJoined`
+do dono (`role = OWNER`), então quem projeta participantes só precisa tratar entrada e saída. Entrar
+de novo quem já participa não gera evento. A fila `inventory.campaign-members.v1` é para a projeção
+de participantes do S3: as mensagens ficam guardadas nela até o S3 começar a consumir.
 
 ## Mudanças
 

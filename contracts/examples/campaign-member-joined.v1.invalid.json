@@ -1,0 +1,14 @@
+{
+  "messageId": "4a3c9d2f-6b5e-4f70-8c8b-2d3e4f5a6b71",
+  "correlationId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "type": "rpg.campaign.member.joined.v1",
+  "version": 1,
+  "occurredAt": "2026-11-19T12:00:00Z",
+  "payload": {
+    "campaignId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "userId": "u-beto",
+    "username": "beto",
+    "role": "GM",
+    "joinedAt": "2026-11-19T12:00:00Z"
+  }
+}
