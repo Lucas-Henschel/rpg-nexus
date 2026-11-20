@@ -6,9 +6,11 @@ import { describe, expect, it } from "vitest";
 import { loadEnv } from "../../src/config.js";
 import {
   campaignCreated,
+  memberCharacterChosen,
   memberJoined,
   memberRemoved,
   type OutboxMessage,
+  templateAssigned,
 } from "../../src/messaging/outgoing.js";
 import { campaign, member, NOW } from "../db/fixtures.js";
 import { AUTH_ENV } from "../tokens.js";
@@ -81,6 +83,47 @@ describe("eventos publicados pelo S1", () => {
     );
 
     expect(envelope.payload).toMatchObject({ reason: "REMOVED", removedBy: "u-ana" });
+  });
+
+  it("CampaignMemberCharacterChosen segue o contrato", () => {
+    const beto = member({ userId: "u-beto", characterId: "ch1", characterName: "Lyra" });
+    const envelope = expectValid(
+      memberCharacterChosen(CAMPAIGN.campaignId, beto),
+      "campaign-member-character-chosen.v1.schema.json",
+    );
+
+    expect(envelope.payload).toEqual({
+      campaignId: CAMPAIGN.campaignId,
+      userId: "u-beto",
+      role: "PLAYER",
+      characterId: "ch1",
+      characterName: "Lyra",
+    });
+  });
+
+  it("CampaignTemplateAssigned segue o contrato", () => {
+    const envelope = expectValid(
+      templateAssigned(CAMPAIGN.campaignId, "u-ana", {
+        templateId: "t-aventureiro",
+        version: 3,
+        name: "Aventureiro de Ooo",
+        assignedAt: NOW,
+      }),
+      "campaign-template-assigned.v1.schema.json",
+    );
+
+    expect(envelope).toMatchObject({
+      correlationId: CAMPAIGN.campaignId,
+      occurredAt: NOW,
+      payload: {
+        campaignId: CAMPAIGN.campaignId,
+        templateId: "t-aventureiro",
+        templateVersion: 3,
+        templateName: "Aventureiro de Ooo",
+        assignedBy: "u-ana",
+        assignedAt: NOW,
+      },
+    });
   });
 
   it("cada evento ganha um messageId novo", () => {

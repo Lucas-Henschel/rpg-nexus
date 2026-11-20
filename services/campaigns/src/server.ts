@@ -5,6 +5,7 @@ import { buildApp } from "./http/app.js";
 import { connectRabbit } from "./messaging/connection.js";
 import { startConsumer } from "./messaging/consumer.js";
 import { createItemAcquiredParser } from "./messaging/events.js";
+import { createTemplateCatalog } from "./integrations/templates.js";
 import { handleDelivery } from "./messaging/handle-delivery.js";
 import { createOutboxRelay } from "./messaging/outbox-relay.js";
 import { createPublisher } from "./messaging/publisher.js";
@@ -26,12 +27,20 @@ if (env.TRACING_ENABLED) {
 // As tabelas já existem: quem cria é o Terraform (infra/terraform), antes de o serviço subir.
 const db = createDb(env);
 
-const campaigns = createCampaignService({
-  campaigns: createCampaignRepository(db),
-  members: createMemberRepository(db),
-  activity: createActivityRepository(db),
-  acquisitions: createAcquisitionRepository(db, env.INBOX_TTL_DAYS),
-});
+const campaigns = createCampaignService(
+  {
+    campaigns: createCampaignRepository(db),
+    members: createMemberRepository(db),
+    activity: createActivityRepository(db),
+    acquisitions: createAcquisitionRepository(db, env.INBOX_TTL_DAYS),
+  },
+  {
+    templates: createTemplateCatalog({
+      baseUrl: env.CHARACTERS_URL,
+      timeoutMs: env.CHARACTERS_TIMEOUT_MS,
+    }),
+  },
+);
 
 const app = buildApp({
   env,

@@ -1,21 +1,28 @@
 // Regras de campanhas e participantes. As rotas HTTP e o consumidor usam este serviço, nunca os repositórios direto.
 import { randomUUID } from "node:crypto";
 import type { Acquisition } from "../domain/acquisition.js";
-import type { Campaign, CampaignView } from "../domain/campaign.js";
+import type { AssignedTemplate, Campaign, CampaignView } from "../domain/campaign.js";
 import {
   CampaignNotFound,
   CharacterInUse,
+  CharactersUnavailable,
   JoinCodeNotFound,
   JoinCodeTaken,
   MemberNotFound,
   NotCampaignMember,
   NotCampaignOwner,
   OwnerCannotLeave,
+  TemplateNotFound,
 } from "../domain/errors.js";
 import { randomJoinCode } from "../domain/join-code.js";
 import type { Member } from "../domain/member.js";
 import type { AuthUser } from "../domain/user.js";
-import { campaignCreated, memberJoined, memberRemoved } from "../messaging/outgoing.js";
+import {
+  campaignCreated,
+  memberJoined,
+  memberRemoved,
+  templateAssigned,
+} from "../messaging/outgoing.js";
 import type { AcquisitionRepository } from "../repositories/acquisition-repository.js";
 import type { ActivityRepository } from "../repositories/activity-repository.js";
 import type { CampaignRepository } from "../repositories/campaign-repository.js";
@@ -37,6 +44,39 @@ export interface ChosenCharacter {
   characterName: string;
 }
 
+/** O modelo que o dono escolheu; sem versão, vale a atual. */
+export interface TemplateChoice {
+  templateId: string;
+  version?: number;
+}
+
+/** Um modelo como o S2 o mostra a quem perguntou. */
+export interface TemplateRef {
+  templateId: string;
+  version: number;
+  name: string;
+}
+
+/** Os modelos de ficha do S2. */
+export interface TemplateCatalog {
+  /**
+   * O modelo nessa versão (sem versão, a atual), visto com o token de quem chamou. null se ele não
+   * existe ou não é dessa pessoa. Lança CharactersUnavailable se o S2 não responder.
+   */
+  find(
+    templateId: string,
+    version: number | undefined,
+    authorization: string,
+  ): Promise<TemplateRef | null>;
+}
+
+/** Sem o S2 configurado, escolher modelo responde como se ele estivesse fora. */
+const noTemplates: TemplateCatalog = {
+  async find() {
+    throw new CharactersUnavailable();
+  },
+};
+
 /** Data e hora atuais em ISO 8601; os testes passam uma fixa. */
 export type Clock = () => string;
 
@@ -44,6 +84,7 @@ export interface ServiceOptions {
   clock?: Clock;
   /** Sorteia um código de entrada; os testes passam uma sequência conhecida. */
   joinCode?: () => string;
+  templates?: TemplateCatalog;
 }
 
 /** Tentativas de sortear um código livre. Com um milhão de códigos, repetir cinco vezes é quase impossível. */
@@ -51,7 +92,11 @@ const JOIN_CODE_ATTEMPTS = 5;
 
 export function createCampaignService(
   { campaigns, members, activity, acquisitions }: Repositories,
-  { clock = () => new Date().toISOString(), joinCode = randomJoinCode }: ServiceOptions = {},
+  {
+    clock = () => new Date().toISOString(),
+    joinCode = randomJoinCode,
+    templates = noTemplates,
+  }: ServiceOptions = {},
 ) {
   async function requireCampaign(campaignId: string): Promise<Campaign> {
     const campaign = await campaigns.find(campaignId);
@@ -99,6 +144,7 @@ export function createCampaignService(
           ownerName: user.username,
           joinCode: joinCode(),
           createdAt: clock(),
+          template: null,
         };
 
         const owner = newMember(user, "OWNER");
@@ -209,6 +255,47 @@ export function createCampaignService(
           removedAt: clock(),
         }),
       );
+    },
+
+    /**
+     * O dono escolhe, entre os modelos dele no S2, o que os jogadores usam, numa versão fixa, e
+     * publica CampaignTemplateAssigned. Escolher de novo o mesmo modelo e a mesma versão não publica.
+     * `authorization` é o cabeçalho de quem chamou, repassado ao S2.
+     */
+    async assignTemplate(
+      campaignId: string,
+      user: AuthUser,
+      { templateId, version }: TemplateChoice,
+      authorization: string,
+    ): Promise<Campaign> {
+      const { campaign, member } = await requireMember(campaignId, user);
+
+      if (member.role !== "OWNER") {
+        throw new NotCampaignOwner(campaignId);
+      }
+
+      const found = await templates.find(templateId, version, authorization);
+
+      if (!found) {
+        throw new TemplateNotFound(templateId, version);
+      }
+
+      if (
+        campaign.template?.templateId === found.templateId &&
+        campaign.template.version === found.version
+      ) {
+        return campaign;
+      }
+
+      const template: AssignedTemplate = { ...found, assignedAt: clock() };
+
+      await campaigns.assignTemplate(
+        campaignId,
+        template,
+        templateAssigned(campaignId, user.userId, template),
+      );
+
+      return { ...campaign, template };
     },
 
     /** Item conquistado (evento do RabbitMQ): vira atividade e soma no participante que usa o personagem. */

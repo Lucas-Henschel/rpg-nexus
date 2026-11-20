@@ -11,10 +11,11 @@ conquistou. Usa **DynamoDB** (tabelas exclusivas), consome o evento **`ItemAcqui
 | Faz                                                                                 | Não faz                                                                       |
 | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | Criar campanhas com dono e código de entrada de seis dígitos; listar as do usuário  | Autenticar (é do S4; aqui só se valida o token) nem validar personagens no S2 |
+| O dono define o modelo de ficha (template do S2) da campanha, numa versão fixa      | Guardar a definição do modelo (fica no S2; o S1 guarda id, versão e nome)     |
 | Entrada pelo código, papéis `OWNER`/`PLAYER`, personagem de cada um, sair e remover | Participar da Saga de aquisição (é do S3 Inventário)                          |
 | Consumir `ItemAcquired`: registrar a atividade e somar itens por participante       | Projetar permissões (é de quem consome os eventos, como o S3)                 |
 | Mostrar a campanha com participantes e as últimas 20 atividades                     | Ler tabelas de outros serviços                                                |
-| Publicar `CampaignCreated`, `CampaignMemberJoined` e `CampaignMemberRemoved`        |                                                                               |
+| Publicar os eventos de campanha, participantes e modelo pela outbox (seção 5)       |                                                                               |
 
 ## 2. Organização do código
 
@@ -27,6 +28,7 @@ src/
   repositories/          um repositório por tabela; só lê e grava
   services/campaigns.ts  regras (campanha precisa existir, monta a página, gera o código)
   http/                  rotas, formatos aceitos (schemas.ts) e tratamento de erros
+  integrations/          chamadas a outros serviços: os modelos de ficha do S2
   messaging/             RabbitMQ: consumo (validação, retry), eventos publicados e relay da outbox
   scripts/               create-tables e publish-item-acquired
   tracing/               OpenTelemetry: setup, spans HTTP, de mensagens e do DynamoDB
@@ -45,17 +47,24 @@ Quem cria a campanha é o dono (`OWNER`); quem entra pelo código é `PLAYER`. O
 UUID interno; o que as pessoas veem e digitam é o `joinCode`, de seis algarismos, sorteado pelo
 serviço e único (escrita condicional na tabela de códigos; se repetir, sorteia outro).
 
-| Rota                                                                              | Resposta                                                                                                                                      |
-| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health`                                                                     | `{status: "ok"}`                                                                                                                              |
-| `GET /ready`                                                                      | 200 `ready` ou 503 `degraded`, com `checks.dynamodb` e `checks.rabbitmq`                                                                      |
-| `POST /campaigns` `{name}`                                                        | 201 com a campanha (`ownerId`, `ownerName`, `joinCode`); quem chamou entra como `OWNER`                                                       |
-| `GET /users/me/campaigns`                                                         | `{items: [...]}`: as campanhas de que o usuário participa                                                                                     |
-| `POST /campaigns/join` `{joinCode}`                                               | 201 ao entrar, 200 se já participava (não duplica nem rebaixa o dono); 404 `JOIN_CODE_NOT_FOUND`                                              |
-| `GET /campaigns/{campaignId}`                                                     | campanha + `members` (dono primeiro) + `recentActivity`; 403 `NOT_A_MEMBER`; 404 `CAMPAIGN_NOT_FOUND`                                         |
-| `GET /campaigns/{campaignId}/members`                                             | `{items: [...]}`, só para participantes                                                                                                       |
-| `PUT /campaigns/{campaignId}/members/me/character` `{characterId, characterName}` | personagem que o usuário usa na campanha; 409 `CHARACTER_IN_USE` se outro participante já usa                                                 |
-| `DELETE /campaigns/{campaignId}/members/{userId}`                                 | 204. O jogador sai (o próprio userId) ou o dono remove um jogador; 403 `NOT_CAMPAIGN_OWNER`; 409 `OWNER_CANNOT_LEAVE`; 404 `MEMBER_NOT_FOUND` |
+| Rota                                                                              | Resposta                                                                                                                                                                        |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                                                                     | `{status: "ok"}`                                                                                                                                                                |
+| `GET /ready`                                                                      | 200 `ready` ou 503 `degraded`, com `checks.dynamodb` e `checks.rabbitmq`                                                                                                        |
+| `POST /campaigns` `{name}`                                                        | 201 com a campanha (`ownerId`, `ownerName`, `joinCode`); quem chamou entra como `OWNER`                                                                                         |
+| `GET /users/me/campaigns`                                                         | `{items: [...]}`: as campanhas de que o usuário participa                                                                                                                       |
+| `POST /campaigns/join` `{joinCode}`                                               | 201 ao entrar, 200 se já participava (não duplica nem rebaixa o dono); 404 `JOIN_CODE_NOT_FOUND`                                                                                |
+| `GET /campaigns/{campaignId}`                                                     | campanha + `members` (dono primeiro) + `recentActivity`; 403 `NOT_A_MEMBER`; 404 `CAMPAIGN_NOT_FOUND`                                                                           |
+| `GET /campaigns/{campaignId}/members`                                             | `{items: [...]}`, só para participantes                                                                                                                                         |
+| `PUT /campaigns/{campaignId}/members/me/character` `{characterId, characterName}` | personagem que o usuário usa na campanha; 409 `CHARACTER_IN_USE` se outro participante já usa                                                                                   |
+| `PUT /campaigns/{campaignId}/template` `{templateId, version?}`                   | só o dono; 200 com a campanha e `template` (`templateId`, `version`, `name`, `assignedAt`). Sem `version`, fixa a atual. 404 `TEMPLATE_NOT_FOUND`; 503 `CHARACTERS_UNAVAILABLE` |
+| `DELETE /campaigns/{campaignId}/members/{userId}`                                 | 204. O jogador sai (o próprio userId) ou o dono remove um jogador; 403 `NOT_CAMPAIGN_OWNER`; 409 `OWNER_CANNOT_LEAVE`; 404 `MEMBER_NOT_FOUND`                                   |
+
+**Modelo de ficha.** É a única rota em que o S1 chama outro serviço: pergunta ao S2
+(`GET /templates/{id}?version=`, em `CHARACTERS_URL`) com o mesmo token de quem chamou. Assim o S2
+só acha os modelos do próprio dono, e um modelo de outra pessoa dá 404, como um que não existe. O
+S1 guarda só id, versão e nome; editar o modelo depois não muda a campanha, até o dono definir de
+novo. Com o S2 fora, a rota responde 503 e nada muda; o resto do S1 não depende do S2.
 
 Ids seguem `^[A-Za-z0-9_-]{1,64}$`, o código de entrada `^\d{6}$`; textos têm de 1 a 80
 caracteres. Fora disso: 422 `VALIDATION_ERROR` com `details[].field`. Erros usam o formato
@@ -92,14 +101,18 @@ publicar no retry) devolve a mensagem à fila depois de 1 s, sem perdê-la.
 
 ## 5. Eventos publicados (outbox)
 
-| Evento                  | Routing key                  | Quando                                                        |
-| ----------------------- | ---------------------------- | ------------------------------------------------------------- |
-| `CampaignCreated`       | `campaign.created.v1`        | ao criar a campanha                                           |
-| `CampaignMemberJoined`  | `campaign.member.joined.v1`  | ao criar (o dono, `OWNER`) e ao entrar pelo código (`PLAYER`) |
-| `CampaignMemberRemoved` | `campaign.member.removed.v1` | ao sair (`LEFT`) ou ser removido pelo dono (`REMOVED`)        |
+| Evento                          | Routing key                           | Quando                                                                            |
+| ------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------- |
+| `CampaignCreated`               | `campaign.created.v1`                 | ao criar a campanha                                                               |
+| `CampaignMemberJoined`          | `campaign.member.joined.v1`           | ao criar (o dono, `OWNER`) e ao entrar pelo código (`PLAYER`)                     |
+| `CampaignMemberCharacterChosen` | `campaign.member.character-chosen.v1` | ao escolher o personagem                                                          |
+| `CampaignMemberRemoved`         | `campaign.member.removed.v1`          | ao sair (`LEFT`) ou ser removido pelo dono (`REMOVED`)                            |
+| `CampaignTemplateAssigned`      | `campaign.template.assigned.v1`       | ao definir o modelo de ficha; definir de novo o mesmo modelo e versão não publica |
 
-Os esquemas estão em [`contracts/`](../../contracts); quem consome é o S4 (`actions.history.v1`) e a
-projeção de participantes do S3 (`inventory.campaign-members.v1`). Entrar de novo quem já participa,
+Os esquemas estão em [`contracts/`](../../contracts); quem consome cada um está na tabela de
+[`contracts/README.md`](../../contracts/README.md): o histórico do S4 (`actions.history.v1`) e as
+projeções de participantes do S3 (`inventory.campaign-members.v1`) e do S2
+(`characters.campaign-members.v1`). Entrar de novo quem já participa,
 ou uma recusa (403, 409), não gera evento.
 
 O evento é gravado na tabela de outbox **na mesma transação** da mudança: ou os dois ficam, ou
@@ -118,7 +131,7 @@ e serve para os testes de integração ou para um DynamoDB sem o Terraform.
 
 | Variável           | Padrão                | Chave                                                              | Conteúdo                                                             |
 | ------------------ | --------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| `TABLE_CAMPAIGNS`  | `campaigns`           | `campaignId`                                                       | campanhas                                                            |
+| `TABLE_CAMPAIGNS`  | `campaigns`           | `campaignId`                                                       | campanhas, com o modelo de ficha escolhido (`template`)              |
 | `TABLE_JOIN_CODES` | `campaign_join_codes` | `joinCode`                                                         | códigos de entrada em uso, cada um apontando para a campanha         |
 | `TABLE_MEMBERS`    | `campaign_members`    | `campaignId` + `userId`; índice `byUser` (`userId` + `campaignId`) | participantes: papel, personagem escolhido e itens conquistados      |
 | `TABLE_ACTIVITY`   | `campaign_activity`   | `campaignId` + `activityKey` (`occurredAt#operationId`)            | atividade, ordenada por data                                         |
@@ -130,7 +143,7 @@ e serve para os testes de integração ou para um DynamoDB sem o Terraform.
 
 Todas estão em [`.env.example`](.env.example), com os valores para rodar fora do Docker. No Compose,
 o mesmo arquivo é carregado e os endereços (`AWS_ENDPOINT_URL`, `RABBITMQ_URL`), o `CORS_ORIGINS`,
-o `CONTRACTS_DIR` e o `JWT_SECRET` (o mesmo do S4, do `.env` da raiz) são trocados pelos do Compose.
+o `CONTRACTS_DIR`, o `CHARACTERS_URL` e o `JWT_SECRET` (o mesmo do S4, do `.env` da raiz) são trocados pelos do Compose.
 
 | Variável                                                                    | Padrão                                                 | Uso                                                                                      |
 | --------------------------------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
@@ -139,6 +152,7 @@ o `CONTRACTS_DIR` e o `JWT_SECRET` (o mesmo do S4, do `.env` da raiz) são troca
 | `AWS_ENDPOINT_URL`, `AWS_REGION`                                            | `http://localhost:4566`, `us-east-1`                   | DynamoDB (MiniStack)                                                                     |
 | `TABLE_*`, `INBOX_TTL_DAYS`                                                 | ver seção 6                                            | nomes das tabelas e validade da inbox                                                    |
 | `JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE`                                  | sem padrão, `rpg-nexus-identity`, `rpg-nexus-services` | validação do access token do S4; o segredo é o mesmo do S4 e é obrigatório               |
+| `CHARACTERS_URL`, `CHARACTERS_TIMEOUT_MS`                                   | `http://localhost:8000`, `3000`                        | S2, consultado ao definir o modelo de ficha (no Compose, `http://characters:8000`)       |
 | `RABBITMQ_URL`                                                              | `amqp://dev:dev@localhost:5672/`                       | conexão com o RabbitMQ                                                                   |
 | `RABBITMQ_EXCHANGE`                                                         | `rpg.events`                                           | exchange onde o relay e o script de publicação publicam                                  |
 | `RABBITMQ_QUEUE`, `RABBITMQ_RETRY_QUEUE`                                    | `campaigns.activity.v1`, `campaigns.activity.v1.retry` | fila consumida e fila de retry                                                           |

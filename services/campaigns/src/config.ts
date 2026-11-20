@@ -40,6 +40,10 @@ const EnvSchema = z.object({
   JWT_ISSUER: z.string().default("rpg-nexus-identity"),
   JWT_AUDIENCE: z.string().default("rpg-nexus-services"),
 
+  // S2 Personagens, consultado ao escolher o modelo de ficha da campanha.
+  CHARACTERS_URL: z.url().default("http://localhost:8000"),
+  CHARACTERS_TIMEOUT_MS: z.coerce.number().int().positive().default(3000),
+
   RABBITMQ_URL: z.string().default("amqp://dev:dev@localhost:5672/"),
   RABBITMQ_EXCHANGE: z.string().default("rpg.events"),
   RABBITMQ_QUEUE: z.string().default("campaigns.activity.v1"),

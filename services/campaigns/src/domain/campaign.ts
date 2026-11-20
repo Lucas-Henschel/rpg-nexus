@@ -11,6 +11,17 @@ export interface Campaign {
   /** Código que os jogadores digitam para entrar: sempre seis algarismos. */
   joinCode: string;
   createdAt: string;
+  /** O modelo de ficha (template do S2) que os jogadores usam; null até o dono escolher. */
+  template: AssignedTemplate | null;
+}
+
+/** Um modelo do S2 numa versão fixa: editar o modelo depois não muda o que a campanha usa. */
+export interface AssignedTemplate {
+  templateId: string;
+  version: number;
+  /** Cópia do nome no momento da escolha, para mostrar sem perguntar ao S2. */
+  name: string;
+  assignedAt: string;
 }
 
 /** A campanha como a página de Campanhas mostra: com participantes e atividade recente. */

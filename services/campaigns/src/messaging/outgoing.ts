@@ -1,7 +1,7 @@
 // Eventos que o S1 publica, já no envelope de contracts/. Vão para a outbox na mesma transação da
 // mudança, e o relay da outbox os publica depois.
 import { randomUUID } from "node:crypto";
-import type { Campaign } from "../domain/campaign.js";
+import type { AssignedTemplate, Campaign } from "../domain/campaign.js";
 import type { Member } from "../domain/member.js";
 import { traceHeaders } from "../tracing/spans.js";
 
@@ -64,12 +64,29 @@ export const memberJoined = (campaignId: string, member: Member): OutboxMessage 
 
 export const memberCharacterChosen = (campaignId: string, member: Member): OutboxMessage =>
   outboxMessage("rpg.campaign.member.character-chosen.v1", campaignId, new Date().toISOString(), {
-    campaignId, userId: member.userId, role: member.role,
-    characterId: member.characterId, characterName: member.characterName,
+    campaignId,
+    userId: member.userId,
+    role: member.role,
+    characterId: member.characterId,
+    characterName: member.characterName,
   });
 
 export const memberRemoved = (campaignId: string, removal: Removal): OutboxMessage =>
   outboxMessage("rpg.campaign.member.removed.v1", campaignId, removal.removedAt, {
     campaignId,
     ...removal,
+  });
+
+export const templateAssigned = (
+  campaignId: string,
+  assignedBy: string,
+  template: AssignedTemplate,
+): OutboxMessage =>
+  outboxMessage("rpg.campaign.template.assigned.v1", campaignId, template.assignedAt, {
+    campaignId,
+    templateId: template.templateId,
+    templateVersion: template.version,
+    templateName: template.name,
+    assignedBy,
+    assignedAt: template.assignedAt,
   });
