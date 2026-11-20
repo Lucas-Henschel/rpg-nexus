@@ -193,3 +193,24 @@ class CharacterTemplate:
 
     def evolve(self, **changes: object) -> CharacterTemplate:
         return replace(self, **changes)  # type: ignore[arg-type]
+
+
+@dataclass(frozen=True)
+class CampaignMembership:
+    """Cópia local de quem participa de cada campanha, montada com os eventos do S1.
+
+    O S2 não lê o banco do S1: ele guarda o que precisa (papel e se ainda participa) para decidir quem
+    cria ficha na campanha e quem é o mestre (``OWNER``). ``changed_at`` é o instante do evento no S1;
+    um evento mais antigo que o gravado é ignorado (eventos podem chegar fora de ordem).
+    """
+
+    campaign_id: str
+    user_id: str
+    role: str  # "OWNER" | "PLAYER"
+    active: bool
+    changed_at: datetime
+    username: str | None = None
+
+    @property
+    def is_owner(self) -> bool:
+        return self.active and self.role == "OWNER"

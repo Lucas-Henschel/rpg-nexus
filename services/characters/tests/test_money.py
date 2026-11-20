@@ -29,11 +29,13 @@ def test_debito_aprovado_tira_o_valor_e_publica_money_debited(store, clock, hand
     assert result.outcome is Outcome.APPROVED
     assert _balance(store) == 70
     assert _last(store)["type"] == "rpg.money.debited.v1"
+    # campos que o S3 confere: os da compra, com amount = preço
     assert _last(store)["payload"] == {
         "operationId": "op-1",
         "campaignId": "c1",
         "characterId": "p1",
         "userId": "user-ana",
+        "itemId": "sword",
         "amount": 30,
         "balance": 70,
     }
@@ -93,6 +95,11 @@ def test_reembolso_devolve_o_valor_uma_unica_vez(store, clock, handlers):
     assert (first.outcome, again.outcome) == (Outcome.MONEY_REFUNDED, Outcome.ALREADY_APPLIED)
     assert _balance(store) == 100  # 100 - 30 + 30, e não + 60
     assert _last(store)["type"] == "rpg.money.refunded.v1"
+    payload = _last(store)["payload"]
+    # a repetição responde igual à primeira: o que voltou por esta operação foi 30
+    assert (payload["amount"], payload["refundedAmount"], payload["itemId"], payload["userId"]) == (30, 30, "sword", "user-ana")
+    first_reply = store.outbox[-2].envelope["payload"]
+    assert (first_reply["amount"], first_reply["refundedAmount"], first_reply["balance"]) == (30, 30, 100)
     assert store.get_money_entry("p1", "op-1").status is MoneyStatus.REFUNDED
 
 
@@ -100,7 +107,8 @@ def test_reembolso_antes_do_debito_cria_lapide_e_debito_atrasado_e_recusado(stor
     _ana(store, clock)
     early = handlers.dispatch(money_refund_request("op-1"))
     assert early.outcome is Outcome.TOMBSTONE_CREATED
-    assert _last(store)["payload"]["amount"] == 0
+    # o S3 confere amount = preço; o que voltou de fato vem em refundedAmount
+    assert (_last(store)["payload"]["amount"], _last(store)["payload"]["refundedAmount"]) == (30, 0)
 
     late = handlers.dispatch(money_debit_request(operation_id="op-1"))
     assert late.outcome is Outcome.REJECTED
@@ -136,3 +144,24 @@ def test_ficha_antiga_sem_dinheiro_comeca_com_zero(store, clock, handlers):
     make_character(store, clock, owner_id="user-ana")
     handlers.dispatch(money_debit_request(amount=1))
     assert _last(store)["payload"]["reason"] == "INSUFFICIENT_FUNDS"
+
+
+def test_item_de_preco_zero_e_aceito(store, clock, handlers):
+    _ana(store, clock, amount=0)
+    assert handlers.dispatch(money_debit_request(amount=0)).outcome is Outcome.APPROVED
+    assert _last(store)["payload"]["amount"] == 0 and _balance(store) == 0
+
+
+def test_resposta_tem_os_campos_que_o_inventario_confere(store, clock, handlers, contracts):
+    """O S3 recusa a resposta se operationId, campanha, usuário, ficha, item ou preço não baterem com a compra."""
+    from app.messaging.events import MONEY_DEBIT_REJECTED, MONEY_DEBITED, MONEY_REFUNDED
+
+    _ana(store, clock, amount=10)
+    handlers.dispatch(money_debit_request(operation_id="ok", amount=5))
+    handlers.dispatch(money_debit_request(operation_id="caro", amount=50))
+    handlers.dispatch(money_refund_request("ok"))
+    specs = {s.type: s for s in (MONEY_DEBITED, MONEY_DEBIT_REJECTED, MONEY_REFUNDED)}
+    for record in store.outbox:
+        payload = record.envelope["payload"]
+        assert {"operationId", "campaignId", "userId", "characterId", "itemId", "amount"} <= set(payload)
+        assert contracts.errors(specs[record.type].schema_file, record.envelope) == []

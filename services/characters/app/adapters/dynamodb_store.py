@@ -6,6 +6,7 @@ Modelo (tabelas privadas do S2, ver infra/manifests/characters.json):
     CHAR#{id} / PROFILE          ficha + contadores ``slotsUsed`` / ``slotsAvailable``
     CHAR#{id} / HOLD#{opId}      reserva de capacidade da Saga
     CHAR#{id} / MONEY#{opId}     operação de dinheiro (débito/reembolso da compra, ou ajuste manual)
+    CAMPAIGN#{id} / MEMBER#{uid} participante da campanha (projeção dos eventos do S1; sem gsi1pk)
     GSI ``byCampaign`` (gsi1pk=CAMPAIGN#{campaignId}, gsi1sk={createdAt}#{id}) — esparso, só perfis
 ``character_inbox`` (messageId)   mensagens já processadas (TTL ``expiresAt``)
 ``character_outbox`` (messageId)  eventos a publicar; GSI esparso ``pending`` (pendingKey, createdAt)
@@ -42,7 +43,16 @@ from app.application.ports import (
     Page,
     StoreUnavailable,
 )
-from app.domain.models import CapacityHold, Character, HitPoints, HoldStatus, MoneyEntry, MoneyStatus, Portrait
+from app.domain.models import (
+    CampaignMembership,
+    CapacityHold,
+    Character,
+    HitPoints,
+    HoldStatus,
+    MoneyEntry,
+    MoneyStatus,
+    Portrait,
+)
 from app.messaging.envelope import format_timestamp
 
 log = logging.getLogger(__name__)
@@ -710,6 +720,57 @@ class DynamoDBCharacterStore:
             if reasons and reasons[0] == "ConditionalCheckFailed":
                 raise AdjustmentAlreadyApplied(entry.operation_id) from exc
             raise ConcurrencyConflict(",".join(str(r) for r in reasons)) from exc
+
+    # --- participantes das campanhas ----------------------------------------------------------
+
+    def get_membership(self, campaign_id: str, user_id: str) -> CampaignMembership | None:
+        resp = self._call(
+            self._client.get_item,
+            TableName=self._t_chars,
+            Key=_to_item({"pk": f"CAMPAIGN#{campaign_id}", "sk": f"MEMBER#{user_id}"}),
+            ConsistentRead=True,
+        )
+        item = resp.get("Item")
+        if not item:
+            return None
+        d = _from_item(item)
+        return CampaignMembership(
+            campaign_id=d["campaignId"],
+            user_id=d["userId"],
+            role=d["role"],
+            active=bool(d["active"]),
+            changed_at=_parse_ts(d["changedAt"]),
+            username=d.get("username"),
+        )
+
+    def apply_membership(self, inbox: InboxRecord, membership: CampaignMembership) -> None:
+        item = _to_item(
+            {
+                "pk": f"CAMPAIGN#{membership.campaign_id}",
+                "sk": f"MEMBER#{membership.user_id}",
+                "entity": "MEMBERSHIP",
+                "campaignId": membership.campaign_id,
+                "userId": membership.user_id,
+                "role": membership.role,
+                "active": membership.active,
+                "username": membership.username,
+                "changedAt": _ts(membership.changed_at),
+            }
+        )
+        self._transact(
+            [
+                self._inbox_put(inbox),
+                {
+                    "Put": {
+                        "TableName": self._t_chars,
+                        "Item": item,
+                        # ISO-8601 em UTC com milissegundos: comparar como texto é comparar no tempo
+                        "ConditionExpression": "attribute_not_exists(pk) OR changedAt < :c",
+                        "ExpressionAttributeValues": {":c": item["changedAt"]},
+                    }
+                },
+            ]
+        )
 
     # --- outbox (relay) -----------------------------------------------------------------------
 

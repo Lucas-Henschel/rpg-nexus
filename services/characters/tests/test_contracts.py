@@ -150,6 +150,8 @@ def test_manifesto_de_infra_igual_a_topologia_do_codigo():
         "acquisition.cancelled.v1",
         "money.debit.requested.v1",
         "money.refund.requested.v1",
+        "campaign.member.joined.v1",
+        "campaign.member.removed.v1",
     }
 
 

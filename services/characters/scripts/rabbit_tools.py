@@ -15,6 +15,7 @@ from aio_pika import DeliveryMode, Message
 from app.messaging.envelope import build_envelope
 from app.messaging.events import (
     ACQUISITION_CANCELLED,
+    CAMPAIGN_MEMBER_JOINED,
     CHARACTER_VALIDATION_REQUESTED,
     CHARACTER_VALIDATION_REQUESTED_V2,
     ITEM_ACQUIRED,
@@ -66,11 +67,30 @@ def money_request(
     kind: str, character_id: str, campaign_id: str, operation_id: str, *, user_id: str = "", amount: int = 0
 ) -> dict[str, Any]:
     """MoneyDebitRequested (kind="debit") ou MoneyRefundRequested (kind="refund"), como o S3 publicaria."""
-    payload: dict[str, Any] = {"operationId": operation_id, "campaignId": campaign_id, "characterId": character_id}
+    payload: dict[str, Any] = {
+        "operationId": operation_id,
+        "campaignId": campaign_id,
+        "userId": user_id,
+        "characterId": character_id,
+        "itemId": "demo-sword",
+        "amount": amount,
+    }
     if kind == "debit":
-        payload.update(userId=user_id, amount=amount, itemId="demo-sword")
+        payload["deadlineAt"] = (datetime.now(UTC) + timedelta(seconds=60)).isoformat().replace("+00:00", "Z")
         return _envelope(MONEY_DEBIT_REQUESTED, operation_id, payload)
     return _envelope(MONEY_REFUND_REQUESTED, operation_id, payload)
+
+
+def member_joined(campaign_id: str, user_id: str, role: str = "OWNER") -> dict[str, Any]:
+    """CampaignMemberJoined, como o S1 publica (o S2 usa para saber quem participa e quem é o mestre)."""
+    payload = {
+        "campaignId": campaign_id,
+        "userId": user_id,
+        "username": user_id,
+        "role": role,
+        "joinedAt": datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+    }
+    return _envelope(CAMPAIGN_MEMBER_JOINED, campaign_id, payload)
 
 
 def _envelope(spec: EventSpec, correlation_id: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -87,6 +107,7 @@ def routing_key_for(envelope: dict[str, Any]) -> str:
         ACQUISITION_CANCELLED,
         MONEY_DEBIT_REQUESTED,
         MONEY_REFUND_REQUESTED,
+        CAMPAIGN_MEMBER_JOINED,
     ):
         if envelope.get("type") == spec.type:
             return spec.routing_key

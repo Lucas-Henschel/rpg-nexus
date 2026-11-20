@@ -19,7 +19,8 @@ e **RabbitMQ** (eventos).
 | Retratos no S3 (URL pré-assinada ou upload pelo backend) | |
 | Modelos de ficha privados, com versões, e fichas criadas a partir deles | Emitir login ou token (é do S4) |
 | **Dinheiro**: saldo, débito e reembolso atômicos e idempotentes por eventos da compra | Preço, loja e estoque (são do S3) |
-| Garantir que só o dono mexe na ficha e nos modelos dele | Papéis na campanha (dono/jogador são do S1) |
+| Garantir que só o dono mexe na ficha e nos modelos dele | Decidir papéis na campanha (dono/jogador são do S1) |
+| Guardar uma cópia de quem participa de cada campanha (eventos do S1) para autorizar | Ler o banco do S1 |
 
 ## 2. Participação na Saga
 
@@ -173,10 +174,30 @@ aqui com o mesmo segredo (`JWT_SECRET`), algoritmo (HS256), emissor (`iss`), aud
 (`exp`). Ficam abertos só `/health`, `/ready`, `/internal/*` e o conteúdo do retrato (o `<img>` do navegador
 não manda token; o endereço só é conhecido por quem já leu a ficha).
 
-- **Dono:** quem cria a ficha (`ownerId` = `sub` do token). Só ele lê, edita, vê reservas, mexe no dinheiro e
-  no retrato; os outros recebem `403 NOT_OWNER`. O dono não muda por PATCH (`422 OWNER_IMMUTABLE`).
-- **Listagem:** `GET /characters?campaignId=` traz só as fichas de quem pergunta.
-- **Fichas antigas**, criadas antes do login, não têm dono e ficam inacessíveis pela API: crie de novo.
+| Quem | Pode |
+|---|---|
+| Participante da campanha (`OWNER` ou `PLAYER`) | criar ficha nela, ver o painel `/campaigns/{id}/roster` |
+| Dono da ficha (`ownerId` = `sub` do token) | ler e **editar** a ficha, trocar o retrato, **ajustar o dinheiro** |
+| Mestre da campanha (`OWNER`) | **ler** todas as fichas da campanha (lista, ficha, reservas, extrato) |
+| Quem não participa | nada na campanha: `403 NOT_CAMPAIGN_MEMBER` |
+
+- O mestre não edita a ficha nem ajusta o dinheiro de um jogador (`403 NOT_OWNER`). O dono da ficha não muda
+  por PATCH (`422 OWNER_IMMUTABLE`).
+- Cada ficha volta com `access: {edit, adjustMoney}`, calculado para quem perguntou; o front usa para mostrar ou
+  travar as ações.
+- **Fichas antigas**, criadas antes do login, não têm dono: só o mestre da campanha ainda as vê. Crie de novo.
+
+#### Participantes das campanhas (cópia local dos eventos do S1)
+
+O S2 não lê o banco do S1. Ele consome `CampaignMemberJoined` e `CampaignMemberRemoved` (fila
+`characters.campaign-members.v1`) e guarda `CAMPAIGN#{id} / MEMBER#{userId}` com papel, se ainda participa e o
+instante do evento. Evento mais antigo que o gravado é ignorado (`STALE`), então a ordem de chegada não importa;
+a inbox barra o mesmo `messageId`.
+
+- **Consistência eventual:** logo depois de criar ou entrar numa campanha, o S2 pode levar um instante para
+  saber disso; a mensagem de `403` pede para tentar de novo.
+- **Campanhas criadas antes desta mudança** não têm participantes no S2, porque os eventos delas já foram
+  consumidos só pelo S3 e pelo S4. Crie a campanha de novo.
 - `app/security.py` valida o token; o código foi conferido com um token emitido pelo próprio S4.
 
 ### Dinheiro (Saga de compra da loja)
@@ -191,10 +212,10 @@ mesmo tempo não gastam o mesmo dinheiro (condição `currencyAmount >= preço` 
 
 - **Idempotência dupla:** a inbox barra o mesmo `messageId`; o registro por `operationId` barra o mesmo pedido
   com outro `messageId` (responde `MoneyDebited` de novo sem cobrar; reembolso repetido não credita de novo).
-- **Reordenação:** reembolso que chega antes do débito vira lápide (`REFUNDED`, valor 0), e o débito atrasado é
+- **Reordenação:** reembolso que chega antes do débito vira lápide (`REFUNDED`, `refundedAmount` 0), e o débito atrasado é
   recusado com `OPERATION_CLOSED`, como nas reservas de capacidade.
 - **Ajuste manual:** `POST /characters/{id}/money/adjustments` (`delta` com sinal, `Idempotency-Key` opcional)
-  para o dono registrar dinheiro ganho ou gasto fora da loja. `GET .../money/transactions` mostra tudo.
+  para o **dono da ficha** registrar dinheiro ganho ou gasto fora da loja. `GET .../money/transactions` mostra tudo.
 - O PATCH da ficha muda só o nome da moeda: se mudasse o saldo, uma edição com a ficha antiga desfaria um débito
   feito nesse meio-tempo.
 
@@ -221,11 +242,13 @@ inicial). Fica na tabela `character_templates`, privado de quem criou.
 | consome | `AcquisitionCancelled` (`rpg.acquisition.cancelled.v1`) | `acquisition.cancelled.v1` | `characters.acquisition-outcomes.v1` |
 | publica | `CharacterValidated` (`rpg.character.validated.v1`) | `character.validated.v1` | — |
 | publica | `CharacterRejected` (`rpg.character.rejected.v1`) | `character.rejected.v1` | — |
-| consome | `MoneyDebitRequested` (`rpg.money.debit-requested.v1`) | `money.debit.requested.v1` | `characters.money-requests.v1` |
-| consome | `MoneyRefundRequested` (`rpg.money.refund-requested.v1`) | `money.refund.requested.v1` | `characters.money-requests.v1` |
-| publica | `MoneyDebited` (`rpg.money.debited.v1`) | `money.debited.v1` | S3 em `inventory.money-replies.v1`, S4 em `actions.history.v1` |
-| publica | `MoneyDebitRejected` (`rpg.money.debit-rejected.v1`) | `money.debit.rejected.v1` | idem |
+| consome | `MoneyDebitRequested` (`rpg.money.debit-requested.v1`) | `money.debit.requested.v1` | `characters.money-commands.v1` |
+| consome | `MoneyRefundRequested` (`rpg.money.refund-requested.v1`) | `money.refund.requested.v1` | `characters.money-commands.v1` |
+| publica | `MoneyDebited` (`rpg.money.debited.v1`) | `money.debited.v1` | S3 em `inventory.saga-replies.v1` |
+| publica | `MoneyDebitRejected` (`rpg.money.debit-rejected.v1`) | `money.debit-rejected.v1` | idem |
 | publica | `MoneyRefunded` (`rpg.money.refunded.v1`) | `money.refunded.v1` | idem |
+| consome | `CampaignMemberJoined` (`rpg.campaign.member.joined.v1`, do S1) | `campaign.member.joined.v1` | `characters.campaign-members.v1` |
+| consome | `CampaignMemberRemoved` (`rpg.campaign.member.removed.v1`, do S1) | `campaign.member.removed.v1` | `characters.campaign-members.v1` |
 
 Cada fila tem `.retry` e `.dlq`. Schemas: `contracts/events/character-*.schema.json`, com exemplos
 válidos e inválidos em `contracts/examples/`. Todo evento produzido é validado contra o schema antes de
@@ -278,7 +301,7 @@ Documentação interativa: `http://localhost:8000/docs`.
 | GET | `/characters/{id}` | consulta; header `ETag` = versão |
 | PATCH | `/characters/{id}` | JSON Merge Patch (`null` remove atributo/perícia); `If-Match` → `412` se desatualizado. O campo `sheet` (organização livre da ficha em blocos) é substituído por inteiro; `null` volta à ficha padrão |
 | POST | `/characters/from-template/{templateId}` | cria ficha copiando o modelo (`version` opcional); grava `sourceTemplate` |
-| POST | `/characters/{id}/money/adjustments` | ajuste do saldo pelo dono (`delta` com sinal); `409 INSUFFICIENT_FUNDS` se ficaria negativo |
+| POST | `/characters/{id}/money/adjustments` | ajuste do saldo pelo dono da ficha (`delta` com sinal); `409 INSUFFICIENT_FUNDS` se ficaria negativo |
 | GET | `/characters/{id}/money/transactions` | débitos, reembolsos e ajustes da ficha |
 | POST | `/templates` | salva modelo privado (v1) |
 | GET | `/templates` | meus modelos |
@@ -390,10 +413,10 @@ contracts-consumed/  expectativas do S2 sobre eventos de P3 (consumer-driven con
    sucesso (inclusive por expiração); é isso que devolve a capacidade.
 3. `deadlineAt` em `CharacterValidationRequested` é **opcional**, mas recomendado.
 4. Nomes de `type`/routing key seguem o padrão do plano (`rpg.<dominio>.<evento>.v1`).
-5. **Compra na loja (P3):** os contratos `money-*.v1` em `contracts/events/` são a proposta do S2. O S3 publica
-   `MoneyDebitRequested` com `userId` do comprador e consome as respostas na fila nova
-   `inventory.money-replies.v1` (separada de `inventory.saga-replies.v1` para não chegar evento desconhecido ao
-   consumidor que já existe). Quando a compra falhar depois do débito, o S3 publica `MoneyRefundRequested`.
+5. **Compra na loja (P3):** o contrato de dinheiro é o do S3 (`contracts/events/money-*.v1`, copiados sem
+   alteração da branch do P3). Toda resposta repete `operationId`, `campaignId`, `userId`, `characterId`, `itemId` e
+   `amount` (= preço), que o S3 confere; o S2 acrescenta `balance` e, no reembolso, `refundedAmount` (0 quando não
+   havia débito). Item de preço 0 é aceito.
 
 ## 11. Limitações conhecidas
 
@@ -404,6 +427,4 @@ contracts-consumed/  expectativas do S2 sobre eventos de P3 (consumer-driven con
   mensagem com backoff menor pode esperar a da frente. Aceitável para o volume da demonstração.
 - Publicação duplicada é possível se o processo cair entre o *confirm* do broker e o `PUBLISHED`
   (entrega *at-least-once*); os consumidores deduplicam por `messageId`.
-- O ajuste manual do saldo é permitido ao dono da ficha. Quando o S1 expuser os papéis da campanha, o certo é
-  só o mestre (`OWNER`) poder dar dinheiro.
 - O S2 ainda não consome `CampaignTemplateAssigned` (o S1 não publica esse evento).
