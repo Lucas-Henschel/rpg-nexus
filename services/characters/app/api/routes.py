@@ -21,7 +21,6 @@ from app.application.dto import (
     CharacterPatch,
     CharacterSummaryOut,
     HoldOut,
-    MoneyAdjustmentIn,
     MoneyEntryOut,
     PortraitUploadRequest,
     PortraitUrlOut,
@@ -238,28 +237,10 @@ def create_character_from_template(
 # --- Dinheiro -------------------------------------------------------------------------------------
 
 
-@router.post(
-    "/characters/{character_id}/money/adjustments",
-    tags=["dinheiro"],
-    response_model=CharacterOut,
-    summary="Ajustar o saldo (positivo credita, negativo debita; nunca fica negativo)",
-)
-def adjust_money(
-    character_id: CharacterId,
-    body: MoneyAdjustmentIn,
-    response: Response,
-    c: ContainerDep,
-    user: UserDep,
-    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=128)] = None,
-) -> CharacterOut:
-    character = c.characters.adjust_money(character_id, body.delta, body.reason, idempotency_key, user_id=_uid(user))
-    return _character_response(character, response, c, user)
-
-
 @router.get(
     "/characters/{character_id}/money/transactions",
     tags=["dinheiro"],
-    summary="Operações de dinheiro da ficha: débitos e reembolsos da loja e ajustes manuais",
+    summary="Operações de dinheiro da ficha: débitos e reembolsos da loja",
 )
 def list_money(character_id: CharacterId, c: ContainerDep, user: UserDep) -> dict[str, list[MoneyEntryOut]]:
     entries = c.characters.money_entries(character_id, user_id=_uid(user))

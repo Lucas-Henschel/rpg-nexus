@@ -87,7 +87,6 @@ def test_quem_cria_vira_dono_e_ninguem_mais_mexe(api, other):
         other.patch(f"/characters/{lyra['id']}", json={"name": "Roubada"}),
         other.get(f"/characters/{lyra['id']}/holds"),
         other.get(f"/characters/{lyra['id']}/money/transactions"),
-        other.post(f"/characters/{lyra['id']}/money/adjustments", json={"delta": 100}),
     ):
         assert response.status_code == 403, response.text
         assert response.json()["error"]["code"] == "NOT_OWNER"
@@ -111,28 +110,14 @@ def test_nao_da_para_criar_ou_passar_ficha_para_outra_pessoa(api):
 # --- dinheiro --------------------------------------------------------------------------------------
 
 
-def test_saldo_inicial_ajuste_pelo_dono_e_nunca_negativo(api):
+def test_saldo_inicial_e_sem_ajuste_manual(api):
     lyra = _create(api, currency={"name": "Moedas", "amount": 50})
     assert lyra["currency"] == {"name": "Moedas", "amount": 50}
-    path = f"/characters/{lyra['id']}/money/adjustments"
-
-    assert api.post(path, json={"delta": 20, "reason": "recompensa"}).json()["currency"]["amount"] == 70
-    too_much = api.post(path, json={"delta": -100})
-    assert too_much.status_code == 409 and too_much.json()["error"]["code"] == "INSUFFICIENT_FUNDS"
-    assert api.post(path, json={"delta": -70}).json()["currency"]["amount"] == 0
-    assert api.post(path, json={"delta": 0}).status_code == 422
-
-    kinds = [(m["kind"], m["amount"]) for m in api.get(f"/characters/{lyra['id']}/money/transactions").json()["items"]]
-    assert kinds == [("ADJUSTMENT", 20), ("ADJUSTMENT", -70)]
-
-
-def test_ajuste_com_idempotency_key_vale_uma_vez(api):
-    lyra = _create(api)
-    path = f"/characters/{lyra['id']}/money/adjustments"
-    for _ in range(3):
-        response = api.post(path, json={"delta": 15}, headers={"Idempotency-Key": "premio-sessao-4"})
-        assert response.status_code == 200
-    assert response.json()["currency"]["amount"] == 15
+    # o saldo só muda pelas compras na loja: a rota de ajuste manual não existe mais
+    response = api.post(f"/characters/{lyra['id']}/money/adjustments", json={"delta": 20})
+    assert response.status_code in (404, 405)
+    assert api.get(f"/characters/{lyra['id']}").json()["currency"]["amount"] == 50
+    assert api.get(f"/characters/{lyra['id']}/money/transactions").json()["items"] == []
 
 
 def test_patch_muda_o_nome_da_moeda_mas_nao_o_saldo(api):
@@ -252,21 +237,13 @@ def test_quem_saiu_da_campanha_nao_cria_mais_ficha(api, container):
     assert response.status_code == 403 and response.json()["error"]["code"] == "NOT_CAMPAIGN_MEMBER"
 
 
-def test_so_o_dono_da_ficha_ajusta_o_dinheiro(api, gm):
-    lyra = _create(api, currency={"amount": 10})
-    assert lyra["access"] == {"edit": True, "adjustMoney": True}
-    response = gm.post(f"/characters/{lyra['id']}/money/adjustments", json={"delta": 1000})
-    assert response.status_code == 403 and response.json()["error"]["code"] == "NOT_OWNER"
-    assert api.get(f"/characters/{lyra['id']}").json()["currency"]["amount"] == 10
-
-
 def test_mestre_le_as_fichas_da_campanha_mas_nao_edita(api, other, gm):
     lyra = _create(api, name="Da Ana")
     other.post("/characters", json={**BODY, "name": "Da Bia"})
 
     assert sorted(c["name"] for c in gm.get("/characters?campaignId=c1").json()["items"]) == ["Da Ana", "Da Bia"]
     seen = gm.get(f"/characters/{lyra['id']}")
-    assert seen.status_code == 200 and seen.json()["access"] == {"edit": False, "adjustMoney": False}
+    assert seen.status_code == 200 and seen.json()["access"] == {"edit": False}
     assert gm.get(f"/characters/{lyra['id']}/money/transactions").status_code == 200
     assert gm.get(f"/characters/{lyra['id']}/holds").status_code == 200
 
@@ -288,7 +265,6 @@ def test_mestre_de_uma_campanha_nao_le_ficha_de_outra(api, container):
     headers = {"Authorization": f"Bearer {token_for(container, 'user-outro-mestre', 'outro')}"}
     with TestClient(create_app(container=container), headers=headers) as stranger:
         assert stranger.get(f"/characters/{lyra['id']}").status_code == 403
-        assert stranger.post(f"/characters/{lyra['id']}/money/adjustments", json={"delta": 5}).status_code == 403
 
 
 # --- modelo da campanha: os jogadores usam o modelo que o mestre definiu no S1 ------------------------

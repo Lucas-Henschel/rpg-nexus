@@ -15,7 +15,6 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 
 from app.application.ports import (
-    AdjustmentAlreadyApplied,
     CharacterAlreadyExists,
     ConcurrencyConflict,
     DuplicateMessage,
@@ -247,17 +246,6 @@ class InMemoryCharacterStore:
                 raise ConcurrencyConflict("operação de dinheiro já existe")
             self._money[key] = entry
             self._write_common(inbox, outbox)
-
-    def adjust_money(self, entry: MoneyEntry) -> None:
-        with self._lock:
-            key = (entry.character_id, entry.operation_id)
-            if key in self._money:
-                raise AdjustmentAlreadyApplied(entry.operation_id)
-            character = self._characters.get(entry.character_id)
-            if character is None or character.currency_amount + entry.amount < 0:
-                raise ConcurrencyConflict("saldo insuficiente para o ajuste")
-            self._characters[character.id] = character.evolve(currency_amount=character.currency_amount + entry.amount)
-            self._money[key] = entry
 
     # --- participantes das campanhas ----------------------------------------------------------
 

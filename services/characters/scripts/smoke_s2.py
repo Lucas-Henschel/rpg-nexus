@@ -211,9 +211,6 @@ async def check_money(base: str, campaign: str) -> None:
         rejected = await listener.wait_for(for_operation(op_broke, "rpg.money.debit-rejected.v1"))
         reason = rejected[0]["payload"]["reason"] if rejected else None
         check("dinheiro: compra sem saldo recusada", reason == "INSUFFICIENT_FUNDS" and balance() == 70, str(reason))
-        adjusted = http("POST", f"{base}/characters/{buyer}/money/adjustments", {"delta": 5, "reason": "smoke"})
-        check("dinheiro: dono da ficha ajusta o saldo", adjusted["currency"]["amount"] == 75)
-        http("POST", f"{base}/characters/{buyer}/money/adjustments", {"delta": -5, "reason": "smoke"})
 
         await publish([money_request("refund", buyer, campaign, op_buy, user_id=SMOKE_USER, amount=30)])
         refunded = await listener.wait_for(for_operation(op_buy, "rpg.money.refunded.v1"))

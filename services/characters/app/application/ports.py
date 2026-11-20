@@ -28,10 +28,6 @@ class CharacterAlreadyExists(Exception):
     pass
 
 
-class AdjustmentAlreadyApplied(Exception):
-    """O ajuste de saldo com esta chave já foi gravado: repetir a requisição não ajusta de novo."""
-
-
 class StoreUnavailable(Exception):
     """Banco indisponível/throttling — erro transitório."""
 
@@ -145,13 +141,6 @@ class CharacterStore(Protocol):
 
     def create_money_tombstone(self, inbox: InboxRecord, entry: MoneyEntry, outbox: OutboxRecord) -> None:
         """inbox(novo) + entrada inexistente -> REFUNDED (lápide: reembolso chegou antes do débito) + outbox."""
-        ...
-
-    def adjust_money(self, entry: MoneyEntry) -> None:
-        """Ajuste manual: entrada nova + saldo += amount (com sinal), sem deixar o saldo negativo.
-
-        ``AdjustmentAlreadyApplied`` se a entrada já existe; ``ConcurrencyConflict`` se o saldo não comporta.
-        """
         ...
 
     # Participantes das campanhas (projeção dos eventos do S1)

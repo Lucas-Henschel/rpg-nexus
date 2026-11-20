@@ -47,10 +47,10 @@ export interface Character {
   /** Modelo e versão de onde a ficha foi copiada. */
   sourceTemplate: { templateId: string; version: number } | null;
   /**
-   * O que quem está logado pode fazer: só o dono edita e ajusta o dinheiro.
+   * O que quem está logado pode fazer: só o dono edita.
    * O mestre da campanha também abre as fichas dos jogadores, só para ler.
    */
-  access?: { edit: boolean; adjustMoney: boolean };
+  access?: { edit: boolean };
   createdAt: string;
   updatedAt: string;
 }

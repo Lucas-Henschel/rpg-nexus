@@ -34,7 +34,6 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from app.application.ports import (
-    AdjustmentAlreadyApplied,
     CharacterAlreadyExists,
     ConcurrencyConflict,
     DuplicateMessage,
@@ -702,26 +701,6 @@ class DynamoDBCharacterStore:
 
     def create_money_tombstone(self, inbox: InboxRecord, entry: MoneyEntry, outbox: OutboxRecord) -> None:
         self._transact([self._inbox_put(inbox), self._money_put(entry), self._outbox_put(outbox)])
-
-    def adjust_money(self, entry: MoneyEntry) -> None:
-        e = _Expr()
-        condition = "attribute_exists(pk)"
-        if entry.amount < 0:
-            amount = e.n("currencyAmount")
-            condition += f" AND {amount} >= {e.v(-entry.amount)}"
-        items = [self._money_put(entry), self._balance_update(entry.character_id, entry.amount, condition, e)]
-        try:
-            self._call(self._client.transact_write_items, TransactItems=items)
-        except ClientError as exc:
-            if exc.response.get("Error", {}).get("Code") != "TransactionCanceledException":
-                raise
-            reasons = [r.get("Code") for r in exc.response.get("CancellationReasons") or []]
-            if not reasons:
-                match = re.search(r"\[(.*)\]", exc.response.get("Error", {}).get("Message", ""))
-                reasons = [r.strip() for r in match.group(1).split(",")] if match else []
-            if reasons and reasons[0] == "ConditionalCheckFailed":
-                raise AdjustmentAlreadyApplied(entry.operation_id) from exc
-            raise ConcurrencyConflict(",".join(str(r) for r in reasons)) from exc
 
     # --- participantes das campanhas ----------------------------------------------------------
 

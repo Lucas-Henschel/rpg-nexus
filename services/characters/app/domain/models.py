@@ -141,10 +141,10 @@ class CapacityHold:
 
 @dataclass(frozen=True)
 class MoneyEntry:
-    """Registro de uma operação de dinheiro do personagem (débito da Saga, reembolso ou ajuste manual).
+    """Registro de uma operação de dinheiro do personagem (débito da Saga de compra ou reembolso).
 
     Débitos/reembolsos têm uma entrada por ``operation_id`` (idempotência por operação, além da inbox).
-    Ajustes manuais do dono da ficha usam ``kind="ADJUSTMENT"`` e ``amount`` com sinal.
+    ``kind="ADJUSTMENT"`` são ajustes manuais de antes: a rota saiu, mas os já gravados continuam no extrato.
     """
 
     operation_id: str
