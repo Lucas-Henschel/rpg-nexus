@@ -88,7 +88,7 @@ describe("eventos publicados pelo S1", () => {
   it("CampaignMemberCharacterChosen segue o contrato", () => {
     const beto = member({ userId: "u-beto", characterId: "ch1", characterName: "Lyra" });
     const envelope = expectValid(
-      memberCharacterChosen(CAMPAIGN.campaignId, beto),
+      memberCharacterChosen(CAMPAIGN.campaignId, beto, "2026-11-16T12:05:00.000Z"),
       "campaign-member-character-chosen.v1.schema.json",
     );
 
@@ -99,6 +99,7 @@ describe("eventos publicados pelo S1", () => {
       characterId: "ch1",
       characterName: "Lyra",
     });
+    expect(envelope.occurredAt).toBe("2026-11-16T12:05:00.000Z");
   });
 
   it("CampaignTemplateAssigned segue o contrato", () => {

@@ -17,6 +17,7 @@ import {
   createMemberRepository,
   type MemberRepository,
 } from "../../src/repositories/member-repository.js";
+import { memberCharacterChosen } from "../../src/messaging/outgoing.js";
 import { campaign, NOW, ownerOf } from "../db/fixtures.js";
 import { createTestDb } from "../db/test-db.js";
 
@@ -37,14 +38,25 @@ beforeAll(async () => {
 const id = (prefix: string) => `${prefix}-${randomUUID().slice(0, 8)}`;
 
 /** Campanha cuja dona (u-ana) usa o personagem ch1. */
+async function chooseForAna(
+  campaignId: string,
+  character: { characterId: string; characterName: string },
+) {
+  const ana = (await members.find(campaignId, "u-ana"))!;
+
+  await members.setCharacter(
+    campaignId,
+    "u-ana",
+    character,
+    memberCharacterChosen(campaignId, { ...ana, ...character }, NOW),
+  );
+}
+
 async function newCampaign(): Promise<string> {
   const created = campaign();
 
   await campaigns.create(created, ownerOf(created), []);
-  await members.setCharacter(created.campaignId, "u-ana", {
-    characterId: "ch1",
-    characterName: "Lyra",
-  });
+  await chooseForAna(created.campaignId, { characterId: "ch1", characterName: "Lyra" });
 
   return created.campaignId;
 }
@@ -133,7 +145,7 @@ it("sem participante com o personagem: grava só a atividade", async () => {
 it("o participante trocou de personagem no meio: erro, para a mensagem ser refeita", async () => {
   const campaignId = await newCampaign();
 
-  await members.setCharacter(campaignId, "u-ana", { characterId: "ch2", characterName: "Borin" });
+  await chooseForAna(campaignId, { characterId: "ch2", characterName: "Borin" });
 
   await expect(acquisitions.record(acquisition(campaignId), NOW, "u-ana")).rejects.toThrow();
   expect(await activity.listRecent(campaignId)).toEqual([]);

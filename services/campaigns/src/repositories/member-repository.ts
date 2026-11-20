@@ -4,7 +4,7 @@ import { TransactionCanceledException } from "@aws-sdk/client-dynamodb";
 import { GetCommand, QueryCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import type { Db } from "../db/client.js";
 import type { Member, Role } from "../domain/member.js";
-import { memberCharacterChosen, type OutboxMessage } from "../messaging/outgoing.js";
+import type { OutboxMessage } from "../messaging/outgoing.js";
 import { outboxPut } from "./outbox-repository.js";
 
 type Item = Record<string, unknown>;
@@ -112,35 +112,46 @@ export function createMemberRepository(db: Db) {
       return ids;
     },
 
-    /** Troca o personagem do participante e devolve o participante atualizado. */
+    /**
+     * Troca o personagem do participante e grava o evento da escolha. Devolve false se ele já não
+     * participava.
+     */
     async setCharacter(
       campaignId: string,
       userId: string,
       { characterId, characterName }: { characterId: string; characterName: string },
-    ): Promise<Member> {
-      const previous = await find(campaignId, userId);
-      if (!previous) throw new Error("campaign member disappeared");
-      const updated: Member = { ...previous, characterId, characterName };
-      await db.doc.send(
-        new TransactWriteCommand({
-          TransactItems: [
-            {
-              Update: {
-                TableName,
-                Key: { campaignId, userId },
-                UpdateExpression: "SET characterId = :characterId, characterName = :characterName",
-                ConditionExpression: "attribute_exists(userId)",
-                ExpressionAttributeValues: {
-                  ":characterId": characterId,
-                  ":characterName": characterName,
+      chosen: OutboxMessage,
+    ): Promise<boolean> {
+      try {
+        await db.doc.send(
+          new TransactWriteCommand({
+            TransactItems: [
+              {
+                Update: {
+                  TableName,
+                  Key: { campaignId, userId },
+                  UpdateExpression:
+                    "SET characterId = :characterId, characterName = :characterName",
+                  ConditionExpression: "attribute_exists(userId)",
+                  ExpressionAttributeValues: {
+                    ":characterId": characterId,
+                    ":characterName": characterName,
+                  },
                 },
               },
-            },
-            outboxPut(db, memberCharacterChosen(campaignId, updated)),
-          ],
-        }),
-      );
-      return updated;
+              outboxPut(db, chosen),
+            ],
+          }),
+        );
+
+        return true;
+      } catch (error) {
+        if (firstConditionFailed(error)) {
+          return false;
+        }
+
+        throw error;
+      }
     },
 
     /** Remove o participante e grava o evento da saída. Devolve false se ele já não participava. */

@@ -68,12 +68,17 @@ export function fakeRepositories(): Repositories & { outbox: OutboxMessage[] } {
           .filter((k) => k.endsWith(`/${userId}`))
           .map((k) => k.slice(0, k.lastIndexOf("/")));
       },
-      async setCharacter(campaignId, userId, { characterId, characterName }) {
-        const member = { ...members.get(key(campaignId, userId))!, characterId, characterName };
+      async setCharacter(campaignId, userId, { characterId, characterName }, event) {
+        const member = members.get(key(campaignId, userId));
 
-        members.set(key(campaignId, userId), member);
+        if (!member) {
+          return false;
+        }
 
-        return member;
+        members.set(key(campaignId, userId), { ...member, characterId, characterName });
+        outbox.push(event);
+
+        return true;
       },
       async remove(campaignId, userId, event) {
         if (!members.delete(key(campaignId, userId))) {

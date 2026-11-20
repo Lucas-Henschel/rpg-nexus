@@ -62,8 +62,12 @@ export const memberJoined = (campaignId: string, member: Member): OutboxMessage 
     joinedAt: member.joinedAt,
   });
 
-export const memberCharacterChosen = (campaignId: string, member: Member): OutboxMessage =>
-  outboxMessage("rpg.campaign.member.character-chosen.v1", campaignId, new Date().toISOString(), {
+export const memberCharacterChosen = (
+  campaignId: string,
+  member: Member,
+  chosenAt: string,
+): OutboxMessage =>
+  outboxMessage("rpg.campaign.member.character-chosen.v1", campaignId, chosenAt, {
     campaignId,
     userId: member.userId,
     role: member.role,
