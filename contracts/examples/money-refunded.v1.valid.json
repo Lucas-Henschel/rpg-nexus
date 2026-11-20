@@ -1,1 +1,15 @@
-{"messageId":"55555555-5555-4555-8555-555555555555","correlationId":"op-1","type":"rpg.money.refunded.v1","version":1,"occurredAt":"2026-11-17T00:00:00Z","payload":{"operationId":"op-1","campaignId":"c1","userId":"u1","characterId":"p1","itemId":"sword","amount":30}}
+{
+  "messageId": "55555555-5555-4555-8555-555555555555",
+  "correlationId": "op-1",
+  "type": "rpg.money.refunded.v1",
+  "version": 1,
+  "occurredAt": "2026-11-17T00:00:00Z",
+  "payload": {
+    "operationId": "op-1",
+    "campaignId": "c1",
+    "userId": "u1",
+    "characterId": "p1",
+    "itemId": "sword",
+    "amount": 30
+  }
+}

@@ -4,7 +4,14 @@
   "title": "Envelope comum de mensagens do RPG Nexus",
   "description": "Todo evento publicado em rpg.events usa este envelope. correlationId = operationId do fluxo; messageId é gerado a cada novo evento (não a cada reenvio da outbox).",
   "type": "object",
-  "required": ["messageId", "correlationId", "type", "version", "occurredAt", "payload"],
+  "required": [
+    "messageId",
+    "correlationId",
+    "type",
+    "version",
+    "occurredAt",
+    "payload"
+  ],
   "additionalProperties": false,
   "properties": {
     "messageId": {

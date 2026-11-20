@@ -1,1 +1,8 @@
-{"messageId":"22222222-2222-4222-8222-222222222222","correlationId":"op-1","type":"rpg.money.refund-requested.v1","version":1,"occurredAt":"2026-11-17T00:00:00Z","payload":{"operationId":"op-1"}}
+{
+  "messageId": "22222222-2222-4222-8222-222222222222",
+  "correlationId": "op-1",
+  "type": "rpg.money.refund-requested.v1",
+  "version": 1,
+  "occurredAt": "2026-11-17T00:00:00Z",
+  "payload": { "operationId": "op-1" }
+}
