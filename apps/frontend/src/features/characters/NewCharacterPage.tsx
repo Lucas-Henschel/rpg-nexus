@@ -3,6 +3,7 @@ import { createCharacter, createFromTemplate, type SavedTemplate } from "./api";
 import { useDeleteTemplate, useTemplates } from "./queries";
 import { errorMessage } from "../../shared/http";
 import { useCampaign } from "../../shared/campaign";
+import { useCampaignCode } from "../campaigns/queries";
 import { cx } from "../../shared/ui/cx";
 import { useToast } from "../../shared/ui/toast-context";
 import { navigate } from "../../app/navigation";
@@ -91,6 +92,7 @@ function SavedTemplates({
 
 export function NewCharacterPage() {
   const [campaign] = useCampaign();
+  const code = useCampaignCode(campaign);
   const toast = useToast();
   // "saved:<id>" é um modelo salvo no S2; o resto são os modelos prontos do front.
   const [templateId, setTemplateId] = useState(TEMPLATES[0].id);
@@ -187,7 +189,7 @@ export function NewCharacterPage() {
             />
           </label>
           <button type="submit" className="button button--brass" disabled={saving}>
-            {saving ? "Criando…" : `Criar personagem na campanha ${campaign}`}
+            {saving ? "Criando…" : `Criar personagem na campanha ${code}`}
           </button>
         </div>
         {problem && <p className="field-error field-error--felt">{problem}</p>}

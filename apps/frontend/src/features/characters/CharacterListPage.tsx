@@ -2,6 +2,7 @@ import { portraitUrl, type Character } from "./api";
 import { errorMessage } from "../../shared/http";
 import { useCampaign } from "../../shared/campaign";
 import { CampaignPicker } from "../campaigns/CampaignPicker";
+import { useCampaignCode } from "../campaigns/queries";
 import { cx } from "../../shared/ui/cx";
 import { HpBar, Initials } from "../../shared/ui/Sheet";
 import { toLabel } from "../../shared/labels";
@@ -46,6 +47,7 @@ function CharacterTile({ character }: { character: Character }) {
 export function CharacterListPage() {
   const [campaign, setCampaign] = useCampaign();
   const characters = useCharacters(campaign);
+  const code = useCampaignCode(campaign);
 
   return (
     <main className="page">
@@ -60,7 +62,7 @@ export function CharacterListPage() {
       </header>
 
       {characters.isPending && (
-        <p className="page__status">Buscando as fichas da campanha {campaign}…</p>
+        <p className="page__status">Buscando as fichas da campanha {code}…</p>
       )}
 
       {characters.isError && (
@@ -78,7 +80,7 @@ export function CharacterListPage() {
 
       {characters.isSuccess && characters.data.length === 0 && (
         <div className="notice">
-          <p>A campanha {campaign} ainda não tem personagens.</p>
+          <p>A campanha {code} ainda não tem personagens.</p>
           <Link to="/personagens/novo" className="button button--brass">
             Criar o primeiro personagem
           </Link>

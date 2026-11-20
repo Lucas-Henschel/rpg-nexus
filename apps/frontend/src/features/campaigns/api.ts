@@ -14,6 +14,16 @@ export interface Campaign {
   /** Seis algarismos; é o que os jogadores digitam para entrar. */
   joinCode: string;
   createdAt: string;
+  /** O modelo de ficha que os jogadores usam; null até o mestre escolher. */
+  template: CampaignTemplate | null;
+}
+
+/** Um modelo do S2 numa versão fixa: editar o modelo depois não muda a campanha. */
+export interface CampaignTemplate {
+  templateId: string;
+  version: number;
+  name: string;
+  assignedAt: string;
 }
 
 export type Role = "OWNER" | "PLAYER";
@@ -77,6 +87,13 @@ export async function chooseCharacter(
 
   return (await authorizedRequest<Member>(base, `${path(campaignId)}/members/me/character`, init))
     .data;
+}
+
+/** Só o mestre: escolhe, entre os modelos dele, o que os jogadores usam (na versão atual). */
+export async function assignTemplate(campaignId: string, templateId: string): Promise<Campaign> {
+  const init = { method: "PUT", ...jsonBody({ templateId }) };
+
+  return (await authorizedRequest<Campaign>(base, `${path(campaignId)}/template`, init)).data;
 }
 
 /** Sair (o próprio userId) ou, para o dono, remover um jogador. */

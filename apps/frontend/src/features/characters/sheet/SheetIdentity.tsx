@@ -5,6 +5,7 @@ import { Initials } from "../../../shared/ui/Sheet";
 import { useToast } from "../../../shared/ui/toast-context";
 import { useAdjustMoney, useUploadPortrait } from "../queries";
 import type { Draft } from "./sheetDraft";
+import { useCampaignCode } from "../../campaigns/queries";
 
 function PortraitPicker({ character, name, readOnly }: { character: Character; name: string; readOnly: boolean }) {
   const toast = useToast();
@@ -102,6 +103,7 @@ export function SheetIdentity({ character, draft, edit, readOnly = false }: {
   /** Ficha de outra pessoa (o mestre vendo a de um jogador): tudo só para leitura. */
   readOnly?: boolean;
 }) {
+  const campaignCode = useCampaignCode(character.campaignId);
   const header = draft.sheet.header ?? {};
   const setHeader = (key: string, value: string) => edit({ sheet: { ...draft.sheet, header: { ...header, [key]: value } } });
   const value = (key: string) => typeof header[key] === "string" || typeof header[key] === "number" ? String(header[key]) : "";
@@ -122,7 +124,7 @@ export function SheetIdentity({ character, draft, edit, readOnly = false }: {
       </fieldset>
       <MoneyPanel character={character} />
       <fieldset className="sheet__fieldset" disabled={readOnly}>
-      <div className="sheet__meta"><span>Campanha {character.campaignId}</span>
+      <div className="sheet__meta"><span>Campanha {campaignCode}</span>
         <label className="switch"><input type="checkbox" checked={draft.active} onChange={event => edit({ active: event.target.checked })} />
           <span>{draft.active ? "Ativo: pode receber itens" : "Inativo: não recebe itens"}</span>
         </label>
