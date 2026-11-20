@@ -284,3 +284,16 @@ def test_participacao_no_dynamodb_respeita_a_ordem_dos_eventos(dynamo, clock):
     assert stale.outcome is Outcome.STALE
     assert dynamo.get_membership("camp", "u1").active is False
     assert dynamo.get_membership("camp", "ninguem") is None
+
+
+def test_modelo_da_campanha_no_dynamodb_respeita_a_ordem_dos_eventos(dynamo, clock):
+    from .conftest import template_assigned
+
+    handlers = MessageHandlers(dynamo, clock=clock)
+    assert handlers.dispatch(template_assigned("camp", "t1", 3, "Aventureiro", at="2026-11-11T13:00:00Z")).outcome is (
+        Outcome.CAMPAIGN_TEMPLATE_APPLIED
+    )
+    assert handlers.dispatch(template_assigned("camp", "t1", 1, at="2026-11-11T12:00:00Z")).outcome is Outcome.STALE
+    assigned = dynamo.get_campaign_template("camp")
+    assert (assigned.template_id, assigned.version, assigned.name) == ("t1", 3, "Aventureiro")
+    assert dynamo.get_campaign_template("outra") is None

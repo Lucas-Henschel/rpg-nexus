@@ -152,6 +152,7 @@ def test_manifesto_de_infra_igual_a_topologia_do_codigo():
         "money.refund.requested.v1",
         "campaign.member.joined.v1",
         "campaign.member.removed.v1",
+        "campaign.template.assigned.v1",
     }
 
 

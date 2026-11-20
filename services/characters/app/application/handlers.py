@@ -30,7 +30,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from app.clock import Clock, utcnow
-from app.domain.models import CampaignMembership, CapacityHold, Character, HoldStatus, MoneyEntry, MoneyStatus
+from app.domain.models import CampaignMembership, CampaignTemplate, CapacityHold, Character, HoldStatus, MoneyEntry, MoneyStatus
 from app.domain.rules import MoneyDecision, ValidationDecision, evaluate_debit_request, evaluate_validation_request
 from app.messaging.envelope import Envelope, build_envelope, summarize_validation_error
 from app.messaging.errors import PoisonMessage, TransientProcessingError
@@ -38,6 +38,7 @@ from app.messaging.events import (
     ACQUISITION_CANCELLED,
     CAMPAIGN_MEMBER_JOINED,
     CAMPAIGN_MEMBER_REMOVED,
+    CAMPAIGN_TEMPLATE_ASSIGNED,
     CHARACTER_REJECTED,
     CHARACTER_VALIDATED,
     CHARACTER_VALIDATION_REQUESTED,
@@ -51,6 +52,7 @@ from app.messaging.events import (
     AcquisitionOutcomePayload,
     CampaignMemberJoinedPayload,
     CampaignMemberRemovedPayload,
+    CampaignTemplateAssignedPayload,
     CharacterRejectedPayload,
     CharacterValidatedPayload,
     EventSpec,
@@ -82,6 +84,7 @@ class Outcome(StrEnum):
     ALREADY_APPLIED = "ALREADY_APPLIED"
     MONEY_REFUNDED = "MONEY_REFUNDED"
     MEMBERSHIP_APPLIED = "MEMBERSHIP_APPLIED"
+    CAMPAIGN_TEMPLATE_APPLIED = "CAMPAIGN_TEMPLATE_APPLIED"
     STALE = "STALE"
     ANOMALY = "ANOMALY"
 
@@ -123,6 +126,7 @@ class MessageHandlers:
             MONEY_REFUND_REQUESTED.type: (MONEY_REFUND_REQUESTED, self.handle_money_refund_requested),
             CAMPAIGN_MEMBER_JOINED.type: (CAMPAIGN_MEMBER_JOINED, self.handle_member_joined),
             CAMPAIGN_MEMBER_REMOVED.type: (CAMPAIGN_MEMBER_REMOVED, self.handle_member_removed),
+            CAMPAIGN_TEMPLATE_ASSIGNED.type: (CAMPAIGN_TEMPLATE_ASSIGNED, self.handle_template_assigned),
         }
 
     def set_outbox_notifier(self, notifier: Callable[[], None]) -> None:
@@ -553,6 +557,31 @@ class MessageHandlers:
             extra={"campaignId": membership.campaign_id, "userId": membership.user_id, "active": membership.active},
         )
         return HandlingResult(Outcome.MEMBERSHIP_APPLIED)
+
+    # --- Modelo de ficha das campanhas (evento do S1) -------------------------------------------
+
+    def handle_template_assigned(self, envelope: Envelope) -> HandlingResult:
+        p = self._parse(CampaignTemplateAssignedPayload, envelope)
+        assigned = CampaignTemplate(p.campaignId, p.templateId, p.templateVersion, p.templateName, p.assignedAt)
+        if self._store.get_inbox(str(envelope.messageId)) is not None:
+            return HandlingResult(Outcome.DUPLICATE, "messageId já processado")
+        now = self._clock()
+        try:
+            self._store.apply_campaign_template(self._inbox(envelope, Outcome.CAMPAIGN_TEMPLATE_APPLIED, "", now), assigned)
+        except DuplicateMessage:
+            return HandlingResult(Outcome.DUPLICATE, "messageId gravado por processamento concorrente")
+        except ConcurrencyConflict:
+            # Definição mais antiga que a gravada (chegou fora de ordem): registra e não muda nada.
+            try:
+                self._store.record_outcome(self._inbox(envelope, Outcome.STALE, "evento antigo", now), None)
+            except DuplicateMessage:
+                return HandlingResult(Outcome.DUPLICATE, "messageId gravado por processamento concorrente")
+            return HandlingResult(Outcome.STALE, "evento mais antigo que o gravado")
+        log.info(
+            "campaign.template_applied",
+            extra={"campaignId": assigned.campaign_id, "templateId": assigned.template_id, "version": assigned.version},
+        )
+        return HandlingResult(Outcome.CAMPAIGN_TEMPLATE_APPLIED)
 
     # --- Auxiliares ---------------------------------------------------------------------------
 

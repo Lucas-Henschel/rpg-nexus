@@ -231,6 +231,11 @@ inicial). Fica na tabela `character_templates`, privado de quem criou.
 - **Criar a partir do modelo:** `POST /characters/from-template/{id}` copia a versão (atual ou `version`
   pedida) e grava `sourceTemplate` na ficha. Editar o modelo depois **não** muda fichas existentes.
 - **Apagar:** o modelo sai da lista e não cria fichas novas; as versões continuam gravadas.
+- **Modelo da campanha:** quando o dono define um modelo na campanha (no S1), o S2 recebe
+  `CampaignTemplateAssigned` (fila `characters.campaign-members.v1`) e guarda `CAMPAIGN#{id} / TEMPLATE` com o
+  id e a versão, com a mesma regra de ordem dos participantes. Esse modelo, **só nessa versão**, fica liberado
+  para os participantes da campanha: `GET /campaigns/{id}/template` e `POST /characters/from-template/{id}` com
+  o `campaignId` dela. Fora da campanha, ou em outra versão, continua `404`.
 
 ## 5. Mensageria
 
@@ -249,6 +254,7 @@ inicial). Fica na tabela `character_templates`, privado de quem criou.
 | publica | `MoneyRefunded` (`rpg.money.refunded.v1`) | `money.refunded.v1` | idem |
 | consome | `CampaignMemberJoined` (`rpg.campaign.member.joined.v1`, do S1) | `campaign.member.joined.v1` | `characters.campaign-members.v1` |
 | consome | `CampaignMemberRemoved` (`rpg.campaign.member.removed.v1`, do S1) | `campaign.member.removed.v1` | `characters.campaign-members.v1` |
+| consome | `CampaignTemplateAssigned` (`rpg.campaign.template.assigned.v1`, do S1) | `campaign.template.assigned.v1` | `characters.campaign-members.v1` |
 
 Cada fila tem `.retry` e `.dlq`. Schemas: `contracts/events/character-*.schema.json`, com exemplos
 válidos e inválidos em `contracts/examples/`. Todo evento produzido é validado contra o schema antes de
@@ -300,7 +306,7 @@ Documentação interativa: `http://localhost:8000/docs`.
 | GET | `/characters?campaignId=c1&limit=50&cursor=` | lista por campanha (paginada) |
 | GET | `/characters/{id}` | consulta; header `ETag` = versão |
 | PATCH | `/characters/{id}` | JSON Merge Patch (`null` remove atributo/perícia); `If-Match` → `412` se desatualizado. O campo `sheet` (organização livre da ficha em blocos) é substituído por inteiro; `null` volta à ficha padrão |
-| POST | `/characters/from-template/{templateId}` | cria ficha copiando o modelo (`version` opcional); grava `sourceTemplate` |
+| POST | `/characters/from-template/{templateId}` | cria ficha copiando o modelo (`version` opcional); grava `sourceTemplate`. Vale também o modelo definido na campanha do `campaignId`, na versão dela |
 | POST | `/characters/{id}/money/adjustments` | ajuste do saldo pelo dono da ficha (`delta` com sinal); `409 INSUFFICIENT_FUNDS` se ficaria negativo |
 | GET | `/characters/{id}/money/transactions` | débitos, reembolsos e ajustes da ficha |
 | POST | `/templates` | salva modelo privado (v1) |
@@ -308,6 +314,7 @@ Documentação interativa: `http://localhost:8000/docs`.
 | GET | `/templates/{id}?version=` | modelo (versão atual ou pedida) |
 | PATCH | `/templates/{id}` | grava versão nova; `If-Match` → `412` se desatualizado |
 | DELETE | `/templates/{id}` | tira da lista; fichas já criadas não mudam |
+| GET | `/campaigns/{campaignId}/template` | modelo definido na campanha, na versão dela (só participantes; `404` se não há) |
 | GET | `/campaigns/{campaignId}/roster` | **consulta (CQRS)**: resumo de cada personagem e totais da campanha, lidos do modelo de leitura |
 | GET | `/characters/{id}/holds` | reservas da Saga (evidência na defesa) |
 | POST | `/characters/{id}/portrait-upload` | URL pré-assinada `PUT` para o S3 |

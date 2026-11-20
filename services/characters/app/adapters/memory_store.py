@@ -29,6 +29,7 @@ from app.application.ports import (
 from app.application.read_model import CharacterSummary
 from app.domain.models import (
     CampaignMembership,
+    CampaignTemplate,
     CapacityHold,
     Character,
     CharacterTemplate,
@@ -48,6 +49,7 @@ class InMemoryCharacterStore:
         self._leases: dict[str, tuple[str, datetime]] = {}
         self._money: dict[tuple[str, str], MoneyEntry] = {}
         self._members: dict[tuple[str, str], CampaignMembership] = {}
+        self._campaign_templates: dict[str, CampaignTemplate] = {}
 
     # --- utilitários de teste -----------------------------------------------------------------
 
@@ -271,6 +273,19 @@ class InMemoryCharacterStore:
             if current is not None and current.changed_at >= membership.changed_at:
                 raise ConcurrencyConflict("evento de participação mais antigo que o gravado")
             self._members[key] = membership
+            self._write_common(inbox, None)
+
+    def get_campaign_template(self, campaign_id: str) -> CampaignTemplate | None:
+        with self._lock:
+            return self._campaign_templates.get(campaign_id)
+
+    def apply_campaign_template(self, inbox: InboxRecord, assigned: CampaignTemplate) -> None:
+        with self._lock:
+            self._check_inbox(inbox)
+            current = self._campaign_templates.get(assigned.campaign_id)
+            if current is not None and current.changed_at >= assigned.changed_at:
+                raise ConcurrencyConflict("modelo da campanha mais antigo que o gravado")
+            self._campaign_templates[assigned.campaign_id] = assigned
             self._write_common(inbox, None)
 
     # --- outbox -------------------------------------------------------------------------------

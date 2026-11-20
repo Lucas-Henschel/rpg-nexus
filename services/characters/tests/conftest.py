@@ -25,6 +25,7 @@ from app.messaging.events import (  # noqa: E402
     ACQUISITION_CANCELLED,
     CAMPAIGN_MEMBER_JOINED,
     CAMPAIGN_MEMBER_REMOVED,
+    CAMPAIGN_TEMPLATE_ASSIGNED,
     CHARACTER_VALIDATION_REQUESTED,
     CHARACTER_VALIDATION_REQUESTED_V2,
     ITEM_ACQUIRED,
@@ -258,6 +259,28 @@ def member_removed(campaign_id: str, user_id: str, at: str = "2026-11-11T13:00:0
             version=1,
             correlation_id=campaign_id,
             payload={"campaignId": campaign_id, "userId": user_id, "removedBy": user_id, "reason": "LEFT", "removedAt": at},
+            occurred_at=datetime.fromisoformat(at.replace("Z", "+00:00")),
+        )
+    )
+
+
+def template_assigned(
+    campaign_id: str, template_id: str, version: int, name: str = "Modelo", at: str = "2026-11-11T12:00:00Z"
+) -> Envelope:
+    """CampaignTemplateAssigned, como o S1 publica quando o dono define o modelo da campanha."""
+    return Envelope.model_validate(
+        build_envelope(
+            event_type=CAMPAIGN_TEMPLATE_ASSIGNED.type,
+            version=1,
+            correlation_id=campaign_id,
+            payload={
+                "campaignId": campaign_id,
+                "templateId": template_id,
+                "templateVersion": version,
+                "templateName": name,
+                "assignedBy": "user-mestre",
+                "assignedAt": at,
+            },
             occurred_at=datetime.fromisoformat(at.replace("Z", "+00:00")),
         )
     )

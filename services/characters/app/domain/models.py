@@ -214,3 +214,18 @@ class CampaignMembership:
     @property
     def is_owner(self) -> bool:
         return self.active and self.role == "OWNER"
+
+
+@dataclass(frozen=True)
+class CampaignTemplate:
+    """Modelo de ficha que o dono definiu para a campanha no S1, numa versão fixa.
+
+    Também é cópia local montada com os eventos do S1: libera esse modelo (só essa versão) para os
+    participantes da campanha criarem fichas. ``changed_at`` é o instante da definição no S1.
+    """
+
+    campaign_id: str
+    template_id: str
+    version: int
+    name: str
+    changed_at: datetime

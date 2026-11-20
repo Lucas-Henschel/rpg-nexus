@@ -17,6 +17,7 @@ from .events import (
     ACQUISITION_CANCELLED,
     CAMPAIGN_MEMBER_JOINED,
     CAMPAIGN_MEMBER_REMOVED,
+    CAMPAIGN_TEMPLATE_ASSIGNED,
     CHARACTER_VALIDATION_REQUESTED,
     CHARACTER_VALIDATION_REQUESTED_V2,
     ITEM_ACQUIRED,
@@ -54,9 +55,11 @@ VALIDATION_QUEUE = QueueSpec(
 OUTCOMES_QUEUE = QueueSpec("characters.acquisition-outcomes.v1", (ITEM_ACQUIRED.routing_key, ACQUISITION_CANCELLED.routing_key))
 # Débito e reembolso na mesma fila: chegam na ordem em que o S3 publicou para a mesma operação.
 MONEY_QUEUE = QueueSpec("characters.money-commands.v1", (MONEY_DEBIT_REQUESTED.routing_key, MONEY_REFUND_REQUESTED.routing_key))
-# Quem entra e sai das campanhas (eventos do S1): base da autorização por campanha no S2.
+# Quem entra e sai das campanhas e o modelo de ficha de cada uma (eventos do S1): base da autorização
+# por campanha no S2.
 MEMBERS_QUEUE = QueueSpec(
-    "characters.campaign-members.v1", (CAMPAIGN_MEMBER_JOINED.routing_key, CAMPAIGN_MEMBER_REMOVED.routing_key)
+    "characters.campaign-members.v1",
+    (CAMPAIGN_MEMBER_JOINED.routing_key, CAMPAIGN_MEMBER_REMOVED.routing_key, CAMPAIGN_TEMPLATE_ASSIGNED.routing_key),
 )
 CONSUMER_QUEUES: tuple[QueueSpec, ...] = (VALIDATION_QUEUE, OUTCOMES_QUEUE, MONEY_QUEUE, MEMBERS_QUEUE)
 

@@ -101,6 +101,11 @@ class InsufficientFunds(DomainError):
         super().__init__(f"saldo insuficiente: há {balance} e o ajuste tira {-delta}", balance=balance, delta=delta)
 
 
+class CampaignTemplateNotSet(TemplateNotFound):
+    def __init__(self, campaign_id: str) -> None:
+        DomainError.__init__(self, "a campanha ainda não tem modelo de ficha", campaignId=campaign_id)
+
+
 class NotCampaignMember(DomainError):
     code = "NOT_CAMPAIGN_MEMBER"
     http_status = 403

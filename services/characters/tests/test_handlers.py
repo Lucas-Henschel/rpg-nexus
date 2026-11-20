@@ -279,3 +279,25 @@ def test_participacao_repetida_nao_muda_nada(store, clock, handlers):
 
     env = member_joined("camp", "u1")
     assert [handlers.dispatch(env).outcome for _ in range(3)] == [Outcome.MEMBERSHIP_APPLIED] + [Outcome.DUPLICATE] * 2
+
+
+# --- Modelo de ficha da campanha (evento do S1) ----------------------------------------------------
+
+
+def test_modelo_da_campanha_e_gravado(store, clock, handlers):
+    from .conftest import template_assigned
+
+    assert handlers.dispatch(template_assigned("camp", "t1", 2, "Aventureiro")).outcome is Outcome.CAMPAIGN_TEMPLATE_APPLIED
+    assigned = store.get_campaign_template("camp")
+    assert (assigned.template_id, assigned.version, assigned.name) == ("t1", 2, "Aventureiro")
+
+
+def test_modelo_da_campanha_ignora_evento_antigo_e_repetido(store, clock, handlers):
+    from .conftest import template_assigned
+
+    newer = template_assigned("camp", "t1", 3, at="2026-11-11T13:00:00Z")
+    handlers.dispatch(newer)
+    late = handlers.dispatch(template_assigned("camp", "t1", 1, at="2026-11-11T12:00:00Z"))
+    assert late.outcome is Outcome.STALE
+    assert handlers.dispatch(newer).outcome is Outcome.DUPLICATE
+    assert store.get_campaign_template("camp").version == 3

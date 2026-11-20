@@ -109,6 +109,13 @@ CAMPAIGN_MEMBER_REMOVED = EventSpec(
     "campaign.member.removed.v1",
     "events/campaign-member-removed.v1.schema.json",
 )
+CAMPAIGN_TEMPLATE_ASSIGNED = EventSpec(
+    "CampaignTemplateAssigned",
+    "rpg.campaign.template.assigned.v1",
+    1,
+    "campaign.template.assigned.v1",
+    "events/campaign-template-assigned.v1.schema.json",
+)
 
 CONSUMED_EVENTS = (
     CHARACTER_VALIDATION_REQUESTED,
@@ -119,6 +126,7 @@ CONSUMED_EVENTS = (
     MONEY_REFUND_REQUESTED,
     CAMPAIGN_MEMBER_JOINED,
     CAMPAIGN_MEMBER_REMOVED,
+    CAMPAIGN_TEMPLATE_ASSIGNED,
 )
 PRODUCED_EVENTS = (CHARACTER_VALIDATED, CHARACTER_REJECTED, MONEY_DEBITED, MONEY_DEBIT_REJECTED, MONEY_REFUNDED)
 
@@ -261,3 +269,11 @@ class CampaignMemberRemovedPayload(_Consumed):
     campaignId: Id
     userId: Id
     removedAt: AwareDatetime
+
+
+class CampaignTemplateAssignedPayload(_Consumed):
+    campaignId: Id
+    templateId: Id
+    templateVersion: Annotated[int, Field(ge=1)]
+    templateName: Annotated[str, StringConstraints(min_length=1, max_length=120)]
+    assignedAt: AwareDatetime

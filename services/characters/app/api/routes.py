@@ -228,7 +228,7 @@ def create_character_from_template(
     user: UserDep,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=128)] = None,
 ) -> CharacterOut:
-    template = c.templates.for_new_character(_owner(user), template_id, body.version)
+    template = c.templates.for_new_character(_owner(user), template_id, body.version, body.campaignId)
     character, created = c.characters.create_from_template(body, template, idempotency_key, user_id=_uid(user))
     response.status_code = 201 if created else 200
     response.headers["Location"] = f"/characters/{character.id}"
@@ -295,6 +295,21 @@ def get_template(
     version: Annotated[int | None, Query(ge=1, description="Versão; sem ela, a atual")] = None,
 ) -> TemplateOut:
     return _template_response(c.templates.get(_owner(user), template_id, version), response)
+
+
+@router.get(
+    "/campaigns/{campaign_id}/template",
+    tags=["modelos"],
+    response_model=TemplateOut,
+    summary="Modelo de ficha da campanha, na versão que o dono definiu (para quem participa dela)",
+)
+def get_campaign_template(
+    campaign_id: Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{1,64}$", description="ID da campanha")],
+    response: Response,
+    c: ContainerDep,
+    user: UserDep,
+) -> TemplateOut:
+    return _template_response(c.templates.for_campaign(_owner(user), campaign_id), response)
 
 
 @router.patch(
