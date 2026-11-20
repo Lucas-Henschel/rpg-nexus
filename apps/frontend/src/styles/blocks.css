@@ -350,3 +350,8 @@
     flex-wrap: wrap;
   }
 }
+
+.template__delete { justify-self: start; margin-top: 0.4rem; }
+
+/* "Meus modelos", logo abaixo dos modelos prontos */
+.templates + .section-title { margin-top: 3rem; }

@@ -247,3 +247,35 @@ def test_R2_concorrencia_entre_replicas_nunca_excede_capacidade(store, clock):
     character = store.get_character("p1")
     assert character.slots_used == 10 and character.slots_available == 0
     assert len(store.outbox) == 100
+
+
+# --- Participantes das campanhas (eventos do S1) ---------------------------------------------------
+
+
+def test_participacao_aplica_entrada_e_saida(store, clock, handlers):
+    from .conftest import member_joined, member_removed
+
+    assert handlers.dispatch(member_joined("camp", "u1", "OWNER")).outcome is Outcome.MEMBERSHIP_APPLIED
+    assert store.get_membership("camp", "u1").is_owner
+    handlers.dispatch(member_removed("camp", "u1"))
+    membership = store.get_membership("camp", "u1")
+    assert (membership.active, membership.role, membership.is_owner) == (False, "OWNER", False)
+
+
+def test_participacao_ignora_evento_antigo_que_chega_depois(store, clock, handlers):
+    from .conftest import member_joined, member_removed
+
+    handlers.dispatch(member_removed("camp", "u1", at="2026-11-11T13:00:00Z"))
+    late = handlers.dispatch(member_joined("camp", "u1", at="2026-11-11T12:00:00Z"))  # entrada mais antiga, atrasada
+    assert late.outcome is Outcome.STALE
+    assert store.get_membership("camp", "u1").active is False
+    # entrar de novo depois de sair vale
+    handlers.dispatch(member_joined("camp", "u1", at="2026-11-11T14:00:00Z"))
+    assert store.get_membership("camp", "u1").active is True
+
+
+def test_participacao_repetida_nao_muda_nada(store, clock, handlers):
+    from .conftest import member_joined
+
+    env = member_joined("camp", "u1")
+    assert [handlers.dispatch(env).outcome for _ in range(3)] == [Outcome.MEMBERSHIP_APPLIED] + [Outcome.DUPLICATE] * 2

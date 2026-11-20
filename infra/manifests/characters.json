@@ -30,7 +30,9 @@
         ],
         "itemTypes": {
           "PROFILE": "pk=CHAR#{characterId}, sk=PROFILE — ficha + contadores de capacidade (slotsUsed/slotsAvailable)",
-          "HOLD": "pk=CHAR#{characterId}, sk=HOLD#{operationId} — reserva de capacidade da Saga (HELD/COMMITTED/RELEASED)"
+          "HOLD": "pk=CHAR#{characterId}, sk=HOLD#{operationId} — reserva de capacidade da Saga (HELD/COMMITTED/RELEASED)",
+          "MONEY": "pk=CHAR#{characterId}, sk=MONEY#{operationId} — débito/reembolso da compra (DEBITED/REFUNDED) ou ajuste manual do saldo",
+          "MEMBERSHIP": "pk=CAMPAIGN#{campaignId}, sk=MEMBER#{userId} — participante da campanha (OWNER/PLAYER, ativo ou não), cópia dos eventos do S1"
         }
       },
       {
@@ -76,6 +78,35 @@
           { "AttributeName": "characterId", "AttributeType": "S" }
         ],
         "purpose": "Modelo de leitura (CQRS): um resumo por personagem, consultado por campanha. Reconstruível a partir de `characters`."
+      },
+      {
+        "name": "character_templates",
+        "envOverride": "TABLE_TEMPLATES",
+        "billingMode": "PAY_PER_REQUEST",
+        "keySchema": [
+          { "AttributeName": "pk", "KeyType": "HASH" },
+          { "AttributeName": "sk", "KeyType": "RANGE" }
+        ],
+        "attributeDefinitions": [
+          { "AttributeName": "pk", "AttributeType": "S" },
+          { "AttributeName": "sk", "AttributeType": "S" },
+          { "AttributeName": "gsi1pk", "AttributeType": "S" },
+          { "AttributeName": "gsi1sk", "AttributeType": "S" }
+        ],
+        "globalSecondaryIndexes": [
+          {
+            "IndexName": "byOwner",
+            "KeySchema": [
+              { "AttributeName": "gsi1pk", "KeyType": "HASH" },
+              { "AttributeName": "gsi1sk", "KeyType": "RANGE" }
+            ],
+            "Projection": { "ProjectionType": "ALL" }
+          }
+        ],
+        "itemTypes": {
+          "HEAD": "pk=TEMPLATE#{templateId}, sk=HEAD — versão atual do modelo; gsi1pk=OWNER#{ownerId} para listar",
+          "VERSION": "pk=TEMPLATE#{templateId}, sk=V#{000001} — cada versão, imutável"
+        }
       }
     ]
   },
@@ -93,7 +124,13 @@
   },
   "rabbitmq": {
     "exchange": { "name": "rpg.events", "type": "topic", "durable": true },
-    "publishes": ["character.validated.v1", "character.rejected.v1"],
+    "publishes": [
+      "character.validated.v1",
+      "character.rejected.v1",
+      "money.debited.v1",
+      "money.debit-rejected.v1",
+      "money.refunded.v1"
+    ],
     "queues": [
       {
         "name": "characters.validation-requested.v1",
@@ -132,7 +169,45 @@
         },
         "bindings": []
       },
-      { "name": "characters.acquisition-outcomes.v1.dlq", "durable": true, "arguments": {}, "bindings": [] }
+      { "name": "characters.acquisition-outcomes.v1.dlq", "durable": true, "arguments": {}, "bindings": [] },
+      {
+        "name": "characters.money-commands.v1",
+        "durable": true,
+        "arguments": {
+          "x-dead-letter-exchange": "",
+          "x-dead-letter-routing-key": "characters.money-commands.v1.dlq"
+        },
+        "bindings": ["money.debit.requested.v1", "money.refund.requested.v1"]
+      },
+      {
+        "name": "characters.money-commands.v1.retry",
+        "durable": true,
+        "arguments": {
+          "x-dead-letter-exchange": "",
+          "x-dead-letter-routing-key": "characters.money-commands.v1"
+        },
+        "bindings": []
+      },
+      { "name": "characters.money-commands.v1.dlq", "durable": true, "arguments": {}, "bindings": [] },
+      {
+        "name": "characters.campaign-members.v1",
+        "durable": true,
+        "arguments": {
+          "x-dead-letter-exchange": "",
+          "x-dead-letter-routing-key": "characters.campaign-members.v1.dlq"
+        },
+        "bindings": ["campaign.member.joined.v1", "campaign.member.removed.v1"]
+      },
+      {
+        "name": "characters.campaign-members.v1.retry",
+        "durable": true,
+        "arguments": {
+          "x-dead-letter-exchange": "",
+          "x-dead-letter-routing-key": "characters.campaign-members.v1"
+        },
+        "bindings": []
+      },
+      { "name": "characters.campaign-members.v1.dlq", "durable": true, "arguments": {}, "bindings": [] }
     ]
   }
 }

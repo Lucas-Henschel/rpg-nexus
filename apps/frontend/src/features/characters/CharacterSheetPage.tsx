@@ -5,6 +5,7 @@ import { Paper } from "../../shared/ui/Sheet";
 import { useToast } from "../../shared/ui/toast-context";
 import { Link } from "../../app/router";
 import { useCharacter, useHolds, useReloadCharacter, useSaveCharacter } from "./queries";
+import { SaveAsTemplate } from "./sheet/SaveAsTemplate";
 import { SaveBar } from "./sheet/SaveBar";
 import { buildPatch, toDraft, validate, type Draft } from "./sheet/sheetDraft";
 import { SheetColumns } from "./sheet/SheetColumns";
@@ -64,6 +65,8 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
   const [stale, setStale] = useState(false);
   const [editing, setEditing] = useState(false);
 
+  // Sem o campo (resposta antiga), vale o que valia antes: quem abriu é o dono.
+  const canEdit = character.access?.edit ?? true;
   const patch = useMemo(() => buildPatch(character, draft), [character, draft]);
   const dirty = Object.keys(patch).length > 0;
   const problem = validate(draft, character.capacity.slotsUsed);
@@ -109,12 +112,25 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
       </Link>
 
       <Paper>
-        <div className="sheet__edit-action"><button type="button" className="button button--ghost-ink" onClick={() => setEditing(!editing)}>{editing ? "Concluir layout" : "Editar ficha"}</button></div>
-        <SheetIdentity character={character} draft={draft} edit={edit} />
-        <SheetColumns draft={draft} edit={edit} character={character} holds={holds} editing={editing} />
+        {canEdit ? (
+          <div className="sheet__edit-action">
+            <SaveAsTemplate draft={draft} />
+            <button type="button" className="button button--ghost-ink" onClick={() => setEditing(!editing)}>
+              {editing ? "Concluir layout" : "Editar ficha"}
+            </button>
+          </div>
+        ) : (
+          <p className="sheet__readonly">
+            Ficha de um jogador da sua campanha: você vê, mas só o dono edita e ajusta o dinheiro.
+          </p>
+        )}
+        <SheetIdentity character={character} draft={draft} edit={edit} readOnly={!canEdit} />
+        <fieldset className="sheet__fieldset" disabled={!canEdit}>
+          <SheetColumns draft={draft} edit={edit} character={character} holds={holds} editing={editing} />
+        </fieldset>
       </Paper>
 
-      {(dirty || stale) && (
+      {canEdit && (dirty || stale) && (
         <SaveBar
           stale={stale}
           problem={problem}

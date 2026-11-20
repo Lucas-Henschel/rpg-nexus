@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { createCharacter } from "./api";
+import { createCharacter, createFromTemplate, type SavedTemplate } from "./api";
+import { useDeleteTemplate, useTemplates } from "./queries";
 import { errorMessage } from "../../shared/http";
 import { useCampaign } from "../../shared/campaign";
 import { cx } from "../../shared/ui/cx";
@@ -25,14 +26,79 @@ function TemplateIcon({ icon }: { icon: Template["icon"] }) {
   );
 }
 
+/** Modelos que a pessoa salvou no S2 a partir das próprias fichas. */
+function SavedTemplates({
+  chosen,
+  onChoose,
+}: {
+  chosen: string;
+  onChoose: (templateId: string) => void;
+}) {
+  const toast = useToast();
+  const templates = useTemplates();
+  const remove = useDeleteTemplate();
+
+  if (templates.isError) {
+    return <p className="field-error field-error--felt">{errorMessage(templates.error, "Não foi possível carregar seus modelos.")}</p>;
+  }
+
+  if (!templates.data?.length) {
+    return (
+      <p className="page__lead">
+        Você ainda não salvou modelos. Numa ficha pronta, use “Salvar como modelo” para reaproveitar a organização dela.
+      </p>
+    );
+  }
+
+  const onDelete = (template: SavedTemplate) => {
+    remove.mutate(template.templateId, {
+      onSuccess: () => toast("ok", `Modelo "${template.name}" apagado. Fichas criadas com ele não mudam.`),
+      onError: (error) => toast("error", errorMessage(error, "Não foi possível apagar o modelo.")),
+    });
+  };
+
+  return (
+    <div className="templates" role="radiogroup" aria-label="Meus modelos">
+      {templates.data.map((item) => {
+        const value = `saved:${item.templateId}`;
+        const blocks = item.sheetDefinition?.columns.flat().length ?? 0;
+
+        return (
+          <label key={item.templateId} className={cx("template", value === chosen && "template--chosen")}>
+            <input type="radio" name="template" value={value} checked={value === chosen} onChange={() => onChoose(value)} />
+            <span className="template__name">{item.name}</span>
+            <span className="template__summary">{item.description || "Modelo salvo por você"}</span>
+            <span className="template__meta">
+              Versão {item.version} · {blocks} blocos · {item.initialValues.currency.amount} {item.initialValues.currency.name}
+            </span>
+            <button
+              type="button"
+              className="button button--ghost-ink template__delete"
+              onClick={(event) => {
+                event.preventDefault();
+                onDelete(item);
+              }}
+              disabled={remove.isPending}
+            >
+              Apagar modelo
+            </button>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 export function NewCharacterPage() {
   const [campaign] = useCampaign();
   const toast = useToast();
+  // "saved:<id>" é um modelo salvo no S2; o resto são os modelos prontos do front.
   const [templateId, setTemplateId] = useState(TEMPLATES[0].id);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState("");
   const template = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
+  const savedId = templateId.startsWith("saved:") ? templateId.slice("saved:".length) : null;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -43,15 +109,17 @@ export function NewCharacterPage() {
     setSaving(true);
     setProblem("");
     try {
-      const created = await createCharacter({
-        campaignId: campaign,
-        name: name.trim(),
-        attributes: template.attributes,
-        skills: template.skills,
-        hp: { current: template.hpMax, max: template.hpMax },
-        maxItems: template.maxItems,
-        sheet: sheetFromTemplate(template),
-      });
+      const created = savedId
+        ? await createFromTemplate(savedId, { campaignId: campaign, name: name.trim() })
+        : await createCharacter({
+            campaignId: campaign,
+            name: name.trim(),
+            attributes: template.attributes,
+            skills: template.skills,
+            hp: { current: template.hpMax, max: template.hpMax },
+            maxItems: template.maxItems,
+            sheet: sheetFromTemplate(template),
+          });
       toast("ok", `${created.name} criado.`);
       navigate(`/personagens/${created.id}`);
     } catch (error) {
@@ -104,6 +172,9 @@ export function NewCharacterPage() {
             );
           })}
         </div>
+
+        <h2 className="section-title">Meus modelos</h2>
+        <SavedTemplates chosen={templateId} onChoose={setTemplateId} />
 
         <div className="create-bar">
           <label className="create-bar__name">

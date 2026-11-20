@@ -30,21 +30,35 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from app.clock import Clock, utcnow
-from app.domain.models import CapacityHold, Character, HoldStatus
-from app.domain.rules import ValidationDecision, evaluate_validation_request
+from app.domain.models import CampaignMembership, CapacityHold, Character, HoldStatus, MoneyEntry, MoneyStatus
+from app.domain.rules import MoneyDecision, ValidationDecision, evaluate_debit_request, evaluate_validation_request
 from app.messaging.envelope import Envelope, build_envelope, summarize_validation_error
 from app.messaging.errors import PoisonMessage, TransientProcessingError
 from app.messaging.events import (
     ACQUISITION_CANCELLED,
+    CAMPAIGN_MEMBER_JOINED,
+    CAMPAIGN_MEMBER_REMOVED,
     CHARACTER_REJECTED,
     CHARACTER_VALIDATED,
     CHARACTER_VALIDATION_REQUESTED,
     CHARACTER_VALIDATION_REQUESTED_V2,
     ITEM_ACQUIRED,
+    MONEY_DEBIT_REJECTED,
+    MONEY_DEBIT_REQUESTED,
+    MONEY_DEBITED,
+    MONEY_REFUND_REQUESTED,
+    MONEY_REFUNDED,
     AcquisitionOutcomePayload,
+    CampaignMemberJoinedPayload,
+    CampaignMemberRemovedPayload,
     CharacterRejectedPayload,
     CharacterValidatedPayload,
     EventSpec,
+    MoneyDebitedPayload,
+    MoneyDebitRejectedPayload,
+    MoneyDebitRequestedPayload,
+    MoneyRefundedPayload,
+    MoneyRefundRequestedPayload,
     ValidationRequestedPayload,
     ValidationRequestedPayloadV2,
 )
@@ -66,6 +80,9 @@ class Outcome(StrEnum):
     HOLD_RELEASED = "HOLD_RELEASED"
     TOMBSTONE_CREATED = "TOMBSTONE_CREATED"
     ALREADY_APPLIED = "ALREADY_APPLIED"
+    MONEY_REFUNDED = "MONEY_REFUNDED"
+    MEMBERSHIP_APPLIED = "MEMBERSHIP_APPLIED"
+    STALE = "STALE"
     ANOMALY = "ANOMALY"
 
 
@@ -102,6 +119,10 @@ class MessageHandlers:
             ),
             ITEM_ACQUIRED.type: (ITEM_ACQUIRED, self.handle_item_acquired),
             ACQUISITION_CANCELLED.type: (ACQUISITION_CANCELLED, self.handle_acquisition_cancelled),
+            MONEY_DEBIT_REQUESTED.type: (MONEY_DEBIT_REQUESTED, self.handle_money_debit_requested),
+            MONEY_REFUND_REQUESTED.type: (MONEY_REFUND_REQUESTED, self.handle_money_refund_requested),
+            CAMPAIGN_MEMBER_JOINED.type: (CAMPAIGN_MEMBER_JOINED, self.handle_member_joined),
+            CAMPAIGN_MEMBER_REMOVED.type: (CAMPAIGN_MEMBER_REMOVED, self.handle_member_removed),
         }
 
     def set_outbox_notifier(self, notifier: Callable[[], None]) -> None:
@@ -311,6 +332,227 @@ class MessageHandlers:
             except ConcurrencyConflict:
                 continue
         raise TransientProcessingError(f"conflitos persistentes ao cancelar operação {p.operationId}")
+
+    # --- MoneyDebitRequested (passo de pagamento da Saga de compra) -----------------------------
+
+    def handle_money_debit_requested(self, envelope: Envelope) -> HandlingResult:
+        p = self._parse(MoneyDebitRequestedPayload, envelope)
+        if self._store.get_inbox(str(envelope.messageId)) is not None:
+            return HandlingResult(Outcome.DUPLICATE, "messageId já processado")
+
+        for attempt in range(1, self.MAX_CONFLICT_RETRIES + 1):
+            now = self._clock()
+            character = self._store.get_character(p.characterId)
+            existing = self._store.get_money_entry(p.characterId, p.operationId)
+            decision = evaluate_debit_request(
+                character,
+                existing,
+                user_id=p.userId,
+                campaign_id=p.campaignId,
+                amount=p.amount,
+                deadline_at=p.deadlineAt,
+                now=now,
+            )
+            try:
+                result = self._apply_debit_decision(envelope, p, character, existing, decision, now)
+            except DuplicateMessage:
+                return HandlingResult(Outcome.DUPLICATE, "messageId gravado por processamento concorrente")
+            except ConcurrencyConflict:
+                # outra compra gastou o saldo (ou a ficha mudou) entre a leitura e a escrita: decide de novo
+                log.info("money.debit_conflict_retry", extra={"attempt": attempt, "operationId": p.operationId})
+                continue
+            self._notify()
+            log.info(
+                "money.debit_decided",
+                extra={"operationId": p.operationId, "characterId": p.characterId, "outcome": result.outcome.value},
+            )
+            return result
+        raise TransientProcessingError(f"conflitos persistentes no débito da operação {p.operationId}")
+
+    def _apply_debit_decision(
+        self,
+        envelope: Envelope,
+        p: MoneyDebitRequestedPayload,
+        character: Character | None,
+        existing: MoneyEntry | None,
+        decision: MoneyDecision,
+        now: Any,
+    ) -> HandlingResult:
+        if decision.approved and not decision.replay:
+            assert character is not None
+            entry = MoneyEntry(
+                operation_id=p.operationId,
+                character_id=p.characterId,
+                kind="PURCHASE",
+                amount=p.amount,
+                status=MoneyStatus.DEBITED,
+                campaign_id=p.campaignId,
+                user_id=p.userId,
+                reason=f"compra do item {p.itemId}",
+                created_at=now,
+                updated_at=now,
+            )
+            outbox = self._outgoing(
+                MONEY_DEBITED,
+                envelope.correlationId,
+                MoneyDebitedPayload(
+                    operationId=p.operationId,
+                    campaignId=p.campaignId,
+                    characterId=p.characterId,
+                    userId=p.userId,
+                    itemId=p.itemId,
+                    amount=p.amount,
+                    balance=character.currency_amount - p.amount,
+                ),
+                now,
+            )
+            self._store.debit_money(self._inbox(envelope, Outcome.APPROVED, decision.detail, now), entry, outbox)
+            return HandlingResult(Outcome.APPROVED, decision.detail, MONEY_DEBITED.type)
+        if decision.approved:  # replay: o débito desta operação já foi feito
+            assert existing is not None
+            outbox = self._outgoing(
+                MONEY_DEBITED,
+                envelope.correlationId,
+                MoneyDebitedPayload(
+                    operationId=p.operationId,
+                    campaignId=p.campaignId,
+                    characterId=p.characterId,
+                    userId=p.userId,
+                    itemId=p.itemId,
+                    amount=p.amount,
+                    balance=character.currency_amount if character else 0,
+                ),
+                now,
+            )
+            self._store.record_outcome(self._inbox(envelope, Outcome.APPROVED_REPLAY, decision.detail, now), outbox)
+            return HandlingResult(Outcome.APPROVED_REPLAY, decision.detail, MONEY_DEBITED.type)
+        assert decision.reason is not None
+        outbox = self._outgoing(
+            MONEY_DEBIT_REJECTED,
+            envelope.correlationId,
+            MoneyDebitRejectedPayload(
+                operationId=p.operationId,
+                campaignId=p.campaignId,
+                characterId=p.characterId,
+                userId=p.userId,
+                itemId=p.itemId,
+                amount=p.amount,
+                reason=decision.reason,
+                detail=decision.detail[:500],
+            ),
+            now,
+        )
+        detail = f"{decision.reason.value}: {decision.detail}"
+        self._store.record_outcome(self._inbox(envelope, Outcome.REJECTED, detail, now), outbox)
+        return HandlingResult(Outcome.REJECTED, detail, MONEY_DEBIT_REJECTED.type)
+
+    # --- MoneyRefundRequested (compensação do pagamento) -------------------------------------
+
+    def handle_money_refund_requested(self, envelope: Envelope) -> HandlingResult:
+        p = self._parse(MoneyRefundRequestedPayload, envelope)
+        if self._store.get_inbox(str(envelope.messageId)) is not None:
+            return HandlingResult(Outcome.DUPLICATE, "messageId já processado")
+
+        for _ in range(self.MAX_CONFLICT_RETRIES):
+            now = self._clock()
+            entry = self._store.get_money_entry(p.characterId, p.operationId)
+            character = self._store.get_character(p.characterId)
+            balance = character.currency_amount if character else 0
+
+            def refunded(amount: int, new_balance: int, at: Any = now) -> OutboxRecord:
+                # amount = preço (o S3 confere); refundedAmount = o que voltou de fato ao saldo
+                payload = MoneyRefundedPayload(
+                    operationId=p.operationId,
+                    campaignId=p.campaignId,
+                    characterId=p.characterId,
+                    userId=p.userId,
+                    itemId=p.itemId,
+                    amount=p.amount,
+                    refundedAmount=amount,
+                    balance=new_balance,
+                )
+                return self._outgoing(MONEY_REFUNDED, envelope.correlationId, payload, at)
+
+            try:
+                if entry is None:
+                    # Reembolso antes do débito (reordenação): lápide, para o débito atrasado ser recusado.
+                    tombstone = MoneyEntry(
+                        operation_id=p.operationId,
+                        character_id=p.characterId,
+                        kind="PURCHASE",
+                        amount=0,
+                        status=MoneyStatus.REFUNDED,
+                        campaign_id=p.campaignId,
+                        user_id=p.userId,
+                        reason="reembolso antes do débito",
+                        tombstone=True,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    self._store.create_money_tombstone(
+                        self._inbox(envelope, Outcome.TOMBSTONE_CREATED, "reembolso antes do débito", now),
+                        tombstone,
+                        refunded(0, balance),
+                    )
+                    log.info("money.tombstone_created", extra={"operationId": p.operationId})
+                    result = HandlingResult(Outcome.TOMBSTONE_CREATED, "nada a reembolsar", MONEY_REFUNDED.type)
+                elif entry.status is MoneyStatus.DEBITED:
+                    self._store.refund_money(
+                        self._inbox(envelope, Outcome.MONEY_REFUNDED, "", now),
+                        entry.evolve(status=MoneyStatus.REFUNDED, updated_at=now),
+                        refunded(entry.amount, balance + entry.amount),
+                    )
+                    log.info("money.refunded", extra={"operationId": p.operationId, "amount": entry.amount})
+                    result = HandlingResult(Outcome.MONEY_REFUNDED, "", MONEY_REFUNDED.type)
+                else:
+                    # Já reembolsado: confirma de novo sem creditar outra vez.
+                    amount = 0 if entry.tombstone else entry.amount
+                    self._store.record_outcome(
+                        self._inbox(envelope, Outcome.ALREADY_APPLIED, "já REFUNDED", now), refunded(amount, balance)
+                    )
+                    result = HandlingResult(Outcome.ALREADY_APPLIED, "operação já reembolsada", MONEY_REFUNDED.type)
+            except DuplicateMessage:
+                return HandlingResult(Outcome.DUPLICATE, "messageId gravado por processamento concorrente")
+            except ConcurrencyConflict:
+                continue
+            self._notify()
+            return result
+        raise TransientProcessingError(f"conflitos persistentes no reembolso da operação {p.operationId}")
+
+    # --- Participantes das campanhas (projeção dos eventos do S1) -------------------------------
+
+    def handle_member_joined(self, envelope: Envelope) -> HandlingResult:
+        p = self._parse(CampaignMemberJoinedPayload, envelope)
+        membership = CampaignMembership(p.campaignId, p.userId, p.role, True, p.joinedAt, p.username)
+        return self._apply_membership(envelope, membership)
+
+    def handle_member_removed(self, envelope: Envelope) -> HandlingResult:
+        p = self._parse(CampaignMemberRemovedPayload, envelope)
+        current = self._store.get_membership(p.campaignId, p.userId)
+        # o papel continua o que era; a saída só desliga a participação
+        membership = CampaignMembership(p.campaignId, p.userId, current.role if current else "PLAYER", False, p.removedAt)
+        return self._apply_membership(envelope, membership)
+
+    def _apply_membership(self, envelope: Envelope, membership: CampaignMembership) -> HandlingResult:
+        if self._store.get_inbox(str(envelope.messageId)) is not None:
+            return HandlingResult(Outcome.DUPLICATE, "messageId já processado")
+        now = self._clock()
+        try:
+            self._store.apply_membership(self._inbox(envelope, Outcome.MEMBERSHIP_APPLIED, "", now), membership)
+        except DuplicateMessage:
+            return HandlingResult(Outcome.DUPLICATE, "messageId gravado por processamento concorrente")
+        except ConcurrencyConflict:
+            # Evento mais antigo que o gravado (chegou fora de ordem): registra e não muda nada.
+            try:
+                self._store.record_outcome(self._inbox(envelope, Outcome.STALE, "evento antigo", now), None)
+            except DuplicateMessage:
+                return HandlingResult(Outcome.DUPLICATE, "messageId gravado por processamento concorrente")
+            return HandlingResult(Outcome.STALE, "evento mais antigo que o gravado")
+        log.info(
+            "campaign.membership_applied",
+            extra={"campaignId": membership.campaign_id, "userId": membership.user_id, "active": membership.active},
+        )
+        return HandlingResult(Outcome.MEMBERSHIP_APPLIED)
 
     # --- Auxiliares ---------------------------------------------------------------------------
 

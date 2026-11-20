@@ -12,7 +12,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 from app.application.read_model import CharacterSummary
-from app.domain.models import CapacityHold, Character
+from app.domain.models import CapacityHold, Character, CharacterTemplate, MoneyEntry
 
 Id = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
 StatKey = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,31}$")]
@@ -83,6 +83,17 @@ class HitPointsIn(BaseModel):
         return self
 
 
+CurrencyName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=30)]
+MAX_MONEY = 1_000_000
+
+
+class CurrencyIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: CurrencyName = "Moedas"
+    amount: Annotated[int, Field(ge=0, le=MAX_MONEY)] = 0
+
+
 class CharacterCreate(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -109,11 +120,24 @@ class CharacterCreate(BaseModel):
     maxItems: Annotated[int, Field(ge=0, le=1000)] | None = None
     active: bool = True
     sheet: SheetLayout | None = None
+    #: Saldo inicial. Depois de criada, o saldo só muda por ajuste (/money/adjustments) ou compra.
+    currency: CurrencyIn | None = None
 
     @field_validator("attributes", "skills")
     @classmethod
     def check_stat_limits(cls, value: dict) -> dict:
         return _limit_entries(value)
+
+
+class CharacterFromTemplate(BaseModel):
+    """Ficha nova copiando um modelo. O resto (atributos, blocos, vida, mochila, dinheiro) vem dele."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    campaignId: Id
+    name: Name
+    #: Versão do modelo a copiar; sem ela, a atual.
+    version: Annotated[int, Field(ge=1)] | None = None
 
 
 class CharacterPatch(BaseModel):
@@ -134,6 +158,9 @@ class CharacterPatch(BaseModel):
     active: bool | None = None
     #: Substitui a organização inteira da ficha; null volta para a ficha padrão.
     sheet: SheetLayout | None = None
+    #: Só o nome da moeda. O saldo muda por /money/adjustments ou pela compra na loja, nunca por PATCH:
+    #: um PATCH com a ficha antiga desfaria um débito feito nesse meio-tempo.
+    currencyName: CurrencyName | None = None
 
     @field_validator("attributes", "skills")
     @classmethod
@@ -144,7 +171,7 @@ class CharacterPatch(BaseModel):
     def check_not_empty(self) -> CharacterPatch:
         if not self.model_fields_set:
             raise ValueError("informe ao menos um campo para alterar")
-        for name in ("name", "hp", "active", "attributes", "skills", "maxItems"):
+        for name in ("name", "hp", "active", "attributes", "skills", "maxItems", "currencyName"):
             if name in self.model_fields_set and getattr(self, name) is None:
                 raise ValueError(f"{name} não aceita null")
         return self
@@ -176,6 +203,23 @@ class CapacityOut(BaseModel):
     slotsAvailable: int
 
 
+class CurrencyOut(BaseModel):
+    name: str
+    amount: int
+
+
+class SourceTemplateOut(BaseModel):
+    templateId: str
+    version: int
+
+
+class AccessOut(BaseModel):
+    """O que quem fez a requisição pode fazer nesta ficha (o front mostra ou esconde as ações)."""
+
+    edit: bool
+    adjustMoney: bool
+
+
 class CharacterOut(BaseModel):
     id: str
     campaignId: str
@@ -190,11 +234,15 @@ class CharacterOut(BaseModel):
     portrait: PortraitOut | None
     sheet: dict[str, Any] | None
     version: int
+    currency: CurrencyOut
+    #: Modelo e versão de onde a ficha foi copiada; null se foi criada sem modelo.
+    sourceTemplate: SourceTemplateOut | None
     createdAt: datetime
     updatedAt: datetime
+    access: AccessOut | None = None
 
     @classmethod
-    def from_domain(cls, c: Character) -> CharacterOut:
+    def from_domain(cls, c: Character, access: dict[str, bool] | None = None) -> CharacterOut:
         return cls(
             id=c.id,
             campaignId=c.campaign_id,
@@ -218,8 +266,15 @@ class CharacterOut(BaseModel):
             ),
             sheet=c.sheet,
             version=c.version,
+            currency=CurrencyOut(name=c.currency_name, amount=c.currency_amount),
+            sourceTemplate=(
+                SourceTemplateOut(templateId=c.source_template_id, version=c.source_template_version)
+                if c.source_template_id and c.source_template_version
+                else None
+            ),
             createdAt=c.created_at,
             updatedAt=c.updated_at,
+            access=AccessOut(**access) if access is not None else None,
         )
 
 
@@ -305,3 +360,132 @@ class RosterOut(BaseModel):
     source: str = "read-model"
     totals: dict[str, int]
     items: list[CharacterSummaryOut]
+
+
+# --- Dinheiro ------------------------------------------------------------------------------------
+
+
+class MoneyAdjustmentIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: Positivo credita, negativo debita. O saldo nunca fica negativo.
+    delta: Annotated[int, Field(ge=-MAX_MONEY, le=MAX_MONEY)]
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] = ""
+
+    @field_validator("delta")
+    @classmethod
+    def check_not_zero(cls, value: int) -> int:
+        if value == 0:
+            raise ValueError("delta não pode ser 0")
+        return value
+
+
+class MoneyEntryOut(BaseModel):
+    operationId: str
+    kind: str
+    amount: int
+    status: str | None
+    campaignId: str | None
+    reason: str | None
+    tombstone: bool
+    createdAt: datetime
+    updatedAt: datetime
+
+    @classmethod
+    def from_domain(cls, m: MoneyEntry) -> MoneyEntryOut:
+        return cls(
+            operationId=m.operation_id,
+            kind=m.kind,
+            amount=m.amount,
+            status=m.status.value if m.status else None,
+            campaignId=m.campaign_id,
+            reason=m.reason,
+            tombstone=m.tombstone,
+            createdAt=m.created_at,
+            updatedAt=m.updated_at,
+        )
+
+
+# --- Modelos de ficha ----------------------------------------------------------------------------
+
+
+class TemplateInitialValues(BaseModel):
+    """Valores com que uma ficha nova começa. Vida atual, retrato e anotações não entram no modelo."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    attributes: dict[StatKey, StatValue] = Field(default_factory=dict)
+    skills: dict[StatKey, StatValue] = Field(default_factory=dict)
+    hpMax: Annotated[int, Field(ge=1, le=100_000)] = 10
+    maxItems: Annotated[int, Field(ge=0, le=1000)] = 10
+    currency: CurrencyIn = Field(default_factory=CurrencyIn)
+
+    @field_validator("attributes", "skills")
+    @classmethod
+    def check_stat_limits(cls, value: dict) -> dict:
+        return _limit_entries(value)
+
+
+class TemplateCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: Name
+    description: Description | None = None
+    #: Organização da ficha. Conteúdo pessoal dos blocos (anotações, listas) é descartado pelo serviço.
+    sheetDefinition: SheetLayout | None = None
+    initialValues: TemplateInitialValues = Field(default_factory=TemplateInitialValues)
+
+
+class TemplatePatch(BaseModel):
+    """Cada PATCH grava uma versão nova; os campos enviados substituem os da versão atual."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: Name | None = None
+    description: Description | None = None
+    sheetDefinition: SheetLayout | None = None
+    initialValues: TemplateInitialValues | None = None
+
+    @model_validator(mode="after")
+    def check_not_empty(self) -> TemplatePatch:
+        if not self.model_fields_set:
+            raise ValueError("informe ao menos um campo para alterar")
+        for name in ("name", "initialValues"):
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name} não aceita null")
+        return self
+
+
+class TemplateOut(BaseModel):
+    templateId: str
+    ownerId: str
+    name: str
+    description: str | None
+    version: int
+    visibility: str
+    sheetDefinition: dict[str, Any] | None
+    initialValues: dict[str, Any]
+    createdAt: datetime
+    updatedAt: datetime
+
+    @classmethod
+    def from_domain(cls, t: CharacterTemplate) -> TemplateOut:
+        d = t.definition
+        return cls(
+            templateId=t.id,
+            ownerId=t.owner_id,
+            name=t.name,
+            description=t.description,
+            version=t.version,
+            visibility=t.visibility,
+            sheetDefinition=d.sheet,
+            initialValues={
+                "attributes": d.attributes,
+                "skills": d.skills,
+                "hpMax": d.hp_max,
+                "maxItems": d.max_items,
+                "currency": {"name": d.currency_name, "amount": d.currency_amount},
+            },
+            createdAt=t.created_at,
+            updatedAt=t.updated_at,
+        )

@@ -13,6 +13,7 @@ export interface Draft {
   attributes: StatMap;
   skills: StatMap;
   sheet: Sheet;
+  currencyName: string;
 }
 
 export function toDraft(c: Character): Draft {
@@ -26,6 +27,7 @@ export function toDraft(c: Character): Draft {
     attributes: { ...c.attributes },
     skills: { ...c.skills },
     sheet: structuredClone(normalizeSheet(c.sheet)),
+    currencyName: c.currency.name,
   };
 }
 
@@ -79,6 +81,10 @@ export function buildPatch(c: Character, d: Draft): CharacterPatch {
     patch.skills = skills;
   }
 
+  if (d.currencyName.trim() !== c.currency.name) {
+    patch.currencyName = d.currencyName.trim();
+  }
+
   if (JSON.stringify(d.sheet) !== JSON.stringify(normalizeSheet(c.sheet))) {
     patch.sheet = d.sheet;
   }
@@ -111,7 +117,11 @@ export function validate(d: Draft, slotsUsed: number): string {
     return `A mochila já tem ${slotsUsed} espaço(s) em uso; não dá para deixá-la menor que isso.`;
   }
 
-  for (const key of ["level", "defense", "money"]) {
+  if (!d.currencyName.trim()) {
+    return "A moeda precisa de um nome.";
+  }
+
+  for (const key of ["level", "defense"]) {
     const value = d.sheet.header?.[key];
     if (value !== undefined && value !== "" && (!Number.isFinite(Number(value)) || Number(value) < 0))
       return `O campo ${key} precisa ser um número não negativo.`;

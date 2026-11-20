@@ -12,12 +12,14 @@ from typing import Any
 
 from app.application.characters import CharacterService
 from app.application.handlers import MessageHandlers
-from app.application.ports import CharacterStore, ObjectStorage
+from app.application.ports import CharacterStore, ObjectStorage, TemplateStore
 from app.application.read_model import Projector, ReadModelStore, RosterQuery
+from app.application.templates import TemplateService
 from app.config import Settings
 from app.messaging.contracts import ContractRegistry
 from app.messaging.faults import FaultInjector
 from app.messaging.retry import RetryPolicy
+from app.security import TokenVerifier
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +34,8 @@ class Container:
     read_model: ReadModelStore
     projector: Projector
     roster: RosterQuery
+    templates: TemplateService
+    verifier: TokenVerifier
     contracts: ContractRegistry | None = None
     bus: Any | None = None  # RabbitMQBus
     relay: Any | None = None  # OutboxRelay
@@ -53,6 +57,18 @@ def build_store(settings: Settings) -> CharacterStore:
         table_outbox=settings.table_outbox,
         inbox_ttl_days=settings.inbox_ttl_days,
         outbox_published_ttl_days=settings.outbox_published_ttl_days,
+    )
+
+
+def build_template_store(settings: Settings) -> TemplateStore:
+    if settings.store_backend == "memory":
+        from app.adapters.memory_store import InMemoryTemplateStore
+
+        return InMemoryTemplateStore()
+    from app.adapters.dynamodb_templates import DynamoDBTemplateStore
+
+    return DynamoDBTemplateStore(
+        region=settings.aws_region, endpoint_url=settings.dynamodb_endpoint_url, table=settings.table_templates
     )
 
 
@@ -90,8 +106,11 @@ def build_container(
     store: CharacterStore | None = None,
     storage: ObjectStorage | None = None,
     read_model: ReadModelStore | None = None,
+    template_store: TemplateStore | None = None,
 ) -> Container:
     store = store or build_store(settings)
+    templates = TemplateService(template_store or build_template_store(settings))
+    verifier = TokenVerifier(settings.jwt_secret, settings.jwt_issuer, settings.jwt_audience)
     storage = storage or build_storage(settings)
     read_model = read_model or build_read_model(settings)
     # CQRS: o projetor mantém o modelo de leitura; as consultas de campanha leem só dele.
@@ -115,7 +134,17 @@ def build_container(
         on_change=projector.project_safely,
     )
     container = Container(
-        settings, store, storage, handlers, characters, read_model, projector, RosterQuery(read_model), contracts
+        settings,
+        store,
+        storage,
+        handlers,
+        characters,
+        read_model,
+        projector,
+        RosterQuery(read_model),
+        templates,
+        verifier,
+        contracts,
     )
 
     if settings.messaging_enabled:

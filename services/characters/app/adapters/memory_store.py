@@ -15,6 +15,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 
 from app.application.ports import (
+    AdjustmentAlreadyApplied,
     CharacterAlreadyExists,
     ConcurrencyConflict,
     DuplicateMessage,
@@ -26,7 +27,15 @@ from app.application.ports import (
     PresignedRequest,
 )
 from app.application.read_model import CharacterSummary
-from app.domain.models import CapacityHold, Character, HoldStatus
+from app.domain.models import (
+    CampaignMembership,
+    CapacityHold,
+    Character,
+    CharacterTemplate,
+    HoldStatus,
+    MoneyEntry,
+    MoneyStatus,
+)
 
 
 class InMemoryCharacterStore:
@@ -37,6 +46,8 @@ class InMemoryCharacterStore:
         self._inbox: dict[str, InboxRecord] = {}
         self._outbox: dict[str, OutboxRecord] = {}
         self._leases: dict[str, tuple[str, datetime]] = {}
+        self._money: dict[tuple[str, str], MoneyEntry] = {}
+        self._members: dict[tuple[str, str], CampaignMembership] = {}
 
     # --- utilitários de teste -----------------------------------------------------------------
 
@@ -68,10 +79,14 @@ class InMemoryCharacterStore:
             found = self._characters.get(character_id)
             return copy.deepcopy(found) if found else None
 
-    def list_characters(self, campaign_id: str, limit: int, cursor: str | None) -> Page:
+    def list_characters(self, campaign_id: str, limit: int, cursor: str | None, owner_id: str | None = None) -> Page:
         with self._lock:
             matching = sorted(
-                (c for c in self._characters.values() if c.campaign_id == campaign_id),
+                (
+                    c
+                    for c in self._characters.values()
+                    if c.campaign_id == campaign_id and (owner_id is None or c.owner_id == owner_id)
+                ),
                 key=lambda c: (c.created_at, c.id),
             )
         start = int(json.loads(base64.urlsafe_b64decode(cursor))["offset"]) if cursor else 0
@@ -91,9 +106,13 @@ class InMemoryCharacterStore:
                 raise ConcurrencyConflict("versão divergente")
             if max_items_delta < 0 and current.slots_available < -max_items_delta:
                 raise ConcurrencyConflict("capacidade livre insuficiente para reduzir maxItems")
-            # contadores de capacidade são preservados do estado atual (não vêm do chamador)
+            # contadores de capacidade e o saldo são preservados do estado atual (não vêm do chamador)
             self._characters[character.id] = copy.deepcopy(
-                character.evolve(slots_used=current.slots_used, max_items=current.max_items + max_items_delta)
+                character.evolve(
+                    slots_used=current.slots_used,
+                    max_items=current.max_items + max_items_delta,
+                    currency_amount=current.currency_amount,
+                )
             )
 
     # --- reservas -----------------------------------------------------------------------------
@@ -177,6 +196,83 @@ class InMemoryCharacterStore:
             self._holds[key] = hold
             self._write_common(inbox, None)
 
+    # --- dinheiro -----------------------------------------------------------------------------
+
+    def get_money_entry(self, character_id: str, operation_id: str) -> MoneyEntry | None:
+        with self._lock:
+            return self._money.get((character_id, operation_id))
+
+    def list_money_entries(self, character_id: str) -> list[MoneyEntry]:
+        with self._lock:
+            return sorted((e for (cid, _), e in self._money.items() if cid == character_id), key=lambda e: e.created_at)
+
+    def debit_money(self, inbox: InboxRecord, entry: MoneyEntry, outbox: OutboxRecord) -> None:
+        with self._lock:
+            self._check_inbox(inbox)
+            key = (entry.character_id, entry.operation_id)
+            character = self._characters.get(entry.character_id)
+            if key in self._money:
+                raise ConcurrencyConflict("operação de dinheiro já existe")
+            if (
+                character is None
+                or character.owner_id != entry.user_id
+                or character.campaign_id != entry.campaign_id
+                or not character.active
+                or character.currency_amount < entry.amount
+            ):
+                raise ConcurrencyConflict("condição do personagem falhou")
+            self._characters[character.id] = character.evolve(currency_amount=character.currency_amount - entry.amount)
+            self._money[key] = entry
+            self._write_common(inbox, outbox)
+
+    def refund_money(self, inbox: InboxRecord, entry: MoneyEntry, outbox: OutboxRecord) -> None:
+        with self._lock:
+            self._check_inbox(inbox)
+            key = (entry.character_id, entry.operation_id)
+            current = self._money.get(key)
+            character = self._characters.get(entry.character_id)
+            if current is None or current.status is not MoneyStatus.DEBITED or character is None:
+                raise ConcurrencyConflict("operação não está DEBITED")
+            self._characters[character.id] = character.evolve(currency_amount=character.currency_amount + current.amount)
+            self._money[key] = entry.evolve(status=MoneyStatus.REFUNDED)
+            self._write_common(inbox, outbox)
+
+    def create_money_tombstone(self, inbox: InboxRecord, entry: MoneyEntry, outbox: OutboxRecord) -> None:
+        with self._lock:
+            self._check_inbox(inbox)
+            key = (entry.character_id, entry.operation_id)
+            if key in self._money:
+                raise ConcurrencyConflict("operação de dinheiro já existe")
+            self._money[key] = entry
+            self._write_common(inbox, outbox)
+
+    def adjust_money(self, entry: MoneyEntry) -> None:
+        with self._lock:
+            key = (entry.character_id, entry.operation_id)
+            if key in self._money:
+                raise AdjustmentAlreadyApplied(entry.operation_id)
+            character = self._characters.get(entry.character_id)
+            if character is None or character.currency_amount + entry.amount < 0:
+                raise ConcurrencyConflict("saldo insuficiente para o ajuste")
+            self._characters[character.id] = character.evolve(currency_amount=character.currency_amount + entry.amount)
+            self._money[key] = entry
+
+    # --- participantes das campanhas ----------------------------------------------------------
+
+    def get_membership(self, campaign_id: str, user_id: str) -> CampaignMembership | None:
+        with self._lock:
+            return self._members.get((campaign_id, user_id))
+
+    def apply_membership(self, inbox: InboxRecord, membership: CampaignMembership) -> None:
+        with self._lock:
+            self._check_inbox(inbox)
+            key = (membership.campaign_id, membership.user_id)
+            current = self._members.get(key)
+            if current is not None and current.changed_at >= membership.changed_at:
+                raise ConcurrencyConflict("evento de participação mais antigo que o gravado")
+            self._members[key] = membership
+            self._write_common(inbox, None)
+
     # --- outbox -------------------------------------------------------------------------------
 
     def claim_outbox(self, limit: int, lease_seconds: int, owner: str, now: datetime) -> list[OutboxRecord]:
@@ -217,6 +313,54 @@ class InMemoryCharacterStore:
             published = sum(1 for r in self._outbox.values() if r.status == "PUBLISHED")
         oldest = min((r.created_at for r in pending), default=None)
         return OutboxStats(pending=len(pending), oldest_pending_at=oldest, extra={"published": published})
+
+
+class InMemoryTemplateStore:
+    """Modelos de ficha em memória, com a mesma regra de versão do DynamoDB."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._heads: dict[str, CharacterTemplate] = {}
+        self._versions: dict[tuple[str, int], CharacterTemplate] = {}
+
+    def ping(self) -> None:
+        return None
+
+    def create_template(self, template: CharacterTemplate) -> None:
+        with self._lock:
+            if template.id in self._heads:
+                raise CharacterAlreadyExists(template.id)
+            self._heads[template.id] = copy.deepcopy(template)
+            self._versions[(template.id, template.version)] = copy.deepcopy(template)
+
+    def get_template(self, template_id: str, version: int | None = None) -> CharacterTemplate | None:
+        with self._lock:
+            head = self._heads.get(template_id)
+            if head is None:
+                return None
+            if version is None:
+                return copy.deepcopy(head)
+            found = self._versions.get((template_id, version))
+            return copy.deepcopy(found.evolve(deleted=head.deleted)) if found else None
+
+    def list_templates(self, owner_id: str) -> list[CharacterTemplate]:
+        with self._lock:
+            mine = [copy.deepcopy(t) for t in self._heads.values() if t.owner_id == owner_id and not t.deleted]
+        return sorted(mine, key=lambda t: (t.updated_at, t.id), reverse=True)
+
+    def add_version(self, template: CharacterTemplate, expected_version: int) -> None:
+        with self._lock:
+            head = self._heads.get(template.id)
+            if head is None or head.deleted or head.version != expected_version:
+                raise ConcurrencyConflict("versão do modelo divergente")
+            self._heads[template.id] = copy.deepcopy(template)
+            self._versions[(template.id, template.version)] = copy.deepcopy(template)
+
+    def delete_template(self, template_id: str, owner_id: str) -> None:
+        with self._lock:
+            head = self._heads.get(template_id)
+            if head is not None and head.owner_id == owner_id:
+                self._heads[template_id] = head.evolve(deleted=True)
 
 
 class InMemoryReadModel:

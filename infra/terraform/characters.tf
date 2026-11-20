@@ -1,4 +1,4 @@
-# Recursos de nuvem do S2 Personagens, espelhando infra/manifests/characters.json: quatro tabelas
+# Recursos de nuvem do S2 Personagens, espelhando infra/manifests/characters.json: cinco tabelas
 # DynamoDB e o bucket S3 com CORS. Os nomes das tabelas vêm de services/characters/.env.example (env.tf).
 
 # Fichas (sk = PROFILE) e reservas da Saga (sk = HOLD#{operationId}) sob a mesma chave de partição.
@@ -108,6 +108,42 @@ resource "aws_dynamodb_table" "read_model" {
 }
 
 # Retratos dos personagens: characters/{characterId}/portrait.
+# Modelos de ficha: cabeçalho (sk = HEAD, versão atual) e cada versão imutável (sk = V#000001).
+resource "aws_dynamodb_table" "templates" {
+  name         = local.characters_env["TABLE_TEMPLATES"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "pk"
+  range_key    = "sk"
+
+  attribute {
+    name = "pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi1pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi1sk"
+    type = "S"
+  }
+
+  # Índice esparso: só o cabeçalho de modelos não apagados tem gsi1pk ("meus modelos").
+  global_secondary_index {
+    name            = "byOwner"
+    hash_key        = "gsi1pk"
+    range_key       = "gsi1sk"
+    projection_type = "ALL"
+  }
+}
+
 resource "aws_s3_bucket" "assets" {
   bucket = var.assets_bucket
 }
