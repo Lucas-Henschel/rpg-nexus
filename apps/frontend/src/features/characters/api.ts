@@ -3,7 +3,7 @@
  * Toda rota exige login: as chamadas vão com o access token do S4 (authorizedRequest).
  */
 import { services } from "../../shared/config";
-import { jsonBody } from "../../shared/http";
+import { ApiError, jsonBody } from "../../shared/http";
 import { authorizedRequest } from "../auth/session";
 
 const base = services.characters.url;
@@ -226,10 +226,27 @@ export async function deleteTemplate(templateId: string): Promise<void> {
   await authorizedRequest<null>(base, `/templates/${encodeURIComponent(templateId)}`, { method: "DELETE" });
 }
 
-/** Ficha nova copiando a versão atual do modelo. */
+/**
+ * Modelo que o mestre definiu na campanha, na versão dele. Qualquer participante consulta; sem modelo
+ * definido, devolve null.
+ */
+export async function getCampaignTemplate(campaignId: string): Promise<SavedTemplate | null> {
+  try {
+    return (await authorizedRequest<SavedTemplate>(base, `/campaigns/${encodeURIComponent(campaignId)}/template`))
+      .data;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+/** Ficha nova copiando o modelo: a versão pedida ou, sem ela, a atual. */
 export async function createFromTemplate(
   templateId: string,
-  input: { campaignId: string; name: string },
+  input: { campaignId: string; name: string; version?: number },
 ): Promise<Character> {
   const init = { method: "POST", ...jsonBody(input) };
 
