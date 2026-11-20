@@ -1,1 +1,8 @@
-{"messageId":"55555555-5555-4555-8555-555555555555","correlationId":"op-1","type":"rpg.money.refunded.v1","version":1,"occurredAt":"2026-11-17T00:00:00Z","payload":{"amount":30}}
+{
+  "messageId": "55555555-5555-4555-8555-555555555555",
+  "correlationId": "op-1",
+  "type": "rpg.money.refunded.v1",
+  "version": 1,
+  "occurredAt": "2026-11-17T00:00:00Z",
+  "payload": { "amount": 30 }
+}

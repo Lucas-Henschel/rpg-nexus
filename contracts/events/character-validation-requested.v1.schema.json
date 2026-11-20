@@ -7,7 +7,9 @@
     "exchange": "rpg.events",
     "routingKey": "character.validation.requested.v1",
     "producer": "inventory (S3, P3)",
-    "consumers": ["characters (S2, P2) — fila characters.validation-requested.v1"]
+    "consumers": [
+      "characters (S2, P2) — fila characters.validation-requested.v1"
+    ]
   },
   "type": "object",
   "allOf": [{ "$ref": "urn:rpg-nexus:envelope:v1" }],
@@ -16,10 +18,19 @@
     "version": { "const": 1 },
     "payload": {
       "type": "object",
-      "required": ["operationId", "campaignId", "characterId", "itemId", "quantity"],
+      "required": [
+        "operationId",
+        "campaignId",
+        "characterId",
+        "itemId",
+        "quantity"
+      ],
       "additionalProperties": true,
       "properties": {
-        "operationId": { "$ref": "#/$defs/id", "description": "ID da Saga; igual ao correlationId do envelope." },
+        "operationId": {
+          "$ref": "#/$defs/id",
+          "description": "ID da Saga; igual ao correlationId do envelope."
+        },
         "campaignId": { "$ref": "#/$defs/id" },
         "characterId": { "$ref": "#/$defs/id" },
         "itemId": { "$ref": "#/$defs/id" },

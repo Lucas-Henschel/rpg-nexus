@@ -3,8 +3,8 @@
 > RPG Nexus · Sistemas Distribuídos — FURB · Dono: **P1**
 
 Microsserviço das **campanhas** de RPG: cadastro, participantes e um resumo do que cada personagem
-conquistou. Usa **DynamoDB** (tabelas exclusivas), consome o evento **`ItemAcquired`** do
-**RabbitMQ** e publica, por uma outbox, os eventos de campanha e de participantes.
+conquistou. Usa **DynamoDB** (tabelas exclusivas), consome as aquisições de itens (**`ItemAcquired`** e
+**`ShopItemPurchased`**) do **RabbitMQ** e publica, por uma outbox, os eventos de campanha e de participantes.
 
 ## 1. Responsabilidades
 
@@ -13,7 +13,7 @@ conquistou. Usa **DynamoDB** (tabelas exclusivas), consome o evento **`ItemAcqui
 | Criar campanhas com dono e código de entrada de seis dígitos; listar as do usuário  | Autenticar (é do S4; aqui só se valida o token) nem validar personagens no S2 |
 | O dono define o modelo de ficha (template do S2) da campanha, numa versão fixa      | Guardar a definição do modelo (fica no S2; o S1 guarda id, versão e nome)     |
 | Entrada pelo código, papéis `OWNER`/`PLAYER`, personagem de cada um, sair e remover | Participar da Saga de aquisição (é do S3 Inventário)                          |
-| Consumir `ItemAcquired`: registrar a atividade e somar itens por participante       | Projetar permissões (é de quem consome os eventos, como o S3)                 |
+| Consumir as aquisições: registrar a atividade e somar itens por participante        | Projetar permissões (é de quem consome os eventos, como o S3)                 |
 | Mostrar a campanha com participantes e as últimas 20 atividades                     | Ler tabelas de outros serviços                                                |
 | Publicar os eventos de campanha, participantes e modelo pela outbox (seção 5)       |                                                                               |
 
@@ -70,11 +70,15 @@ Ids seguem `^[A-Za-z0-9_-]{1,64}$`, o código de entrada `^\d{6}$`; textos têm 
 caracteres. Fora disso: 422 `VALIDATION_ERROR` com `details[].field`. Erros usam o formato
 `{"error": {"code", "message", "details"}}`.
 
-## 4. Consumo de `ItemAcquired`
+## 4. Consumo das aquisições
 
-Fila `campaigns.activity.v1` (ligada a `rpg.events` / `item.acquired.v1`), com `.retry` e `.dlq`
-criadas pelo Terraform ([`infra/terraform`](../../infra/terraform)). O evento é validado com os JSON Schemas de [`contracts/`](../../contracts)
-e gravado numa **transação** do DynamoDB (tudo ou nada):
+Fila `campaigns.activity.v1` (ligada a `rpg.events` / `item.acquired.v1` e `shop.item.purchased.v1`),
+com `.retry` e `.dlq` criadas pelo Terraform ([`infra/terraform`](../../infra/terraform)). Uma compra
+na loja chega duas vezes, como `ItemAcquired` e `ShopItemPurchased` com o mesmo `operationId`: a
+primeira conta e a segunda é `duplicate`. Outro tipo de evento na fila vai para a DLQ.
+
+O evento é validado com os JSON Schemas de [`contracts/`](../../contracts) e gravado numa
+**transação** do DynamoDB (tudo ou nada):
 
 1. inbox: `messageId` ainda não processado;
 2. a campanha existe;

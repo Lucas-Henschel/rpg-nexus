@@ -21,7 +21,6 @@ from app.domain.errors import (
     DependencyUnavailable,
     DomainError,
     IdempotencyKeyReused,
-    InsufficientFunds,
     InvalidPortrait,
     NotCampaignMember,
     NotCharacterOwner,
@@ -33,7 +32,6 @@ from app.domain.rules import ensure_max_items_change_allowed, merge_stat_map
 
 from .dto import CharacterCreate, CharacterFromTemplate, CharacterPatch
 from .ports import (
-    AdjustmentAlreadyApplied,
     CharacterAlreadyExists,
     CharacterStore,
     ConcurrencyConflict,
@@ -210,11 +208,8 @@ class CharacterService:
     def access(self, character: Character, user_id: str | None) -> dict[str, bool]:
         """O que quem pergunta pode fazer na ficha; o front usa para mostrar ou esconder ações."""
         if user_id is None:
-            return {"edit": True, "adjustMoney": True}
-        return {
-            "edit": character.owner_id == user_id,
-            "adjustMoney": character.owner_id == user_id,
-        }
+            return {"edit": True}
+        return {"edit": character.owner_id == user_id}
 
     def get(self, character_id: str, *, user_id: str | None = None) -> Character:
         """Leitura: o dono da ficha ou o mestre da campanha dela."""
@@ -286,44 +281,6 @@ class CharacterService:
     def money_entries(self, character_id: str, *, user_id: str | None = None) -> list[MoneyEntry]:
         self.get(character_id, user_id=user_id)
         return self._store.list_money_entries(character_id)
-
-    def adjust_money(
-        self,
-        character_id: str,
-        delta: int,
-        reason: str,
-        idempotency_key: str | None = None,
-        *,
-        user_id: str | None = None,
-    ) -> Character:
-        """Ajuste manual do saldo pelo dono da ficha (recompensa, gasto fora da loja). Nunca deixa o saldo negativo.
-
-        Com Idempotency-Key, repetir a requisição não ajusta de novo.
-        """
-        current = self._owned(character_id, user_id)
-        now = self._clock()
-        entry = MoneyEntry(
-            operation_id=f"ADJ-{idempotency_key}" if idempotency_key else f"ADJ-{self._new_id()}",
-            character_id=character_id,
-            kind="ADJUSTMENT",
-            amount=delta,
-            status=None,
-            user_id=user_id,
-            campaign_id=current.campaign_id,
-            reason=reason or None,
-            created_at=now,
-            updated_at=now,
-        )
-        try:
-            self._store.adjust_money(entry)
-        except AdjustmentAlreadyApplied:
-            log.info("money.adjust.idempotent_replay", extra={"characterId": character_id})
-            return self.get(character_id)
-        except ConcurrencyConflict:
-            raise InsufficientFunds(self.get(character_id).currency_amount, delta) from None
-        log.info("money.adjusted", extra={"characterId": character_id, "delta": delta})
-        self._changed(character_id)
-        return self.get(character_id)
 
     def _apply_patch(self, current: Character, patch: CharacterPatch) -> tuple[Character, int]:
         fields = patch.model_fields_set

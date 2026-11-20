@@ -109,7 +109,8 @@ def build_container(
     template_store: TemplateStore | None = None,
 ) -> Container:
     store = store or build_store(settings)
-    templates = TemplateService(template_store or build_template_store(settings))
+    # O modelo definido numa campanha (eventos do S1) fica liberado para os participantes dela.
+    templates = TemplateService(template_store or build_template_store(settings), campaigns=store)
     verifier = TokenVerifier(settings.jwt_secret, settings.jwt_issuer, settings.jwt_audience)
     storage = storage or build_storage(settings)
     read_model = read_model or build_read_model(settings)

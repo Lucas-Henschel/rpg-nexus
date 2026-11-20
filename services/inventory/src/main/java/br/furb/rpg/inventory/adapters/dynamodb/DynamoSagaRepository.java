@@ -26,6 +26,13 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
             "userId",DynamoStore.str(row,"userId"),"characterId",DynamoStore.str(row,"characterId"),
             "itemId",DynamoStore.str(row,"itemId"),"quantity",1,"amount",DynamoStore.num(row,"price"));
     }
+    /** ItemAcquired and ShopItemPurchased also carry the item name (contract: at most 120 characters). */
+    Map<String,Object> deliveredPayload(Map<String,AttributeValue> row) {
+        var result=new HashMap<String,Object>(payload(row));
+        var name=DynamoStore.optional(row,"itemName").strip();
+        if(!name.isEmpty()) result.put("itemName",name.length()>120?name.substring(0,120):name);
+        return result;
+    }
     Map<String,Object> validationPayload(Map<String,AttributeValue> row) {
         var result=new HashMap<String,Object>(payload(row));
         result.put("deadlineAt",DynamoStore.str(row,"deadlineAt"));
@@ -44,10 +51,11 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
         var shop=store.findShop(campaign);
         if(shopItem==null || shop==null || !shop.active()) return StartResult.SHOP_ITEM_NOT_FOUND;
         var now=Instant.now();
-        var row=Map.of("id",DynamoStore.s(id),"campaignId",DynamoStore.s(campaign),"userId",DynamoStore.s(user),
+        var row=new HashMap<String,AttributeValue>(Map.of("id",DynamoStore.s(id),"campaignId",DynamoStore.s(campaign),"userId",DynamoStore.s(user),
             "characterId",DynamoStore.s(character),"itemId",DynamoStore.s(item),"price",DynamoStore.n(shopItem.price()),
             "status",DynamoStore.s("WAITING_MONEY"),"version",DynamoStore.n(0),
-            "deadlineAt",DynamoStore.s(now.plusSeconds(timeout).toString()),"createdAt",DynamoStore.s(now.toString()));
+            "deadlineAt",DynamoStore.s(now.plusSeconds(timeout).toString()),"createdAt",DynamoStore.s(now.toString())));
+        row.put("itemName",DynamoStore.s(shopItem.name()));
         var stock=TransactWriteItem.builder().update(Update.builder().tableName(store.table("stocks"))
             .key(Map.of("id",DynamoStore.s(campaign+"#"+item)))
             .updateExpression("SET available = available - :one, reserved = if_not_exists(reserved, :zero) + :one")
@@ -128,8 +136,8 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
                 writes.add(store.updateSaga(row,decision.next().name(),Instant.parse(DynamoStore.str(row,"deadlineAt"))));
                 writes.add(confirmReservation(row));
                 writes.add(transition(row,"COMPLETED"));
-                writes.add(event(id,"rpg.item.acquired.v1","item.acquired.v1",payload(row)));
-                writes.add(event(id,"rpg.shop.item-purchased.v1","shop.item.purchased.v1",payload(row)));
+                writes.add(event(id,"rpg.item.acquired.v1","item.acquired.v1",deliveredPayload(row)));
+                writes.add(event(id,"rpg.shop.item-purchased.v1","shop.item.purchased.v1",deliveredPayload(row)));
             }
             case REFUND_MONEY -> writes.add(event(id,"rpg.money.refund-requested.v1","money.refund.requested.v1",payload(row)));
             case NONE -> { }

@@ -43,7 +43,7 @@ Todos passam pelo exchange `rpg.events` (tipo `topic`). As filas ficam em
 | `CampaignMemberJoined` | `campaign.member.joined.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`), S4 (`actions.history.v1`) |
 | `CampaignMemberCharacterChosen` | `campaign.member.character-chosen.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`) |
 | `CampaignMemberRemoved` | `campaign.member.removed.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`), S4 (`actions.history.v1`) |
-| `CampaignTemplateAssigned` | `campaign.template.assigned.v1` | S1 Campanhas | S4 (`actions.history.v1`) |
+| `CampaignTemplateAssigned` | `campaign.template.assigned.v1` | S1 Campanhas | S2 (`characters.campaign-members.v1`), S4 (`actions.history.v1`) |
 
 Os payloads da aquisição têm `operationId`, `campaignId`, `characterId`, `itemId` e `quantity`. Os
 campos próprios de cada evento estão descritos no esquema dele. O S3 publica `AcquisitionCancelled` sempre
@@ -57,9 +57,8 @@ de novo quem já participa não gera evento. A fila `inventory.campaign-members.
 de participantes do S3: as mensagens ficam guardadas nela até o S3 começar a consumir.
 
 `CampaignTemplateAssigned` diz qual modelo de ficha do S2 (id e versão fixa) os jogadores da
-campanha usam. Por enquanto vai só para o histórico do S4. Quando o S2 for usá-lo para liberar o
-modelo aos jogadores, a ligação de `campaign.template.assigned.v1` com a fila do S2 entra junto com
-o consumidor: hoje o S2 manda para a DLQ os tipos que não conhece.
+campanha usam. O S2 guarda essa definição e libera o modelo, só nessa versão, para os participantes
+da campanha criarem fichas; o S4 registra no histórico.
 
 ## Mudanças
 

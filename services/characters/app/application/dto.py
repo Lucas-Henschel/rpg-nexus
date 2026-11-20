@@ -120,7 +120,7 @@ class CharacterCreate(BaseModel):
     maxItems: Annotated[int, Field(ge=0, le=1000)] | None = None
     active: bool = True
     sheet: SheetLayout | None = None
-    #: Saldo inicial. Depois de criada, o saldo só muda por ajuste (/money/adjustments) ou compra.
+    #: Saldo inicial. Depois de criada, o saldo só muda pelas compras na loja (débito e reembolso).
     currency: CurrencyIn | None = None
 
     @field_validator("attributes", "skills")
@@ -158,7 +158,7 @@ class CharacterPatch(BaseModel):
     active: bool | None = None
     #: Substitui a organização inteira da ficha; null volta para a ficha padrão.
     sheet: SheetLayout | None = None
-    #: Só o nome da moeda. O saldo muda por /money/adjustments ou pela compra na loja, nunca por PATCH:
+    #: Só o nome da moeda. O saldo muda pela compra na loja, nunca por PATCH:
     #: um PATCH com a ficha antiga desfaria um débito feito nesse meio-tempo.
     currencyName: CurrencyName | None = None
 
@@ -217,7 +217,6 @@ class AccessOut(BaseModel):
     """O que quem fez a requisição pode fazer nesta ficha (o front mostra ou esconde as ações)."""
 
     edit: bool
-    adjustMoney: bool
 
 
 class CharacterOut(BaseModel):
@@ -363,21 +362,6 @@ class RosterOut(BaseModel):
 
 
 # --- Dinheiro ------------------------------------------------------------------------------------
-
-
-class MoneyAdjustmentIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    #: Positivo credita, negativo debita. O saldo nunca fica negativo.
-    delta: Annotated[int, Field(ge=-MAX_MONEY, le=MAX_MONEY)]
-    reason: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] = ""
-
-    @field_validator("delta")
-    @classmethod
-    def check_not_zero(cls, value: int) -> int:
-        if value == 0:
-            raise ValueError("delta não pode ser 0")
-        return value
 
 
 class MoneyEntryOut(BaseModel):

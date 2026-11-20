@@ -196,7 +196,7 @@
           "x-dead-letter-exchange": "",
           "x-dead-letter-routing-key": "characters.campaign-members.v1.dlq"
         },
-        "bindings": ["campaign.member.joined.v1", "campaign.member.removed.v1"]
+        "bindings": ["campaign.member.joined.v1", "campaign.member.removed.v1", "campaign.template.assigned.v1"]
       },
       {
         "name": "characters.campaign-members.v1.retry",

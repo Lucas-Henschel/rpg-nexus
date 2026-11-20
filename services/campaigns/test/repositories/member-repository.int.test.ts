@@ -5,7 +5,11 @@ import {
   createMemberRepository,
   type MemberRepository,
 } from "../../src/repositories/member-repository.js";
-import { memberJoined, memberRemoved } from "../../src/messaging/outgoing.js";
+import {
+  memberCharacterChosen,
+  memberJoined,
+  memberRemoved,
+} from "../../src/messaging/outgoing.js";
 import { campaign, member, NOW, ownerOf } from "../db/fixtures.js";
 import { createTestDb } from "../db/test-db.js";
 
@@ -87,21 +91,21 @@ it("campaignIdsOf: as campanhas em que o usuário participa", async () => {
   expect((await members.campaignIdsOf(caio.userId)).sort()).toEqual([one, two].sort());
 });
 
+const lyra = { characterId: "ch1", characterName: "Lyra" };
+const chosen = (campaignId: string) => memberCharacterChosen(campaignId, { ...beto, ...lyra }, NOW);
+
 it("setCharacter grava o personagem e mantém o resto", async () => {
   const campaignId = await newCampaign();
 
   await members.add(campaignId, beto, memberJoined(campaignId, beto));
 
-  expect(
-    await members.setCharacter(campaignId, "u-beto", { characterId: "ch1", characterName: "Lyra" }),
-  ).toEqual({ ...beto, characterId: "ch1", characterName: "Lyra" });
+  expect(await members.setCharacter(campaignId, "u-beto", lyra, chosen(campaignId))).toBe(true);
+  expect(await members.find(campaignId, "u-beto")).toEqual({ ...beto, ...lyra });
 });
 
-it("setCharacter de quem não participa falha, sem criar o participante", async () => {
+it("setCharacter de quem não participa devolve false, sem criar o participante", async () => {
   const campaignId = await newCampaign();
 
-  await expect(
-    members.setCharacter(campaignId, "u-zeca", { characterId: "ch1", characterName: "Lyra" }),
-  ).rejects.toThrow();
+  expect(await members.setCharacter(campaignId, "u-zeca", lyra, chosen(campaignId))).toBe(false);
   expect(await members.find(campaignId, "u-zeca")).toBeNull();
 });

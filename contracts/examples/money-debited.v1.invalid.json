@@ -1,1 +1,8 @@
-{"messageId":"33333333-3333-4333-8333-333333333333","correlationId":"op-1","type":"rpg.money.debited.v1","version":1,"occurredAt":"2026-11-17T00:00:00Z","payload":{"operationId":"op-1","amount":"30"}}
+{
+  "messageId": "33333333-3333-4333-8333-333333333333",
+  "correlationId": "op-1",
+  "type": "rpg.money.debited.v1",
+  "version": 1,
+  "occurredAt": "2026-11-17T00:00:00Z",
+  "payload": { "operationId": "op-1", "amount": "30" }
+}

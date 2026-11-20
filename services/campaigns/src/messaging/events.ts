@@ -1,4 +1,6 @@
-// Lê o ItemAcquired que chega do RabbitMQ e confere com os JSON Schemas de contracts/.
+// Lê as aquisições que chegam do RabbitMQ e confere com os JSON Schemas de contracts/. O S3 publica
+// ItemAcquired e ShopItemPurchased para a mesma compra, com o mesmo operationId: as duas viram uma
+// Acquisition e o repositório conta a operação uma vez só.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -8,8 +10,9 @@ import type { Acquisition } from "../domain/acquisition.js";
 /** Mensagem que nunca vai ser aceita, por mais que se tente de novo: vai direto para a DLQ. */
 export class PoisonMessage extends Error {}
 
-interface ItemAcquiredEvent {
+interface AcquisitionEvent {
   messageId: string;
+  type: string;
   occurredAt: string;
   payload: {
     operationId: string;
@@ -24,7 +27,13 @@ interface ItemAcquiredEvent {
 // ajv-formats é CommonJS; no ESM a função vem dentro de `default`.
 const addFormats = addFormatsModule.default;
 
-export function createItemAcquiredParser(contractsDir: string): (body: Buffer) => Acquisition {
+/** Esquema de cada tipo aceito na fila de atividade. */
+const SCHEMAS: Record<string, string> = {
+  "rpg.item.acquired.v1": "events/item-acquired.v1.schema.json",
+  "rpg.shop.item-purchased.v1": "events/shop-item-purchased.v1.schema.json",
+};
+
+export function createAcquisitionParser(contractsDir: string): (body: Buffer) => Acquisition {
   const readSchema = (file: string) =>
     JSON.parse(readFileSync(resolve(contractsDir, file), "utf8"));
 
@@ -35,8 +44,11 @@ export function createItemAcquiredParser(contractsDir: string): (body: Buffer) =
   ajv.addKeyword("x-routing");
   ajv.addSchema(readSchema("envelope.schema.json"));
 
-  const validate = ajv.compile<ItemAcquiredEvent>(
-    readSchema("events/item-acquired.v1.schema.json"),
+  const validators = new Map(
+    Object.entries(SCHEMAS).map(([type, file]) => [
+      type,
+      ajv.compile<AcquisitionEvent>(readSchema(file)),
+    ]),
   );
 
   return (body) => {
@@ -46,6 +58,13 @@ export function createItemAcquiredParser(contractsDir: string): (body: Buffer) =
       event = JSON.parse(body.toString("utf8"));
     } catch {
       throw new PoisonMessage("o corpo não é JSON");
+    }
+
+    const type = (event as { type?: unknown } | null)?.type;
+    const validate = typeof type === "string" ? validators.get(type) : undefined;
+
+    if (!validate) {
+      throw new PoisonMessage(`tipo de evento não aceito: ${String(type)}`);
     }
 
     if (!validate(event)) {

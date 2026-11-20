@@ -3,6 +3,9 @@
 O modelo guarda só estrutura e valores iniciais (``rules.template_sheet`` tira o conteúdo pessoal dos
 blocos). Cada edição cria uma versão nova e imutável; uma ficha copia a versão escolhida e registra de
 onde veio, então editar o modelo depois nunca muda fichas que já existem.
+
+O modelo é privado, com uma exceção: o que o dono da campanha definiu nela (no S1) fica liberado, só na
+versão definida, para os participantes daquela campanha criarem fichas.
 """
 
 from __future__ import annotations
@@ -10,10 +13,11 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Callable
+from typing import Protocol
 
 from app.clock import Clock, utcnow
-from app.domain.errors import TemplateNotFound, VersionConflict
-from app.domain.models import CharacterTemplate, TemplateDefinition
+from app.domain.errors import CampaignTemplateNotSet, NotCampaignMember, TemplateNotFound, VersionConflict
+from app.domain.models import CampaignMembership, CampaignTemplate, CharacterTemplate, TemplateDefinition
 from app.domain.rules import template_sheet
 
 from .dto import TemplateCreate, TemplateInitialValues, TemplatePatch
@@ -34,6 +38,14 @@ def _definition(sheet: dict | None, initial: TemplateInitialValues) -> TemplateD
     )
 
 
+class CampaignAccess(Protocol):
+    """O que o serviço de modelos lê da projeção das campanhas (eventos do S1)."""
+
+    def get_membership(self, campaign_id: str, user_id: str) -> CampaignMembership | None: ...
+
+    def get_campaign_template(self, campaign_id: str) -> CampaignTemplate | None: ...
+
+
 class TemplateService:
     MAX_OPTIMISTIC_RETRIES = 5
 
@@ -41,10 +53,12 @@ class TemplateService:
         self,
         store: TemplateStore,
         *,
+        campaigns: CampaignAccess | None = None,
         clock: Clock = utcnow,
         id_factory: Callable[[], str] = lambda: str(uuid.uuid4()),
     ) -> None:
         self._store = store
+        self._campaigns = campaigns
         self._clock = clock
         self._new_id = id_factory
 
@@ -74,12 +88,39 @@ class TemplateService:
             raise TemplateNotFound(template_id, version)
         return template
 
-    def for_new_character(self, owner_id: str, template_id: str, version: int | None) -> CharacterTemplate:
-        """A versão a copiar numa ficha nova. Modelo apagado não serve para fichas novas."""
-        template = self.get(owner_id, template_id, version)
+    def for_campaign(self, user_id: str, campaign_id: str) -> CharacterTemplate:
+        """O modelo da campanha, na versão definida pelo dono. Só para quem participa dela."""
+        membership = self._campaigns.get_membership(campaign_id, user_id) if self._campaigns else None
+        if membership is None or not membership.active:
+            raise NotCampaignMember(campaign_id)
+        assigned = self._campaigns.get_campaign_template(campaign_id) if self._campaigns else None
+        if assigned is None:
+            raise CampaignTemplateNotSet(campaign_id)
+        template = self._store.get_template(assigned.template_id, assigned.version)
+        if template is None or template.deleted:
+            raise TemplateNotFound(assigned.template_id, assigned.version)
+        return template
+
+    def for_new_character(
+        self, owner_id: str, template_id: str, version: int | None, campaign_id: str | None = None
+    ) -> CharacterTemplate:
+        """A versão a copiar numa ficha nova. Modelo apagado não serve para fichas novas.
+
+        Com ``campaign_id``, o modelo definido nessa campanha também serve, na versão dela.
+        """
+        try:
+            template = self.get(owner_id, template_id, version)
+        except TemplateNotFound:
+            template = self._from_campaign(owner_id, template_id, version, campaign_id)
         if template.deleted:
             raise TemplateNotFound(template_id, version)
         return template
+
+    def _from_campaign(self, user_id: str, template_id: str, version: int | None, campaign_id: str | None) -> CharacterTemplate:
+        assigned = self._campaigns.get_campaign_template(campaign_id) if self._campaigns and campaign_id else None
+        if assigned is None or assigned.template_id != template_id or version not in (None, assigned.version):
+            raise TemplateNotFound(template_id, version)
+        return self.for_campaign(user_id, assigned.campaign_id)
 
     def update(
         self, owner_id: str, template_id: str, patch: TemplatePatch, expected_version: int | None = None

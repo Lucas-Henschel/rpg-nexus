@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
-from app.domain.models import CampaignMembership, CapacityHold, Character, CharacterTemplate, MoneyEntry
+from app.domain.models import CampaignMembership, CampaignTemplate, CapacityHold, Character, CharacterTemplate, MoneyEntry
 
 # --- Exceções de infraestrutura que os casos de uso sabem tratar -------------------------------
 
@@ -26,10 +26,6 @@ class ConcurrencyConflict(Exception):
 
 class CharacterAlreadyExists(Exception):
     pass
-
-
-class AdjustmentAlreadyApplied(Exception):
-    """O ajuste de saldo com esta chave já foi gravado: repetir a requisição não ajusta de novo."""
 
 
 class StoreUnavailable(Exception):
@@ -147,13 +143,6 @@ class CharacterStore(Protocol):
         """inbox(novo) + entrada inexistente -> REFUNDED (lápide: reembolso chegou antes do débito) + outbox."""
         ...
 
-    def adjust_money(self, entry: MoneyEntry) -> None:
-        """Ajuste manual: entrada nova + saldo += amount (com sinal), sem deixar o saldo negativo.
-
-        ``AdjustmentAlreadyApplied`` se a entrada já existe; ``ConcurrencyConflict`` se o saldo não comporta.
-        """
-        ...
-
     # Participantes das campanhas (projeção dos eventos do S1)
     def get_membership(self, campaign_id: str, user_id: str) -> CampaignMembership | None: ...
 
@@ -162,6 +151,13 @@ class CharacterStore(Protocol):
 
         ``DuplicateMessage`` se o messageId já foi processado; ``ConcurrencyConflict`` se o evento é antigo.
         """
+        ...
+
+    # Modelo de ficha de cada campanha (projeção dos eventos do S1)
+    def get_campaign_template(self, campaign_id: str) -> CampaignTemplate | None: ...
+
+    def apply_campaign_template(self, inbox: InboxRecord, assigned: CampaignTemplate) -> None:
+        """inbox(novo) + modelo da campanha, só se o evento for mais novo que o gravado (como na participação)."""
         ...
 
     # Outbox

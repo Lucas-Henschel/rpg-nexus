@@ -278,7 +278,7 @@ describe("eventos na outbox", () => {
         return { type, payload };
       });
 
-    return { service, events };
+    return { service, events, messages: () => repositories.outbox };
   }
 
   it("criar publica CampaignCreated e a entrada do dono como OWNER", async () => {
@@ -340,6 +340,44 @@ describe("eventos na outbox", () => {
         },
       },
     ]);
+  });
+
+  it("escolher personagem publica CampaignMemberCharacterChosen com a hora do relógio", async () => {
+    const { service, events, messages } = withOutbox();
+    const { campaignId } = await service.create({ name: "Um" }, ANA);
+
+    await service.join("482731", BETO);
+    await service.chooseCharacter(campaignId, BETO, { characterId: "ch1", characterName: "Lyra" });
+
+    expect(events().slice(3)).toEqual([
+      {
+        type: "rpg.campaign.member.character-chosen.v1",
+        payload: {
+          campaignId,
+          userId: "u-beto",
+          role: "PLAYER",
+          characterId: "ch1",
+          characterName: "Lyra",
+        },
+      },
+    ]);
+    expect(JSON.parse(messages().at(-1)!.body).occurredAt).toBe(NOW);
+  });
+
+  it("escolher de novo o mesmo personagem não publica outro evento", async () => {
+    const { service, events } = withOutbox();
+    const { campaignId } = await service.create({ name: "Um" }, ANA);
+    const lyra = { characterId: "ch1", characterName: "Lyra" };
+
+    await service.chooseCharacter(campaignId, ANA, lyra);
+    await service.chooseCharacter(campaignId, ANA, lyra);
+    await service.chooseCharacter(campaignId, ANA, { characterId: "ch2", characterName: "Borin" });
+
+    expect(
+      events()
+        .slice(2)
+        .map((event) => event.payload.characterId),
+    ).toEqual(["ch1", "ch2"]);
   });
 
   it("recusas não publicam nada", async () => {

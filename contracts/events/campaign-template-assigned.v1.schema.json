@@ -7,7 +7,10 @@
     "exchange": "rpg.events",
     "routingKey": "campaign.template.assigned.v1",
     "producer": "campaigns (S1, P1)",
-    "consumers": ["actions (S4, P4) — fila actions.history.v1"]
+    "consumers": [
+      "characters (S2, P2) — fila characters.campaign-members.v1",
+      "actions (S4, P4) — fila actions.history.v1"
+    ]
   },
   "type": "object",
   "allOf": [{ "$ref": "urn:rpg-nexus:envelope:v1" }],

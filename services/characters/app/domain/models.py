@@ -141,10 +141,10 @@ class CapacityHold:
 
 @dataclass(frozen=True)
 class MoneyEntry:
-    """Registro de uma operação de dinheiro do personagem (débito da Saga, reembolso ou ajuste manual).
+    """Registro de uma operação de dinheiro do personagem (débito da Saga de compra ou reembolso).
 
     Débitos/reembolsos têm uma entrada por ``operation_id`` (idempotência por operação, além da inbox).
-    Ajustes manuais do dono da ficha usam ``kind="ADJUSTMENT"`` e ``amount`` com sinal.
+    ``kind="ADJUSTMENT"`` são ajustes manuais de antes: a rota saiu, mas os já gravados continuam no extrato.
     """
 
     operation_id: str
@@ -214,3 +214,18 @@ class CampaignMembership:
     @property
     def is_owner(self) -> bool:
         return self.active and self.role == "OWNER"
+
+
+@dataclass(frozen=True)
+class CampaignTemplate:
+    """Modelo de ficha que o dono definiu para a campanha no S1, numa versão fixa.
+
+    Também é cópia local montada com os eventos do S1: libera esse modelo (só essa versão) para os
+    participantes da campanha criarem fichas. ``changed_at`` é o instante da definição no S1.
+    """
+
+    campaign_id: str
+    template_id: str
+    version: int
+    name: str
+    changed_at: datetime

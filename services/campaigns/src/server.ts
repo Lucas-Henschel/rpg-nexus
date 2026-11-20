@@ -4,7 +4,7 @@ import { createDb, pingDatabase } from "./db/client.js";
 import { buildApp } from "./http/app.js";
 import { connectRabbit } from "./messaging/connection.js";
 import { startConsumer } from "./messaging/consumer.js";
-import { createItemAcquiredParser } from "./messaging/events.js";
+import { createAcquisitionParser } from "./messaging/events.js";
 import { createTemplateCatalog } from "./integrations/templates.js";
 import { handleDelivery } from "./messaging/handle-delivery.js";
 import { createOutboxRelay } from "./messaging/outbox-relay.js";
@@ -50,7 +50,7 @@ const app = buildApp({
 });
 
 const delivery = {
-  parse: createItemAcquiredParser(resolve(env.CONTRACTS_DIR)),
+  parse: createAcquisitionParser(resolve(env.CONTRACTS_DIR)),
   campaigns,
   policy: {
     maxRetries: env.MAX_RETRIES,

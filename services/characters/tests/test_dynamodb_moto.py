@@ -208,27 +208,13 @@ def test_debito_condicional_recusa_quando_saldo_mudou_entre_leitura_e_escrita(dy
     assert dynamo.get_character("p1").currency_amount == 10
 
 
-def test_ajuste_manual_no_dynamodb(dynamo, clock):
-    from app.application.ports import AdjustmentAlreadyApplied, ConcurrencyConflict
-    from app.domain.models import MoneyEntry
-
-    dynamo.create_character(_character(clock, owner_id="user-ana"))
-    plus = MoneyEntry("ADJ-1", "p1", "ADJUSTMENT", 25, None, clock(), clock())
-    dynamo.adjust_money(plus)
-    with pytest.raises(AdjustmentAlreadyApplied):
-        dynamo.adjust_money(plus)
-    with pytest.raises(ConcurrencyConflict):
-        dynamo.adjust_money(MoneyEntry("ADJ-2", "p1", "ADJUSTMENT", -26, None, clock(), clock()))
-    assert dynamo.get_character("p1").currency_amount == 25
-
-
 def test_patch_da_ficha_nao_sobrescreve_o_saldo(dynamo, clock):
-    from app.domain.models import MoneyEntry
+    from .conftest import money_debit_request
 
     character = _character(clock, owner_id="user-ana", currency_amount=40)
     dynamo.create_character(character)
-    dynamo.adjust_money(MoneyEntry("ADJ-1", "p1", "ADJUSTMENT", -15, None, clock(), clock()))
-    # a edição usa a ficha lida antes do ajuste (saldo 40): o saldo gravado continua 25
+    MessageHandlers(dynamo, clock=clock).dispatch(money_debit_request(operation_id="op-1", amount=15))
+    # a edição usa a ficha lida antes do débito (saldo 40): o saldo gravado continua 25
     dynamo.save_profile(character.evolve(name="Lyra II", version=2, currency_name="Ouro"), 1, 0)
     saved = dynamo.get_character("p1")
     assert (saved.name, saved.currency_name, saved.currency_amount) == ("Lyra II", "Ouro", 25)
@@ -284,3 +270,16 @@ def test_participacao_no_dynamodb_respeita_a_ordem_dos_eventos(dynamo, clock):
     assert stale.outcome is Outcome.STALE
     assert dynamo.get_membership("camp", "u1").active is False
     assert dynamo.get_membership("camp", "ninguem") is None
+
+
+def test_modelo_da_campanha_no_dynamodb_respeita_a_ordem_dos_eventos(dynamo, clock):
+    from .conftest import template_assigned
+
+    handlers = MessageHandlers(dynamo, clock=clock)
+    assert handlers.dispatch(template_assigned("camp", "t1", 3, "Aventureiro", at="2026-11-11T13:00:00Z")).outcome is (
+        Outcome.CAMPAIGN_TEMPLATE_APPLIED
+    )
+    assert handlers.dispatch(template_assigned("camp", "t1", 1, at="2026-11-11T12:00:00Z")).outcome is Outcome.STALE
+    assigned = dynamo.get_campaign_template("camp")
+    assert (assigned.template_id, assigned.version, assigned.name) == ("t1", 3, "Aventureiro")
+    assert dynamo.get_campaign_template("outra") is None

@@ -16,7 +16,13 @@
     "version": { "const": 1 },
     "payload": {
       "type": "object",
-      "required": ["operationId", "campaignId", "characterId", "itemId", "quantity"],
+      "required": [
+        "operationId",
+        "campaignId",
+        "characterId",
+        "itemId",
+        "quantity"
+      ],
       "additionalProperties": true,
       "properties": {
         "operationId": { "$ref": "#/$defs/id" },

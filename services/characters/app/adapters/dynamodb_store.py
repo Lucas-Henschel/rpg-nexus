@@ -7,6 +7,7 @@ Modelo (tabelas privadas do S2, ver infra/manifests/characters.json):
     CHAR#{id} / HOLD#{opId}      reserva de capacidade da Saga
     CHAR#{id} / MONEY#{opId}     operação de dinheiro (débito/reembolso da compra, ou ajuste manual)
     CAMPAIGN#{id} / MEMBER#{uid} participante da campanha (projeção dos eventos do S1; sem gsi1pk)
+    CAMPAIGN#{id} / TEMPLATE     modelo de ficha da campanha (projeção dos eventos do S1; sem gsi1pk)
     GSI ``byCampaign`` (gsi1pk=CAMPAIGN#{campaignId}, gsi1sk={createdAt}#{id}) — esparso, só perfis
 ``character_inbox`` (messageId)   mensagens já processadas (TTL ``expiresAt``)
 ``character_outbox`` (messageId)  eventos a publicar; GSI esparso ``pending`` (pendingKey, createdAt)
@@ -33,7 +34,6 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from app.application.ports import (
-    AdjustmentAlreadyApplied,
     CharacterAlreadyExists,
     ConcurrencyConflict,
     DuplicateMessage,
@@ -45,6 +45,7 @@ from app.application.ports import (
 )
 from app.domain.models import (
     CampaignMembership,
+    CampaignTemplate,
     CapacityHold,
     Character,
     HitPoints,
@@ -701,26 +702,6 @@ class DynamoDBCharacterStore:
     def create_money_tombstone(self, inbox: InboxRecord, entry: MoneyEntry, outbox: OutboxRecord) -> None:
         self._transact([self._inbox_put(inbox), self._money_put(entry), self._outbox_put(outbox)])
 
-    def adjust_money(self, entry: MoneyEntry) -> None:
-        e = _Expr()
-        condition = "attribute_exists(pk)"
-        if entry.amount < 0:
-            amount = e.n("currencyAmount")
-            condition += f" AND {amount} >= {e.v(-entry.amount)}"
-        items = [self._money_put(entry), self._balance_update(entry.character_id, entry.amount, condition, e)]
-        try:
-            self._call(self._client.transact_write_items, TransactItems=items)
-        except ClientError as exc:
-            if exc.response.get("Error", {}).get("Code") != "TransactionCanceledException":
-                raise
-            reasons = [r.get("Code") for r in exc.response.get("CancellationReasons") or []]
-            if not reasons:
-                match = re.search(r"\[(.*)\]", exc.response.get("Error", {}).get("Message", ""))
-                reasons = [r.strip() for r in match.group(1).split(",")] if match else []
-            if reasons and reasons[0] == "ConditionalCheckFailed":
-                raise AdjustmentAlreadyApplied(entry.operation_id) from exc
-            raise ConcurrencyConflict(",".join(str(r) for r in reasons)) from exc
-
     # --- participantes das campanhas ----------------------------------------------------------
 
     def get_membership(self, campaign_id: str, user_id: str) -> CampaignMembership | None:
@@ -765,6 +746,54 @@ class DynamoDBCharacterStore:
                         "TableName": self._t_chars,
                         "Item": item,
                         # ISO-8601 em UTC com milissegundos: comparar como texto é comparar no tempo
+                        "ConditionExpression": "attribute_not_exists(pk) OR changedAt < :c",
+                        "ExpressionAttributeValues": {":c": item["changedAt"]},
+                    }
+                },
+            ]
+        )
+
+    # --- modelo de ficha das campanhas -------------------------------------------------------
+
+    def get_campaign_template(self, campaign_id: str) -> CampaignTemplate | None:
+        resp = self._call(
+            self._client.get_item,
+            TableName=self._t_chars,
+            Key=_to_item({"pk": f"CAMPAIGN#{campaign_id}", "sk": "TEMPLATE"}),
+            ConsistentRead=True,
+        )
+        item = resp.get("Item")
+        if not item:
+            return None
+        d = _from_item(item)
+        return CampaignTemplate(
+            campaign_id=d["campaignId"],
+            template_id=d["templateId"],
+            version=int(d["templateVersion"]),
+            name=d["templateName"],
+            changed_at=_parse_ts(d["changedAt"]),
+        )
+
+    def apply_campaign_template(self, inbox: InboxRecord, assigned: CampaignTemplate) -> None:
+        item = _to_item(
+            {
+                "pk": f"CAMPAIGN#{assigned.campaign_id}",
+                "sk": "TEMPLATE",
+                "entity": "CAMPAIGN_TEMPLATE",
+                "campaignId": assigned.campaign_id,
+                "templateId": assigned.template_id,
+                "templateVersion": assigned.version,
+                "templateName": assigned.name,
+                "changedAt": _ts(assigned.changed_at),
+            }
+        )
+        self._transact(
+            [
+                self._inbox_put(inbox),
+                {
+                    "Put": {
+                        "TableName": self._t_chars,
+                        "Item": item,
                         "ConditionExpression": "attribute_not_exists(pk) OR changedAt < :c",
                         "ExpressionAttributeValues": {":c": item["changedAt"]},
                     }

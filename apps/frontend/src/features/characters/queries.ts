@@ -3,6 +3,7 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/r
 import {
   createTemplate,
   deleteTemplate,
+  getCampaignTemplate,
   getCharacter,
   listCharacters,
   listHolds,
@@ -19,6 +20,8 @@ export const characterKeys = {
   detail: (id: string) => ["characters", "detail", id] as const,
   holds: (id: string) => ["characters", "holds", id] as const,
   templates: ["characters", "templates"] as const,
+  campaignTemplate: (campaignId: string) =>
+    ["characters", "campaign-template", campaignId] as const,
 };
 
 export function useCharacters(campaignId: string) {
@@ -90,6 +93,15 @@ export function useUploadPortrait(id: string) {
   return useMutation({
     mutationFn: (file: File) => uploadPortrait(id, file),
     onSuccess: store,
+  });
+}
+
+/** Modelo de ficha da campanha (definido pelo mestre no S1); null quando não há. */
+export function useCampaignTemplate(campaignId: string) {
+  return useQuery({
+    queryKey: characterKeys.campaignTemplate(campaignId),
+    queryFn: () => getCampaignTemplate(campaignId),
+    enabled: Boolean(campaignId),
   });
 }
 

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { createCharacter, createFromTemplate, type SavedTemplate } from "./api";
-import { useDeleteTemplate, useTemplates } from "./queries";
+import { useCampaignTemplate, useDeleteTemplate, useTemplates } from "./queries";
 import { errorMessage } from "../../shared/http";
 import { useCampaign } from "../../shared/campaign";
 import { useCampaignCode } from "../campaigns/queries";
@@ -94,8 +94,11 @@ export function NewCharacterPage() {
   const [campaign] = useCampaign();
   const code = useCampaignCode(campaign);
   const toast = useToast();
-  // "saved:<id>" é um modelo salvo no S2; o resto são os modelos prontos do front.
-  const [templateId, setTemplateId] = useState(TEMPLATES[0].id);
+  const campaignTemplate = useCampaignTemplate(campaign).data ?? null;
+  // "campaign" é o modelo que o mestre definiu na campanha; "saved:<id>", um modelo salvo no S2; o resto
+  // são os modelos prontos do front. Enquanto a pessoa não escolhe, vale o da campanha, se houver.
+  const [choice, setTemplateId] = useState<string | null>(null);
+  const templateId = choice ?? (campaignTemplate ? "campaign" : TEMPLATES[0].id);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState("");
@@ -110,9 +113,18 @@ export function NewCharacterPage() {
 
     setSaving(true);
     setProblem("");
+    // O modelo da campanha vai com a versão dela: o mestre, dono do modelo, ganharia a versão atual.
+    const fromCampaign = templateId === "campaign" ? campaignTemplate : null;
+    const fromSaved = fromCampaign
+      ? { id: fromCampaign.templateId, version: fromCampaign.version }
+      : savedId && { id: savedId, version: undefined };
     try {
-      const created = savedId
-        ? await createFromTemplate(savedId, { campaignId: campaign, name: name.trim() })
+      const created = fromSaved
+        ? await createFromTemplate(fromSaved.id, {
+            campaignId: campaign,
+            name: name.trim(),
+            version: fromSaved.version,
+          })
         : await createCharacter({
             campaignId: campaign,
             name: name.trim(),
@@ -142,6 +154,32 @@ export function NewCharacterPage() {
       </p>
 
       <form onSubmit={submit} noValidate>
+        {campaignTemplate && (
+          <>
+            <h2 className="section-title">Modelo da campanha</h2>
+            <div className="templates" role="radiogroup" aria-label="Modelo da campanha">
+              <label className={cx("template", templateId === "campaign" && "template--chosen")}>
+                <input
+                  type="radio"
+                  name="template"
+                  value="campaign"
+                  checked={templateId === "campaign"}
+                  onChange={() => setTemplateId("campaign")}
+                />
+                <span className="template__name">{campaignTemplate.name}</span>
+                <span className="template__summary">
+                  {campaignTemplate.description || "Modelo definido pelo mestre da campanha"}
+                </span>
+                <span className="template__meta">
+                  Versão {campaignTemplate.version} · {campaignTemplate.sheetDefinition?.columns.flat().length ?? 0}{" "}
+                  blocos · {campaignTemplate.initialValues.currency.amount}{" "}
+                  {campaignTemplate.initialValues.currency.name}
+                </span>
+              </label>
+            </div>
+            <h2 className="section-title">Outros modelos</h2>
+          </>
+        )}
         <div className="templates" role="radiogroup" aria-label="Modelo da ficha">
           {TEMPLATES.map((item) => {
             const blocks = item.columns.flat().length;

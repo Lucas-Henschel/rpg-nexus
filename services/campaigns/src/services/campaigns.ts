@@ -19,6 +19,7 @@ import type { Member } from "../domain/member.js";
 import type { AuthUser } from "../domain/user.js";
 import {
   campaignCreated,
+  memberCharacterChosen,
   memberJoined,
   memberRemoved,
   templateAssigned,
@@ -211,7 +212,7 @@ export function createCampaignService(
 
     /** O personagem que o participante usa nesta campanha. Dois participantes não usam o mesmo. */
     async chooseCharacter(campaignId: string, user: AuthUser, character: ChosenCharacter) {
-      await requireMember(campaignId, user);
+      const { member } = await requireMember(campaignId, user);
 
       const taken = (await members.list(campaignId)).some(
         (member) => member.characterId === character.characterId && member.userId !== user.userId,
@@ -221,7 +222,29 @@ export function createCampaignService(
         throw new CharacterInUse(campaignId, character.characterId);
       }
 
-      return members.setCharacter(campaignId, user.userId, character);
+      // O mesmo personagem de novo não muda nada: nem grava, nem publica outro evento.
+      if (
+        member.characterId === character.characterId &&
+        member.characterName === character.characterName
+      ) {
+        return member;
+      }
+
+      const updated: Member = { ...member, ...character };
+
+      // Se o participante saiu ou foi removido no meio do caminho, ele já não participa.
+      if (
+        !(await members.setCharacter(
+          campaignId,
+          user.userId,
+          character,
+          memberCharacterChosen(campaignId, updated, clock()),
+        ))
+      ) {
+        throw new NotCampaignMember(campaignId);
+      }
+
+      return updated;
     },
 
     /** O jogador sai, ou o dono remove um jogador, e publica CampaignMemberRemoved. O dono não sai. */
