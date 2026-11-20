@@ -5,7 +5,6 @@ import { useAuth } from "../features/auth/auth-context";
 const NAV = [
   { to: "/personagens", label: "Personagens" },
   { to: "/campanhas", label: "Campanhas" },
-  { to: "/itens", label: "Itens" },
   { to: "/historico", label: "Histórico" },
 ];
 

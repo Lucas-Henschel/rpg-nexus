@@ -2,7 +2,7 @@
 # DynamoDB com chave `id`. O prefixo vem de services/inventory/.env.example (env.tf), o mesmo que o
 # serviço usa para montar o nome de cada tabela.
 locals {
-  inventory_tables = ["items", "stocks", "inventory", "acquisition_sagas", "inventory_inbox", "inventory_outbox"]
+  inventory_tables = ["items", "stocks", "inventory", "acquisition_sagas", "inventory_inbox", "inventory_outbox", "shops", "shop_items", "campaign_members", "saga_history"]
 }
 
 resource "aws_dynamodb_table" "inventory" {

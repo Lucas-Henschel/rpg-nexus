@@ -51,7 +51,7 @@ export function BackpackBlock({ maxItems, slotsUsed, holds, onChange, data, onDa
         onChange={event => onData({ ...data, allowOverflow: event.target.checked })} /> Permitir itens acima do máximo na tabela</label>}
     </div>
     {activeHolds.length > 0 && <ul className="holds">{activeHolds.map(hold => <li key={hold.operationId} className={`hold hold--${hold.status.toLowerCase()}`}>
-      <span className="hold__item">{hold.itemId ?? "Item"}</span>
+      <span className="hold__item">Item</span>
       <span className="hold__status">{hold.status === "HELD" ? "Reservado" : "Entregue"}</span>
     </li>)}</ul>}
   </div>;

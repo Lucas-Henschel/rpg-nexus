@@ -5,11 +5,10 @@ import {
   GetCommand,
   QueryCommand,
   TransactWriteCommand,
-  UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import type { Db } from "../db/client.js";
 import type { Member, Role } from "../domain/member.js";
-import type { OutboxMessage } from "../messaging/outgoing.js";
+import { memberCharacterChosen, type OutboxMessage } from "../messaging/outgoing.js";
 import { outboxPut } from "./outbox-repository.js";
 
 type Item = Record<string, unknown>;
@@ -123,22 +122,17 @@ export function createMemberRepository(db: Db) {
       userId: string,
       { characterId, characterName }: { characterId: string; characterName: string },
     ): Promise<Member> {
-      const { Attributes } = await db.doc.send(
-        new UpdateCommand({
-          TableName,
-          Key: { campaignId, userId },
+      const previous = await find(campaignId, userId);
+      if (!previous) throw new Error("campaign member disappeared");
+      const updated: Member = { ...previous, characterId, characterName };
+      await db.doc.send(new TransactWriteCommand({ TransactItems: [
+        { Update: { TableName, Key: { campaignId, userId },
           UpdateExpression: "SET characterId = :characterId, characterName = :characterName",
-          // Não recria quem saiu da campanha entre a verificação e a gravação.
           ConditionExpression: "attribute_exists(userId)",
-          ExpressionAttributeValues: {
-            ":characterId": characterId,
-            ":characterName": characterName,
-          },
-          ReturnValues: "ALL_NEW",
-        }),
-      );
-
-      return toMember(Attributes as Item);
+          ExpressionAttributeValues: { ":characterId": characterId, ":characterName": characterName } } },
+        outboxPut(db, memberCharacterChosen(campaignId, updated)),
+      ] }));
+      return updated;
     },
 
     /** Remove o participante e grava o evento da saída. Devolve false se ele já não participava. */

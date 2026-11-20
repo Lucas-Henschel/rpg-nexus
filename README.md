@@ -25,6 +25,9 @@ para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
 
 | Projeto | Pasta | Serviços no Compose |
 | --- | --- | --- |
+| Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns-init`, `campaigns` |
+| Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters-init`, `characters`, `characters-worker` |
+| Inventário e Loja (S3, Java) | [`services/inventory`](services/inventory/README.md) | `inventory-init`, `inventory` |
 | Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns`, `campaigns-worker` |
 | Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters`, `characters-worker` |
 | Inventário (S3, Java) | [`services/inventory`](services/inventory/README.md) | `inventory` |
@@ -126,6 +129,7 @@ resolvidos entre contêineres na rede Compose, e não no host.
 | Campanhas (API) | [localhost:3001/campaigns](http://localhost:3001/campaigns) | `http://campaigns:3001` |
 | Identidade (API) | [localhost:3002/health](http://localhost:3002/health) | `http://identity:3002` |
 | Personagens (API) | [localhost:8000/docs](http://localhost:8000/docs) | `http://characters:8000` |
+| Inventário e Loja (API) | [localhost:8080/health](http://localhost:8080/health) | `http://inventory:8080` |
 | Inventário (API) | [localhost:8080](http://localhost:8080) | `http://inventory:8080` |
 | Front-end | [localhost:5173](http://localhost:5173) | — |
 | Jaeger (traces) | [localhost:16686](http://localhost:16686) | OTLP/HTTP em `http://jaeger:4318` |
@@ -145,6 +149,7 @@ resolvidos entre contêineres na rede Compose, e não no host.
 | `CAMPAIGNS_PORT` | `3001` | Porta da API de Campanhas no host; também é o endereço gravado no build do front-end. |
 | `IDENTITY_PORT` | `3002` | Porta da API de cadastro e autenticação no host. |
 | `CHARACTERS_PORT` | `8000` | Porta da API de Personagens no host; também é o endereço gravado no build do front-end. |
+| `INVENTORY_PORT` | `8080` | Porta da API de Inventário e Loja no host; também é o endereço gravado no build do front-end. |
 | `INVENTORY_PORT` | `8080` | Porta da API de Inventário no host; também é o endereço gravado no build do front-end. |
 | `JWT_SECRET` | segredo local fictício | Assina os tokens do S4; deve ser substituído e protegido fora do ambiente local. |
 | `TRACING_ENABLED` | `true` | Liga o envio de spans ao Jaeger nos serviços. |
