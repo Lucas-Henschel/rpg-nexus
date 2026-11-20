@@ -451,6 +451,46 @@
       "destination_type": "queue",
       "routing_key": "campaign.member.removed.v1",
       "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "characters.money-commands.v1",
+      "destination_type": "queue",
+      "routing_key": "money.debit.requested.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "characters.money-commands.v1",
+      "destination_type": "queue",
+      "routing_key": "money.refund.requested.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.saga-replies.v1",
+      "destination_type": "queue",
+      "routing_key": "money.debited.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.saga-replies.v1",
+      "destination_type": "queue",
+      "routing_key": "money.debit-rejected.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.saga-replies.v1",
+      "destination_type": "queue",
+      "routing_key": "money.refunded.v1",
+      "arguments": {}
     }
   ]
 }
