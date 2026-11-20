@@ -1,7 +1,12 @@
 """Casos de uso HTTP: CRUD de fichas, dinheiro, criação a partir de modelo e retratos no S3.
 
-Quem pode mexer numa ficha: só o dono (``owner_id`` = ``sub`` do token do S4). Os métodos recebem
-``user_id``; com ``None`` (chamada interna, ou autenticação desligada em desenvolvimento) não há checagem.
+Quem pode o quê (``user_id`` = ``sub`` do token do S4; papéis vindos dos eventos do S1):
+
+* criar ficha numa campanha: quem participa dela;
+* editar a ficha, o retrato e ajustar o dinheiro: só o dono da ficha;
+* ler a ficha, as reservas e o extrato: o dono e o mestre (``OWNER``) da campanha da ficha.
+
+Com ``user_id=None`` (chamada interna, ou autenticação desligada em desenvolvimento) não há checagem.
 """
 
 from __future__ import annotations
@@ -18,6 +23,7 @@ from app.domain.errors import (
     IdempotencyKeyReused,
     InsufficientFunds,
     InvalidPortrait,
+    NotCampaignMember,
     NotCharacterOwner,
     PortraitNotFound,
     VersionConflict,
@@ -98,6 +104,7 @@ class CharacterService:
         """Cria a ficha. Com Idempotency-Key, o ID é derivado da chave: repetir a requisição devolve a mesma ficha."""
         if user_id is not None and data.ownerId not in (None, user_id):
             raise OwnerImmutable()
+        self._require_member(data.campaignId, user_id)
         owner_id = user_id if user_id is not None else data.ownerId
         now = self._clock()
         character = Character(
@@ -130,6 +137,7 @@ class CharacterService:
         user_id: str | None = None,
     ) -> tuple[Character, bool]:
         """Cria a ficha copiando a versão do modelo. A cópia é fixa: editar o modelo depois não muda esta ficha."""
+        self._require_member(data.campaignId, user_id)
         owner_id = user_id if user_id is not None else template.owner_id
         d = template.definition
         now = self._clock()
@@ -185,20 +193,59 @@ class CharacterService:
         self._changed(character_id)
         return character, True
 
+    # --- Permissões --------------------------------------------------------------------------
+
+    def is_campaign_member(self, campaign_id: str, user_id: str) -> bool:
+        membership = self._store.get_membership(campaign_id, user_id)
+        return membership is not None and membership.active
+
+    def is_campaign_owner(self, campaign_id: str, user_id: str) -> bool:
+        membership = self._store.get_membership(campaign_id, user_id)
+        return membership is not None and membership.is_owner
+
+    def _require_member(self, campaign_id: str, user_id: str | None) -> None:
+        if user_id is not None and not self.is_campaign_member(campaign_id, user_id):
+            raise NotCampaignMember(campaign_id)
+
+    def access(self, character: Character, user_id: str | None) -> dict[str, bool]:
+        """O que quem pergunta pode fazer na ficha; o front usa para mostrar ou esconder ações."""
+        if user_id is None:
+            return {"edit": True, "adjustMoney": True}
+        return {
+            "edit": character.owner_id == user_id,
+            "adjustMoney": character.owner_id == user_id,
+        }
+
     def get(self, character_id: str, *, user_id: str | None = None) -> Character:
+        """Leitura: o dono da ficha ou o mestre da campanha dela."""
+        character = self._store.get_character(character_id)
+        if character is None:
+            raise CharacterNotFound(character_id)
+        if user_id is not None and character.owner_id != user_id and not self.is_campaign_owner(character.campaign_id, user_id):
+            # fichas criadas antes do login não têm dono: só o mestre da campanha ainda as vê
+            raise NotCharacterOwner(character_id)
+        return character
+
+    def _owned(self, character_id: str, user_id: str | None) -> Character:
+        """Escrita: só o dono da ficha (o mestre lê, mas não edita a ficha de um jogador)."""
         character = self._store.get_character(character_id)
         if character is None:
             raise CharacterNotFound(character_id)
         if user_id is not None and character.owner_id != user_id:
-            # fichas criadas antes do login não têm dono e ficam inacessíveis pela API
             raise NotCharacterOwner(character_id)
         return character
 
     def list_by_campaign(
         self, campaign_id: str, limit: int = 50, cursor: str | None = None, *, user_id: str | None = None
     ) -> Page:
-        """Fichas da campanha; com ``user_id``, só as do usuário."""
+        """Fichas da campanha: o mestre vê todas; o jogador, só as dele; quem não participa, nenhuma (403)."""
+        if user_id is None or self.is_campaign_owner(campaign_id, user_id):
+            return self._store.list_characters(campaign_id, limit, cursor)
+        self._require_member(campaign_id, user_id)
         return self._store.list_characters(campaign_id, limit, cursor, owner_id=user_id)
+
+    def require_campaign_member(self, campaign_id: str, user_id: str | None) -> None:
+        self._require_member(campaign_id, user_id)
 
     def update(
         self,
@@ -216,7 +263,7 @@ class CharacterService:
         if user_id is not None and "ownerId" in patch.model_fields_set and patch.ownerId != user_id:
             raise OwnerImmutable()
         for _ in range(self.MAX_OPTIMISTIC_RETRIES):
-            current = self.get(character_id, user_id=user_id)
+            current = self._owned(character_id, user_id)
             if expected_version is not None and current.version != expected_version:
                 raise VersionConflict(expected_version, current.version)
             updated, delta = self._apply_patch(current, patch)
@@ -249,11 +296,11 @@ class CharacterService:
         *,
         user_id: str | None = None,
     ) -> Character:
-        """Ajuste manual do saldo pelo dono da ficha (ex.: o mestre deu moedas). Nunca deixa o saldo negativo.
+        """Ajuste manual do saldo pelo dono da ficha (recompensa, gasto fora da loja). Nunca deixa o saldo negativo.
 
         Com Idempotency-Key, repetir a requisição não ajusta de novo.
         """
-        current = self.get(character_id, user_id=user_id)
+        current = self._owned(character_id, user_id)
         now = self._clock()
         entry = MoneyEntry(
             operation_id=f"ADJ-{idempotency_key}" if idempotency_key else f"ADJ-{self._new_id()}",
@@ -314,13 +361,13 @@ class CharacterService:
         return f"{self._prefix}{character_id}/portrait"
 
     def request_portrait_upload(self, character_id: str, content_type: str, *, user_id: str | None = None) -> PresignedRequest:
-        self.get(character_id, user_id=user_id)
+        self._owned(character_id, user_id)
         storage = self._require_storage()
         return storage.presign_upload(self.portrait_key(character_id), content_type, self._presign_expires)
 
     def confirm_portrait(self, character_id: str, *, user_id: str | None = None) -> Character:
         """Depois do upload direto ao S3 (URL pré-assinada), o S2 confere o objeto e grava a referência."""
-        self.get(character_id, user_id=user_id)
+        self._owned(character_id, user_id)
         storage = self._require_storage()
         key = self.portrait_key(character_id)
         info = storage.head(key)
@@ -335,7 +382,7 @@ class CharacterService:
 
     def upload_portrait(self, character_id: str, data: bytes, content_type: str, *, user_id: str | None = None) -> Character:
         """Upload passando pelo backend — alternativa quando a URL pré-assinada não é acessível pelo navegador."""
-        self.get(character_id, user_id=user_id)
+        self._owned(character_id, user_id)
         storage = self._require_storage()
         content_type = (content_type or "").split(";")[0].strip().lower()
         self._check_portrait(data[:16], len(data), content_type)

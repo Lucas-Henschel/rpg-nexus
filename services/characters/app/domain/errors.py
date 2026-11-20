@@ -99,3 +99,14 @@ class InsufficientFunds(DomainError):
 
     def __init__(self, balance: int, delta: int) -> None:
         super().__init__(f"saldo insuficiente: há {balance} e o ajuste tira {-delta}", balance=balance, delta=delta)
+
+
+class NotCampaignMember(DomainError):
+    code = "NOT_CAMPAIGN_MEMBER"
+    http_status = 403
+
+    def __init__(self, campaign_id: str) -> None:
+        super().__init__(
+            "você não participa desta campanha. Se acabou de entrar nela, tente de novo em alguns segundos.",
+            campaignId=campaign_id,
+        )

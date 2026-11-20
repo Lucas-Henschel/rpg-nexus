@@ -1,16 +1,1 @@
-{
-  "messageId": "8c7b6a5d-4e3f-4a2b-9c1d-0e9f8a7b6c03",
-  "correlationId": "5a1c2e3f-4b5d-4e6f-8a7b-9c0d1e2f3a4b",
-  "type": "rpg.money.debit-rejected.v1",
-  "version": 1,
-  "occurredAt": "2026-11-20T12:00:01.250Z",
-  "payload": {
-    "operationId": "5a1c2e3f-4b5d-4e6f-8a7b-9c0d1e2f3a4b",
-    "campaignId": "c1",
-    "characterId": "p1",
-    "userId": "user-ana",
-    "amount": 30,
-    "reason": "SEM_VONTADE",
-    "detail": "saldo 10, preço 30"
-  }
-}
+{"messageId":"44444444-4444-4444-8444-444444444444","correlationId":"op-1","type":"rpg.money.debit-rejected.v1","version":1,"occurredAt":"2026-11-17T00:00:00Z","payload":{"operationId":"op-1","reason":""}}

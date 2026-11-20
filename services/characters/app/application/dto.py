@@ -213,6 +213,13 @@ class SourceTemplateOut(BaseModel):
     version: int
 
 
+class AccessOut(BaseModel):
+    """O que quem fez a requisição pode fazer nesta ficha (o front mostra ou esconde as ações)."""
+
+    edit: bool
+    adjustMoney: bool
+
+
 class CharacterOut(BaseModel):
     id: str
     campaignId: str
@@ -232,9 +239,10 @@ class CharacterOut(BaseModel):
     sourceTemplate: SourceTemplateOut | None
     createdAt: datetime
     updatedAt: datetime
+    access: AccessOut | None = None
 
     @classmethod
-    def from_domain(cls, c: Character) -> CharacterOut:
+    def from_domain(cls, c: Character, access: dict[str, bool] | None = None) -> CharacterOut:
         return cls(
             id=c.id,
             campaignId=c.campaign_id,
@@ -266,6 +274,7 @@ class CharacterOut(BaseModel):
             ),
             createdAt=c.created_at,
             updatedAt=c.updated_at,
+            access=AccessOut(**access) if access is not None else None,
         )
 
 

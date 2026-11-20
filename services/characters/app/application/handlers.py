@@ -30,12 +30,14 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from app.clock import Clock, utcnow
-from app.domain.models import CapacityHold, Character, HoldStatus, MoneyEntry, MoneyStatus
+from app.domain.models import CampaignMembership, CapacityHold, Character, HoldStatus, MoneyEntry, MoneyStatus
 from app.domain.rules import MoneyDecision, ValidationDecision, evaluate_debit_request, evaluate_validation_request
 from app.messaging.envelope import Envelope, build_envelope, summarize_validation_error
 from app.messaging.errors import PoisonMessage, TransientProcessingError
 from app.messaging.events import (
     ACQUISITION_CANCELLED,
+    CAMPAIGN_MEMBER_JOINED,
+    CAMPAIGN_MEMBER_REMOVED,
     CHARACTER_REJECTED,
     CHARACTER_VALIDATED,
     CHARACTER_VALIDATION_REQUESTED,
@@ -47,6 +49,8 @@ from app.messaging.events import (
     MONEY_REFUND_REQUESTED,
     MONEY_REFUNDED,
     AcquisitionOutcomePayload,
+    CampaignMemberJoinedPayload,
+    CampaignMemberRemovedPayload,
     CharacterRejectedPayload,
     CharacterValidatedPayload,
     EventSpec,
@@ -77,6 +81,8 @@ class Outcome(StrEnum):
     TOMBSTONE_CREATED = "TOMBSTONE_CREATED"
     ALREADY_APPLIED = "ALREADY_APPLIED"
     MONEY_REFUNDED = "MONEY_REFUNDED"
+    MEMBERSHIP_APPLIED = "MEMBERSHIP_APPLIED"
+    STALE = "STALE"
     ANOMALY = "ANOMALY"
 
 
@@ -115,6 +121,8 @@ class MessageHandlers:
             ACQUISITION_CANCELLED.type: (ACQUISITION_CANCELLED, self.handle_acquisition_cancelled),
             MONEY_DEBIT_REQUESTED.type: (MONEY_DEBIT_REQUESTED, self.handle_money_debit_requested),
             MONEY_REFUND_REQUESTED.type: (MONEY_REFUND_REQUESTED, self.handle_money_refund_requested),
+            CAMPAIGN_MEMBER_JOINED.type: (CAMPAIGN_MEMBER_JOINED, self.handle_member_joined),
+            CAMPAIGN_MEMBER_REMOVED.type: (CAMPAIGN_MEMBER_REMOVED, self.handle_member_removed),
         }
 
     def set_outbox_notifier(self, notifier: Callable[[], None]) -> None:
@@ -380,7 +388,7 @@ class MessageHandlers:
                 status=MoneyStatus.DEBITED,
                 campaign_id=p.campaignId,
                 user_id=p.userId,
-                reason=f"compra do item {p.itemId}" if p.itemId else "compra na loja",
+                reason=f"compra do item {p.itemId}",
                 created_at=now,
                 updated_at=now,
             )
@@ -392,6 +400,7 @@ class MessageHandlers:
                     campaignId=p.campaignId,
                     characterId=p.characterId,
                     userId=p.userId,
+                    itemId=p.itemId,
                     amount=p.amount,
                     balance=character.currency_amount - p.amount,
                 ),
@@ -409,7 +418,8 @@ class MessageHandlers:
                     campaignId=p.campaignId,
                     characterId=p.characterId,
                     userId=p.userId,
-                    amount=existing.amount,
+                    itemId=p.itemId,
+                    amount=p.amount,
                     balance=character.currency_amount if character else 0,
                 ),
                 now,
@@ -425,6 +435,7 @@ class MessageHandlers:
                 campaignId=p.campaignId,
                 characterId=p.characterId,
                 userId=p.userId,
+                itemId=p.itemId,
                 amount=p.amount,
                 reason=decision.reason,
                 detail=decision.detail[:500],
@@ -449,11 +460,15 @@ class MessageHandlers:
             balance = character.currency_amount if character else 0
 
             def refunded(amount: int, new_balance: int, at: Any = now) -> OutboxRecord:
+                # amount = preço (o S3 confere); refundedAmount = o que voltou de fato ao saldo
                 payload = MoneyRefundedPayload(
                     operationId=p.operationId,
                     campaignId=p.campaignId,
                     characterId=p.characterId,
-                    amount=amount,
+                    userId=p.userId,
+                    itemId=p.itemId,
+                    amount=p.amount,
+                    refundedAmount=amount,
                     balance=new_balance,
                 )
                 return self._outgoing(MONEY_REFUNDED, envelope.correlationId, payload, at)
@@ -468,6 +483,7 @@ class MessageHandlers:
                         amount=0,
                         status=MoneyStatus.REFUNDED,
                         campaign_id=p.campaignId,
+                        user_id=p.userId,
                         reason="reembolso antes do débito",
                         tombstone=True,
                         created_at=now,
@@ -502,6 +518,41 @@ class MessageHandlers:
             self._notify()
             return result
         raise TransientProcessingError(f"conflitos persistentes no reembolso da operação {p.operationId}")
+
+    # --- Participantes das campanhas (projeção dos eventos do S1) -------------------------------
+
+    def handle_member_joined(self, envelope: Envelope) -> HandlingResult:
+        p = self._parse(CampaignMemberJoinedPayload, envelope)
+        membership = CampaignMembership(p.campaignId, p.userId, p.role, True, p.joinedAt, p.username)
+        return self._apply_membership(envelope, membership)
+
+    def handle_member_removed(self, envelope: Envelope) -> HandlingResult:
+        p = self._parse(CampaignMemberRemovedPayload, envelope)
+        current = self._store.get_membership(p.campaignId, p.userId)
+        # o papel continua o que era; a saída só desliga a participação
+        membership = CampaignMembership(p.campaignId, p.userId, current.role if current else "PLAYER", False, p.removedAt)
+        return self._apply_membership(envelope, membership)
+
+    def _apply_membership(self, envelope: Envelope, membership: CampaignMembership) -> HandlingResult:
+        if self._store.get_inbox(str(envelope.messageId)) is not None:
+            return HandlingResult(Outcome.DUPLICATE, "messageId já processado")
+        now = self._clock()
+        try:
+            self._store.apply_membership(self._inbox(envelope, Outcome.MEMBERSHIP_APPLIED, "", now), membership)
+        except DuplicateMessage:
+            return HandlingResult(Outcome.DUPLICATE, "messageId gravado por processamento concorrente")
+        except ConcurrencyConflict:
+            # Evento mais antigo que o gravado (chegou fora de ordem): registra e não muda nada.
+            try:
+                self._store.record_outcome(self._inbox(envelope, Outcome.STALE, "evento antigo", now), None)
+            except DuplicateMessage:
+                return HandlingResult(Outcome.DUPLICATE, "messageId gravado por processamento concorrente")
+            return HandlingResult(Outcome.STALE, "evento mais antigo que o gravado")
+        log.info(
+            "campaign.membership_applied",
+            extra={"campaignId": membership.campaign_id, "userId": membership.user_id, "active": membership.active},
+        )
+        return HandlingResult(Outcome.MEMBERSHIP_APPLIED)
 
     # --- Auxiliares ---------------------------------------------------------------------------
 

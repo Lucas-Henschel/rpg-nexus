@@ -25,6 +25,7 @@ import json
 import os
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -34,7 +35,15 @@ from app.config import Settings
 from app.messaging.topology import VALIDATION_QUEUE
 from app.security import sign_access_token
 
-from .rabbit_tools import EventListener, money_request, outcome, publish, queue_depth, validation_request
+from .rabbit_tools import (
+    EventListener,
+    member_joined,
+    money_request,
+    outcome,
+    publish,
+    queue_depth,
+    validation_request,
+)
 
 #: Usuário do teste: dono das fichas que o smoke cria (o "comprador" dos débitos).
 SMOKE_USER = "smoke-user"
@@ -75,8 +84,24 @@ async def capacity_eventually(base: str, character_id: str, expected: int, timeo
         await asyncio.sleep(0.3)
 
 
+async def join_campaign(base: str, campaign: str, timeout: float = 15) -> bool:
+    """Faz o papel do S1: o usuário do teste entra na campanha. Espera o S2 aplicar o evento."""
+    await publish([member_joined(campaign, SMOKE_USER, "OWNER")])
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        try:
+            http("GET", f"{base}/characters?campaignId={campaign}")
+            return True
+        except urllib.error.HTTPError as exc:
+            if exc.code != 403:
+                raise
+        await asyncio.sleep(0.5)
+    return False
+
+
 async def run(base: str, poison: bool, poison_wait: float) -> None:
     campaign = f"smoke-{uuid.uuid4().hex[:6]}"
+    check("participação na campanha aplicada (evento do S1)", await join_campaign(base, campaign), campaign)
     character = http(
         "POST", f"{base}/characters", {"campaignId": campaign, "name": "Smoke", "hp": {"current": 5, "max": 5}, "maxItems": 1}
     )
@@ -171,7 +196,7 @@ async def check_money(base: str, campaign: str) -> None:
     def balance() -> int:
         return http("GET", f"{base}/characters/{buyer}")["currency"]["amount"]
 
-    keys = ["money.debited.v1", "money.debit.rejected.v1", "money.refunded.v1"]
+    keys = ["money.debited.v1", "money.debit-rejected.v1", "money.refunded.v1"]
     async with EventListener(keys) as listener:
         op_buy, op_broke = str(uuid.uuid4()), str(uuid.uuid4())
         debit = money_request("debit", buyer, campaign, op_buy, user_id=SMOKE_USER, amount=30)
@@ -186,8 +211,11 @@ async def check_money(base: str, campaign: str) -> None:
         rejected = await listener.wait_for(for_operation(op_broke, "rpg.money.debit-rejected.v1"))
         reason = rejected[0]["payload"]["reason"] if rejected else None
         check("dinheiro: compra sem saldo recusada", reason == "INSUFFICIENT_FUNDS" and balance() == 70, str(reason))
+        adjusted = http("POST", f"{base}/characters/{buyer}/money/adjustments", {"delta": 5, "reason": "smoke"})
+        check("dinheiro: dono da ficha ajusta o saldo", adjusted["currency"]["amount"] == 75)
+        http("POST", f"{base}/characters/{buyer}/money/adjustments", {"delta": -5, "reason": "smoke"})
 
-        await publish([money_request("refund", buyer, campaign, op_buy)])
+        await publish([money_request("refund", buyer, campaign, op_buy, user_id=SMOKE_USER, amount=30)])
         refunded = await listener.wait_for(for_operation(op_buy, "rpg.money.refunded.v1"))
         check("dinheiro: reembolso devolve o valor", len(refunded) == 1 and balance() == 100, f"saldo {balance()}")
 

@@ -1,13 +1,1 @@
-{
-  "messageId": "8c7b6a5d-4e3f-4a2b-9c1d-0e9f8a7b6c04",
-  "correlationId": "5a1c2e3f-4b5d-4e6f-8a7b-9c0d1e2f3a4b",
-  "type": "rpg.money.refunded.v1",
-  "version": 1,
-  "occurredAt": "2026-11-20T12:00:01.250Z",
-  "payload": {
-    "operationId": "5a1c2e3f-4b5d-4e6f-8a7b-9c0d1e2f3a4b",
-    "campaignId": "c1",
-    "characterId": "p1",
-    "balance": 120
-  }
-}
+{"messageId":"55555555-5555-4555-8555-555555555555","correlationId":"op-1","type":"rpg.money.refunded.v1","version":1,"occurredAt":"2026-11-17T00:00:00Z","payload":{"amount":30}}

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
-from app.domain.models import CapacityHold, Character, CharacterTemplate, MoneyEntry
+from app.domain.models import CampaignMembership, CapacityHold, Character, CharacterTemplate, MoneyEntry
 
 # --- Exceções de infraestrutura que os casos de uso sabem tratar -------------------------------
 
@@ -151,6 +151,16 @@ class CharacterStore(Protocol):
         """Ajuste manual: entrada nova + saldo += amount (com sinal), sem deixar o saldo negativo.
 
         ``AdjustmentAlreadyApplied`` se a entrada já existe; ``ConcurrencyConflict`` se o saldo não comporta.
+        """
+        ...
+
+    # Participantes das campanhas (projeção dos eventos do S1)
+    def get_membership(self, campaign_id: str, user_id: str) -> CampaignMembership | None: ...
+
+    def apply_membership(self, inbox: InboxRecord, membership: CampaignMembership) -> None:
+        """inbox(novo) + participação, só se o evento for mais novo que o gravado.
+
+        ``DuplicateMessage`` se o messageId já foi processado; ``ConcurrencyConflict`` se o evento é antigo.
         """
         ...
 

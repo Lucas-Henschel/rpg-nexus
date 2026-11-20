@@ -8,7 +8,7 @@ permitindo que o produtor evolua de forma compatível. Payloads produzidos são 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
 
@@ -67,6 +67,7 @@ ACQUISITION_CANCELLED = EventSpec(
 )
 
 # Dinheiro na Saga de compra da loja: o S3 Inventário pede, o S2 debita/reembolsa e responde.
+# Contrato definido pelo S3 (P3): nomes, filas e campos iguais aos de contracts/events/money-*.v1.
 MONEY_DEBIT_REQUESTED = EventSpec(
     "MoneyDebitRequested",
     "rpg.money.debit-requested.v1",
@@ -86,11 +87,27 @@ MONEY_DEBIT_REJECTED = EventSpec(
     "MoneyDebitRejected",
     "rpg.money.debit-rejected.v1",
     1,
-    "money.debit.rejected.v1",
+    "money.debit-rejected.v1",
     "events/money-debit-rejected.v1.schema.json",
 )
 MONEY_REFUNDED = EventSpec(
     "MoneyRefunded", "rpg.money.refunded.v1", 1, "money.refunded.v1", "events/money-refunded.v1.schema.json"
+)
+
+# Eventos de propriedade do S1 Campanhas. O S2 só consome, para saber quem participa e quem é o mestre.
+CAMPAIGN_MEMBER_JOINED = EventSpec(
+    "CampaignMemberJoined",
+    "rpg.campaign.member.joined.v1",
+    1,
+    "campaign.member.joined.v1",
+    "events/campaign-member-joined.v1.schema.json",
+)
+CAMPAIGN_MEMBER_REMOVED = EventSpec(
+    "CampaignMemberRemoved",
+    "rpg.campaign.member.removed.v1",
+    1,
+    "campaign.member.removed.v1",
+    "events/campaign-member-removed.v1.schema.json",
 )
 
 CONSUMED_EVENTS = (
@@ -100,6 +117,8 @@ CONSUMED_EVENTS = (
     ACQUISITION_CANCELLED,
     MONEY_DEBIT_REQUESTED,
     MONEY_REFUND_REQUESTED,
+    CAMPAIGN_MEMBER_JOINED,
+    CAMPAIGN_MEMBER_REMOVED,
 )
 PRODUCED_EVENTS = (CHARACTER_VALIDATED, CHARACTER_REJECTED, MONEY_DEBITED, MONEY_DEBIT_REJECTED, MONEY_REFUNDED)
 
@@ -170,54 +189,75 @@ class CharacterRejectedPayload(_Produced):
     detail: Annotated[str, StringConstraints(max_length=500)] = ""
 
 
-# --- Dinheiro -------------------------------------------------------------------------------------
+# --- Dinheiro (contrato do S3) --------------------------------------------------------------------
 
-Amount = Annotated[int, Field(ge=1, le=1_000_000)]
+#: O S3 aceita item de preço 0; nunca negativo.
+Amount = Annotated[int, Field(ge=0, le=1_000_000)]
 Balance = Annotated[int, Field(ge=0)]
 
 
 class MoneyDebitRequestedPayload(_Consumed):
     operationId: Id
     campaignId: Id
-    characterId: Id
-    #: Quem está comprando (``sub`` do token do S4): o S2 confere que é o dono da ficha.
+    #: Quem compra (``sub`` do token do S4): o S2 confere que é o dono da ficha.
     userId: Id
+    characterId: Id
+    itemId: Id
+    #: Preço do item.
     amount: Amount
-    itemId: Id | None = None
     deadlineAt: AwareDatetime | None = None
 
 
 class MoneyRefundRequestedPayload(_Consumed):
     operationId: Id
     campaignId: Id
+    userId: Id
     characterId: Id
-    #: Informativo: o S2 devolve o valor que ele mesmo debitou para a operação.
-    amount: Annotated[int, Field(ge=0)] | None = None
+    itemId: Id
+    #: Preço do item; o S2 devolve o que ele mesmo debitou para a operação.
+    amount: Amount
 
 
-class MoneyDebitedPayload(_Produced):
+class _MoneyReply(_Produced):
+    """Campos que o S3 confere em toda resposta: precisam ser os da compra, com ``amount`` = preço."""
+
     operationId: Id
     campaignId: Id
-    characterId: Id
     userId: Id
+    characterId: Id
+    itemId: Id
     amount: Amount
-    balance: Balance
 
 
-class MoneyDebitRejectedPayload(_Produced):
-    operationId: Id
-    campaignId: Id
-    characterId: Id
-    userId: Id
-    amount: Amount
+class MoneyDebitedPayload(_MoneyReply):
+    #: Saldo depois do débito. Campo a mais do S2: o contrato do S3 aceita campos adicionais.
+    balance: Balance | None = None
+
+
+class MoneyDebitRejectedPayload(_MoneyReply):
     reason: MoneyRejectionReason
     detail: Annotated[str, StringConstraints(max_length=500)] = ""
 
 
-class MoneyRefundedPayload(_Produced):
-    operationId: Id
+class MoneyRefundedPayload(_MoneyReply):
+    #: Quanto voltou ao saldo por esta operação: o preço, ou 0 quando não havia débito (reembolso antes do
+    #: débito). Campos a mais do S2, como ``balance``: o contrato do S3 aceita campos adicionais.
+    refundedAmount: Annotated[int, Field(ge=0)] | None = None
+    balance: Balance | None = None
+
+
+# --- Participantes das campanhas (S1) ---------------------------------------------------------------
+
+
+class CampaignMemberJoinedPayload(_Consumed):
     campaignId: Id
-    characterId: Id
-    #: Valor devolvido; 0 quando não havia débito para a operação (reembolso antes do débito).
-    amount: Annotated[int, Field(ge=0)]
-    balance: Balance
+    userId: Id
+    username: str | None = None
+    role: Literal["OWNER", "PLAYER"]
+    joinedAt: AwareDatetime
+
+
+class CampaignMemberRemovedPayload(_Consumed):
+    campaignId: Id
+    userId: Id
+    removedAt: AwareDatetime

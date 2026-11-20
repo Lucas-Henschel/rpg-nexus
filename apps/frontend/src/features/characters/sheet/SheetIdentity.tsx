@@ -6,7 +6,7 @@ import { useToast } from "../../../shared/ui/toast-context";
 import { useAdjustMoney, useUploadPortrait } from "../queries";
 import type { Draft } from "./sheetDraft";
 
-function PortraitPicker({ character, name }: { character: Character; name: string }) {
+function PortraitPicker({ character, name, readOnly }: { character: Character; name: string; readOnly: boolean }) {
   const toast = useToast();
   const upload = useUploadPortrait(character.id);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -26,8 +26,8 @@ function PortraitPicker({ character, name }: { character: Character; name: strin
   return <div className="portrait">
     <div className="portrait__frame">
       {portrait ? <img src={portrait} alt={`Retrato de ${character.name}`} /> : <Initials name={name} />}
-      <button type="button" className="portrait__edit" onClick={() => fileInput.current?.click()}
-        disabled={upload.isPending} aria-label={action} title={action}>✎</button>
+      {!readOnly && <button type="button" className="portrait__edit" onClick={() => fileInput.current?.click()}
+        disabled={upload.isPending} aria-label={action} title={action}>✎</button>}
     </div>
     <input ref={fileInput} type="file" accept={PORTRAIT_TYPES.join(",")} hidden onChange={onChosen} />
   </div>;
@@ -35,7 +35,7 @@ function PortraitPicker({ character, name }: { character: Character; name: strin
 
 /**
  * Saldo do personagem. Ele não faz parte do rascunho: cada ajuste vai na hora para o S2, que nunca
- * deixa o saldo negativo. As compras na loja também mexem nele, por isso não dá para editar à mão.
+ * deixa o saldo negativo. As compras na loja também mexem nele. Só o dono da ficha ajusta.
  */
 function MoneyPanel({ character }: { character: Character }) {
   const toast = useToast();
@@ -59,11 +59,24 @@ function MoneyPanel({ character }: { character: Character }) {
     );
   };
 
+  const balance = (
+    <span className="money__balance">
+      <strong>{character.currency.amount}</strong> {character.currency.name}
+    </span>
+  );
+
+  if (!character.access?.adjustMoney) {
+    return (
+      <div className="money" aria-label="Dinheiro">
+        {balance}
+        <span className="money__hint">Só o dono da ficha ajusta o dinheiro.</span>
+      </div>
+    );
+  }
+
   return (
     <form className="money" onSubmit={send(1)} aria-label="Dinheiro">
-      <span className="money__balance">
-        <strong>{character.currency.amount}</strong> {character.currency.name}
-      </span>
+      {balance}
       <input
         className="ink-input money__amount"
         type="number"
@@ -84,15 +97,18 @@ function MoneyPanel({ character }: { character: Character }) {
   );
 }
 
-export function SheetIdentity({ character, draft, edit }: {
+export function SheetIdentity({ character, draft, edit, readOnly = false }: {
   character: Character; draft: Draft; edit: (changes: Partial<Draft>) => void;
+  /** Ficha de outra pessoa (o mestre vendo a de um jogador): tudo só para leitura. */
+  readOnly?: boolean;
 }) {
   const header = draft.sheet.header ?? {};
   const setHeader = (key: string, value: string) => edit({ sheet: { ...draft.sheet, header: { ...header, [key]: value } } });
   const value = (key: string) => typeof header[key] === "string" || typeof header[key] === "number" ? String(header[key]) : "";
   return <header className="sheet__identity">
-    <PortraitPicker character={character} name={draft.name} />
+    <PortraitPicker character={character} name={draft.name} readOnly={readOnly} />
     <div className="sheet__who">
+      <fieldset className="sheet__fieldset" disabled={readOnly}>
       <input className="ink-input ink-input--name" value={draft.name} onChange={event => edit({ name: event.target.value })}
         aria-label="Nome do personagem" maxLength={80} />
       <textarea className="ink-input" rows={2} value={draft.description} onChange={event => edit({ description: event.target.value })}
@@ -103,12 +119,15 @@ export function SheetIdentity({ character, draft, edit }: {
         <label>Defesa <input className="ink-input" type="number" min={0} value={value("defense")} onChange={event => setHeader("defense", event.target.value)} /></label>
         <label>Moeda <input className="ink-input" value={draft.currencyName} onChange={event => edit({ currencyName: event.target.value })} maxLength={30} /></label>
       </div>
+      </fieldset>
       <MoneyPanel character={character} />
+      <fieldset className="sheet__fieldset" disabled={readOnly}>
       <div className="sheet__meta"><span>Campanha {character.campaignId}</span>
         <label className="switch"><input type="checkbox" checked={draft.active} onChange={event => edit({ active: event.target.checked })} />
           <span>{draft.active ? "Ativo: pode receber itens" : "Inativo: não recebe itens"}</span>
         </label>
       </div>
+      </fieldset>
     </div>
   </header>;
 }

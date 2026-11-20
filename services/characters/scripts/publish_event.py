@@ -20,7 +20,10 @@ Exemplos (dentro do contêiner: ``docker compose exec characters python -m scrip
 
     # compra na loja: débito e reembolso do dinheiro (o userId precisa ser o dono da ficha)
     python -m scripts.publish_event debit --character-id <id> --campaign-id c1 --user-id <userId> --amount 30
-    python -m scripts.publish_event refund --character-id <id> --campaign-id c1 --operation-id <op>
+    python -m scripts.publish_event refund --character-id <id> --campaign-id c1 --user-id <userId> --amount 30 --operation-id <op>
+
+    # participante de uma campanha, como o S1 publica (para testar sem o S1)
+    python -m scripts.publish_event member --campaign-id c1 --user-id <userId> --role OWNER
 
     # F4 — poison message (JSON inválido ou payload inválido)
     python -m scripts.publish_event poison --kind json
@@ -40,7 +43,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from .rabbit_tools import money_request, outcome, publish, validation_request
+from .rabbit_tools import member_joined, money_request, outcome, publish, validation_request
 
 
 def main() -> int:
@@ -79,7 +82,14 @@ def main() -> int:
     r.add_argument("--character-id", required=True)
     r.add_argument("--campaign-id", required=True)
     r.add_argument("--operation-id", required=True)
+    r.add_argument("--user-id", required=True, help="o mesmo userId do débito")
+    r.add_argument("--amount", type=int, required=True, help="o preço, igual ao do débito")
     r.add_argument("--times", type=int, default=1)
+
+    mb = sub.add_parser("member", help="CampaignMemberJoined (participante da campanha, evento do S1)")
+    mb.add_argument("--campaign-id", required=True)
+    mb.add_argument("--user-id", required=True)
+    mb.add_argument("--role", choices=["OWNER", "PLAYER"], default="PLAYER")
 
     p = sub.add_parser("poison", help="mensagem que nunca será processada (F4)")
     p.add_argument("--kind", choices=["json", "payload"], default="payload")
@@ -103,6 +113,9 @@ def main() -> int:
         ]
         bodies = list(requests)
         envelope = {"messageId": None, "type": requests[0]["type"] if requests else None}
+    elif args.command == "member":
+        envelope = member_joined(args.campaign_id, args.user_id, args.role)
+        bodies = [envelope]
     elif args.command in ("debit", "refund"):
         operation_id = getattr(args, "operation_id", None) or str(uuid.uuid4())
         envelope = money_request(

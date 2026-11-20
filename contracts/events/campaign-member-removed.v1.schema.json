@@ -9,6 +9,7 @@
     "producer": "campaigns (S1, P1)",
     "consumers": [
       "inventory (S3, P3) — fila inventory.campaign-members.v1",
+      "characters (S2, P2) — fila characters.campaign-members.v1",
       "actions (S4, P4) — fila actions.history.v1"
     ]
   },

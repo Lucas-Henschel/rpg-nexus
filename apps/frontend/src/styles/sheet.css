@@ -567,3 +567,6 @@ input.stat-box__value:focus {
 .template-save { display: flex; flex-wrap: wrap; align-items: end; gap: 0.6rem; width: 100%; }
 .template-save label { display: grid; gap: 0.3rem; color: var(--nanquim-suave); font-size: 0.85rem; }
 .template-save__hint { flex-basis: 100%; margin: 0; color: var(--nanquim-suave); font-size: 0.85rem; }
+.money__hint { color: var(--nanquim-suave); font-size: 0.85rem; }
+.sheet__readonly { margin: 0 0 1rem; color: var(--nanquim-suave); font-size: 0.9rem; }
+.sheet__fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }

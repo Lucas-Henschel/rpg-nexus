@@ -110,7 +110,7 @@ def test_nao_da_para_criar_ou_passar_ficha_para_outra_pessoa(api):
 # --- dinheiro --------------------------------------------------------------------------------------
 
 
-def test_saldo_inicial_ajuste_e_nunca_negativo(api):
+def test_saldo_inicial_ajuste_pelo_dono_e_nunca_negativo(api):
     lyra = _create(api, currency={"name": "Moedas", "amount": 50})
     assert lyra["currency"] == {"name": "Moedas", "amount": 50}
     path = f"/characters/{lyra['id']}/money/adjustments"
@@ -227,3 +227,64 @@ def test_mesma_idempotency_key_de_pessoas_diferentes_nao_colide(api, other):
     b = other.post("/characters", json=BODY, headers={"Idempotency-Key": "igual"})
     assert (a.status_code, b.status_code) == (201, 201)
     assert a.json()["id"] != b.json()["id"]
+
+
+# --- Autorização pela campanha (participantes vindos dos eventos do S1) --------------------------
+
+
+def test_so_quem_participa_cria_ficha_na_campanha(api, container):
+    response = api.post("/characters", json={**BODY, "campaignId": "de-outra-mesa"})
+    assert response.status_code == 403 and response.json()["error"]["code"] == "NOT_CAMPAIGN_MEMBER"
+    tid = api.post("/templates", json=TEMPLATE).json()["templateId"]
+    from_template = api.post(f"/characters/from-template/{tid}", json={"campaignId": "de-outra-mesa", "name": "X"})
+    assert from_template.status_code == 403
+    assert api.get("/characters?campaignId=de-outra-mesa").status_code == 403
+    assert api.get("/campaigns/de-outra-mesa/roster").status_code == 403
+
+
+def test_quem_saiu_da_campanha_nao_cria_mais_ficha(api, container):
+    from .conftest import member_removed
+
+    _create(api)
+    container.handlers.dispatch(member_removed("c1", "user-ana"))
+    response = api.post("/characters", json=BODY)
+    assert response.status_code == 403 and response.json()["error"]["code"] == "NOT_CAMPAIGN_MEMBER"
+
+
+def test_so_o_dono_da_ficha_ajusta_o_dinheiro(api, gm):
+    lyra = _create(api, currency={"amount": 10})
+    assert lyra["access"] == {"edit": True, "adjustMoney": True}
+    response = gm.post(f"/characters/{lyra['id']}/money/adjustments", json={"delta": 1000})
+    assert response.status_code == 403 and response.json()["error"]["code"] == "NOT_OWNER"
+    assert api.get(f"/characters/{lyra['id']}").json()["currency"]["amount"] == 10
+
+
+def test_mestre_le_as_fichas_da_campanha_mas_nao_edita(api, other, gm):
+    lyra = _create(api, name="Da Ana")
+    other.post("/characters", json={**BODY, "name": "Da Bia"})
+
+    assert sorted(c["name"] for c in gm.get("/characters?campaignId=c1").json()["items"]) == ["Da Ana", "Da Bia"]
+    seen = gm.get(f"/characters/{lyra['id']}")
+    assert seen.status_code == 200 and seen.json()["access"] == {"edit": False, "adjustMoney": False}
+    assert gm.get(f"/characters/{lyra['id']}/money/transactions").status_code == 200
+    assert gm.get(f"/characters/{lyra['id']}/holds").status_code == 200
+
+    edit = gm.patch(f"/characters/{lyra['id']}", json={"name": "Mudada pelo mestre"})
+    assert edit.status_code == 403 and edit.json()["error"]["code"] == "NOT_OWNER"
+    # o jogador continua vendo só a dele
+    assert [c["name"] for c in other.get("/characters?campaignId=c1").json()["items"]] == ["Da Bia"]
+
+
+def test_mestre_de_uma_campanha_nao_le_ficha_de_outra(api, container):
+    from .conftest import member_joined, token_for
+
+    lyra = _create(api)  # campanha c1
+    container.handlers.dispatch(member_joined("c9", "user-outro-mestre", "OWNER"))
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    headers = {"Authorization": f"Bearer {token_for(container, 'user-outro-mestre', 'outro')}"}
+    with TestClient(create_app(container=container), headers=headers) as stranger:
+        assert stranger.get(f"/characters/{lyra['id']}").status_code == 403
+        assert stranger.post(f"/characters/{lyra['id']}/money/adjustments", json={"delta": 5}).status_code == 403

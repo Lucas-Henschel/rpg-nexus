@@ -269,3 +269,18 @@ def test_modelos_com_versoes_no_dynamodb(dynamo, clock):
     assert store.list_templates("user-ana") == []
     assert store.get_template("t1").deleted is True
     assert store.get_template("t1", version=1).name == "Fantasia"  # versões continuam legíveis
+
+
+def test_participacao_no_dynamodb_respeita_a_ordem_dos_eventos(dynamo, clock):
+    from .conftest import member_joined, member_removed
+
+    handlers = MessageHandlers(dynamo, clock=clock)
+    assert (
+        handlers.dispatch(member_joined("camp", "u1", "OWNER", at="2026-11-11T12:00:00Z")).outcome is Outcome.MEMBERSHIP_APPLIED
+    )
+    assert dynamo.get_membership("camp", "u1").is_owner
+    handlers.dispatch(member_removed("camp", "u1", at="2026-11-11T13:00:00Z"))
+    stale = handlers.dispatch(member_joined("camp", "u1", "OWNER", at="2026-11-11T12:30:00Z"))
+    assert stale.outcome is Outcome.STALE
+    assert dynamo.get_membership("camp", "u1").active is False
+    assert dynamo.get_membership("camp", "ninguem") is None

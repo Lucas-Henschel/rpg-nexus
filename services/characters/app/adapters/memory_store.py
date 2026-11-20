@@ -27,7 +27,15 @@ from app.application.ports import (
     PresignedRequest,
 )
 from app.application.read_model import CharacterSummary
-from app.domain.models import CapacityHold, Character, CharacterTemplate, HoldStatus, MoneyEntry, MoneyStatus
+from app.domain.models import (
+    CampaignMembership,
+    CapacityHold,
+    Character,
+    CharacterTemplate,
+    HoldStatus,
+    MoneyEntry,
+    MoneyStatus,
+)
 
 
 class InMemoryCharacterStore:
@@ -39,6 +47,7 @@ class InMemoryCharacterStore:
         self._outbox: dict[str, OutboxRecord] = {}
         self._leases: dict[str, tuple[str, datetime]] = {}
         self._money: dict[tuple[str, str], MoneyEntry] = {}
+        self._members: dict[tuple[str, str], CampaignMembership] = {}
 
     # --- utilitários de teste -----------------------------------------------------------------
 
@@ -247,6 +256,22 @@ class InMemoryCharacterStore:
                 raise ConcurrencyConflict("saldo insuficiente para o ajuste")
             self._characters[character.id] = character.evolve(currency_amount=character.currency_amount + entry.amount)
             self._money[key] = entry
+
+    # --- participantes das campanhas ----------------------------------------------------------
+
+    def get_membership(self, campaign_id: str, user_id: str) -> CampaignMembership | None:
+        with self._lock:
+            return self._members.get((campaign_id, user_id))
+
+    def apply_membership(self, inbox: InboxRecord, membership: CampaignMembership) -> None:
+        with self._lock:
+            self._check_inbox(inbox)
+            key = (membership.campaign_id, membership.user_id)
+            current = self._members.get(key)
+            if current is not None and current.changed_at >= membership.changed_at:
+                raise ConcurrencyConflict("evento de participação mais antigo que o gravado")
+            self._members[key] = membership
+            self._write_common(inbox, None)
 
     # --- outbox -------------------------------------------------------------------------------
 

@@ -95,9 +95,9 @@ def _parse_if_match(value: str | None) -> int | None:
     return int(cleaned)
 
 
-def _character_response(character: Character, response: Response) -> CharacterOut:
+def _character_response(character: Character, response: Response, c: Container, user: AuthUser | None) -> CharacterOut:
     response.headers["ETag"] = _etag(character)
-    return CharacterOut.from_domain(character)
+    return CharacterOut.from_domain(character, access=c.characters.access(character, _uid(user)))
 
 
 # --- Saúde ----------------------------------------------------------------------------------------
@@ -152,7 +152,7 @@ def create_character(
     character, created = c.characters.create(body, idempotency_key, user_id=_uid(user))
     response.status_code = 201 if created else 200
     response.headers["Location"] = f"/characters/{character.id}"
-    return _character_response(character, response)
+    return _character_response(character, response, c, user)
 
 
 @router.get("/characters", tags=["personagens"], response_model=CharacterPageOut, summary="Listar fichas de uma campanha")
@@ -172,7 +172,7 @@ def list_characters(
 
 @router.get("/characters/{character_id}", tags=["personagens"], response_model=CharacterOut, summary="Consultar ficha")
 def get_character(character_id: CharacterId, response: Response, c: ContainerDep, user: UserDep) -> CharacterOut:
-    return _character_response(c.characters.get(character_id, user_id=_uid(user)), response)
+    return _character_response(c.characters.get(character_id, user_id=_uid(user)), response, c, user)
 
 
 @router.patch(
@@ -195,7 +195,7 @@ def patch_character(
     except VersionConflict as exc:
         # Com If-Match a semântica HTTP correta é 412 Precondition Failed
         return error_response(412 if expected is not None else 409, exc.code, exc.message, exc.details)
-    return _character_response(character, response)
+    return _character_response(character, response, c, user)
 
 
 @router.get(
@@ -232,7 +232,7 @@ def create_character_from_template(
     character, created = c.characters.create_from_template(body, template, idempotency_key, user_id=_uid(user))
     response.status_code = 201 if created else 200
     response.headers["Location"] = f"/characters/{character.id}"
-    return _character_response(character, response)
+    return _character_response(character, response, c, user)
 
 
 # --- Dinheiro -------------------------------------------------------------------------------------
@@ -253,7 +253,7 @@ def adjust_money(
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=128)] = None,
 ) -> CharacterOut:
     character = c.characters.adjust_money(character_id, body.delta, body.reason, idempotency_key, user_id=_uid(user))
-    return _character_response(character, response)
+    return _character_response(character, response, c, user)
 
 
 @router.get(
@@ -337,8 +337,9 @@ def delete_template(template_id: TemplateId, c: ContainerDep, user: UserDep) -> 
 def campaign_roster(
     campaign_id: Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{1,64}$", description="ID da campanha")],
     c: ContainerDep,
-    _user: UserDep,
+    user: UserDep,
 ) -> RosterOut:
+    c.characters.require_campaign_member(campaign_id, _uid(user))
     roster = c.roster.by_campaign(campaign_id)
     return RosterOut(
         campaignId=roster.campaign_id,
@@ -377,7 +378,7 @@ def create_portrait_upload(
     summary="Confirmar upload pré-assinado (o S2 verifica tamanho, tipo e assinatura do arquivo)",
 )
 def confirm_portrait(character_id: CharacterId, response: Response, c: ContainerDep, user: UserDep) -> CharacterOut:
-    return _character_response(c.characters.confirm_portrait(character_id, user_id=_uid(user)), response)
+    return _character_response(c.characters.confirm_portrait(character_id, user_id=_uid(user)), response, c, user)
 
 
 @router.put(
@@ -406,7 +407,7 @@ async def upload_portrait(
     character = await run_in_threadpool(
         partial(c.characters.upload_portrait, user_id=_uid(user)), character_id, b"".join(chunks), content_type
     )
-    return _character_response(character, response)
+    return _character_response(character, response, c, user)
 
 
 @router.get(

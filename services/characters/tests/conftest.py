@@ -23,6 +23,8 @@ from app.messaging.contracts import ContractRegistry  # noqa: E402
 from app.messaging.envelope import Envelope, build_envelope  # noqa: E402
 from app.messaging.events import (  # noqa: E402
     ACQUISITION_CANCELLED,
+    CAMPAIGN_MEMBER_JOINED,
+    CAMPAIGN_MEMBER_REMOVED,
     CHARACTER_VALIDATION_REQUESTED,
     CHARACTER_VALIDATION_REQUESTED_V2,
     ITEM_ACQUIRED,
@@ -200,7 +202,14 @@ def money_refund_request(operation_id: str, character_id: str = "p1", message_id
             event_type=MONEY_REFUND_REQUESTED.type,
             version=1,
             correlation_id=operation_id,
-            payload={"operationId": operation_id, "campaignId": "c1", "characterId": character_id, "amount": 30},
+            payload={
+                "operationId": operation_id,
+                "campaignId": "c1",
+                "userId": "user-ana",
+                "characterId": character_id,
+                "itemId": "sword",
+                "amount": 30,
+            },
             occurred_at=datetime(2026, 11, 11, 12, 0, 5, tzinfo=UTC),
             message_id=message_id,
         )
@@ -221,7 +230,37 @@ def container():
             "PORTRAIT_MAX_BYTES": "2048",
         }
     )
-    return build_container(settings)
+    container = build_container(settings)
+    # Participantes, como o S1 publicaria: user-mestre é o dono (mestre); ana e bia são jogadoras.
+    for campaign in ("c1", "c2", "vazia"):
+        for user, role in (("user-mestre", "OWNER"), ("user-ana", "PLAYER"), ("user-bia", "PLAYER")):
+            container.handlers.dispatch(member_joined(campaign, user, role))
+    return container
+
+
+def member_joined(campaign_id: str, user_id: str, role: str = "PLAYER", at: str = "2026-11-11T11:00:00Z") -> Envelope:
+    """CampaignMemberJoined, como o S1 publica (o dono também entra assim, com role OWNER)."""
+    return Envelope.model_validate(
+        build_envelope(
+            event_type=CAMPAIGN_MEMBER_JOINED.type,
+            version=1,
+            correlation_id=campaign_id,
+            payload={"campaignId": campaign_id, "userId": user_id, "username": user_id, "role": role, "joinedAt": at},
+            occurred_at=datetime.fromisoformat(at.replace("Z", "+00:00")),
+        )
+    )
+
+
+def member_removed(campaign_id: str, user_id: str, at: str = "2026-11-11T13:00:00Z") -> Envelope:
+    return Envelope.model_validate(
+        build_envelope(
+            event_type=CAMPAIGN_MEMBER_REMOVED.type,
+            version=1,
+            correlation_id=campaign_id,
+            payload={"campaignId": campaign_id, "userId": user_id, "removedBy": user_id, "reason": "LEFT", "removedAt": at},
+            occurred_at=datetime.fromisoformat(at.replace("Z", "+00:00")),
+        )
+    )
 
 
 def token_for(container, user_id: str = "user-ana", username: str = "ana") -> str:
@@ -241,6 +280,14 @@ def api(container):
 def other(container):
     """Outro usuário logado (user-bia), para testar que ninguém mexe na ficha alheia."""
     headers = {"Authorization": f"Bearer {token_for(container, 'user-bia', 'bia')}"}
+    with TestClient(create_app(container=container), headers=headers) as client:
+        yield client
+
+
+@pytest.fixture
+def gm(container):
+    """O mestre (dono) das campanhas c1 e c2: lê as fichas da campanha e ajusta o dinheiro."""
+    headers = {"Authorization": f"Bearer {token_for(container, 'user-mestre', 'mestre')}"}
     with TestClient(create_app(container=container), headers=headers) as client:
         yield client
 

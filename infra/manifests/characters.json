@@ -31,7 +31,8 @@
         "itemTypes": {
           "PROFILE": "pk=CHAR#{characterId}, sk=PROFILE — ficha + contadores de capacidade (slotsUsed/slotsAvailable)",
           "HOLD": "pk=CHAR#{characterId}, sk=HOLD#{operationId} — reserva de capacidade da Saga (HELD/COMMITTED/RELEASED)",
-          "MONEY": "pk=CHAR#{characterId}, sk=MONEY#{operationId} — débito/reembolso da compra (DEBITED/REFUNDED) ou ajuste manual do saldo"
+          "MONEY": "pk=CHAR#{characterId}, sk=MONEY#{operationId} — débito/reembolso da compra (DEBITED/REFUNDED) ou ajuste manual do saldo",
+          "MEMBERSHIP": "pk=CAMPAIGN#{campaignId}, sk=MEMBER#{userId} — participante da campanha (OWNER/PLAYER, ativo ou não), cópia dos eventos do S1"
         }
       },
       {
@@ -127,7 +128,7 @@
       "character.validated.v1",
       "character.rejected.v1",
       "money.debited.v1",
-      "money.debit.rejected.v1",
+      "money.debit-rejected.v1",
       "money.refunded.v1"
     ],
     "queues": [
@@ -170,24 +171,43 @@
       },
       { "name": "characters.acquisition-outcomes.v1.dlq", "durable": true, "arguments": {}, "bindings": [] },
       {
-        "name": "characters.money-requests.v1",
+        "name": "characters.money-commands.v1",
         "durable": true,
         "arguments": {
           "x-dead-letter-exchange": "",
-          "x-dead-letter-routing-key": "characters.money-requests.v1.dlq"
+          "x-dead-letter-routing-key": "characters.money-commands.v1.dlq"
         },
         "bindings": ["money.debit.requested.v1", "money.refund.requested.v1"]
       },
       {
-        "name": "characters.money-requests.v1.retry",
+        "name": "characters.money-commands.v1.retry",
         "durable": true,
         "arguments": {
           "x-dead-letter-exchange": "",
-          "x-dead-letter-routing-key": "characters.money-requests.v1"
+          "x-dead-letter-routing-key": "characters.money-commands.v1"
         },
         "bindings": []
       },
-      { "name": "characters.money-requests.v1.dlq", "durable": true, "arguments": {}, "bindings": [] }
+      { "name": "characters.money-commands.v1.dlq", "durable": true, "arguments": {}, "bindings": [] },
+      {
+        "name": "characters.campaign-members.v1",
+        "durable": true,
+        "arguments": {
+          "x-dead-letter-exchange": "",
+          "x-dead-letter-routing-key": "characters.campaign-members.v1.dlq"
+        },
+        "bindings": ["campaign.member.joined.v1", "campaign.member.removed.v1"]
+      },
+      {
+        "name": "characters.campaign-members.v1.retry",
+        "durable": true,
+        "arguments": {
+          "x-dead-letter-exchange": "",
+          "x-dead-letter-routing-key": "characters.campaign-members.v1"
+        },
+        "bindings": []
+      },
+      { "name": "characters.campaign-members.v1.dlq", "durable": true, "arguments": {}, "bindings": [] }
     ]
   }
 }
