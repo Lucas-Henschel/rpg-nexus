@@ -12,7 +12,7 @@ from typing import Annotated
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
 
-from app.domain.models import RejectionReason
+from app.domain.models import MoneyRejectionReason, RejectionReason
 
 Id = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
 Quantity = Annotated[int, Field(ge=1, le=100)]
@@ -66,8 +66,42 @@ ACQUISITION_CANCELLED = EventSpec(
     "events/acquisition-cancelled.v1.schema.json",
 )
 
-CONSUMED_EVENTS = (CHARACTER_VALIDATION_REQUESTED, CHARACTER_VALIDATION_REQUESTED_V2, ITEM_ACQUIRED, ACQUISITION_CANCELLED)
-PRODUCED_EVENTS = (CHARACTER_VALIDATED, CHARACTER_REJECTED)
+# Dinheiro na Saga de compra da loja: o S3 Inventário pede, o S2 debita/reembolsa e responde.
+MONEY_DEBIT_REQUESTED = EventSpec(
+    "MoneyDebitRequested",
+    "rpg.money.debit-requested.v1",
+    1,
+    "money.debit.requested.v1",
+    "events/money-debit-requested.v1.schema.json",
+)
+MONEY_REFUND_REQUESTED = EventSpec(
+    "MoneyRefundRequested",
+    "rpg.money.refund-requested.v1",
+    1,
+    "money.refund.requested.v1",
+    "events/money-refund-requested.v1.schema.json",
+)
+MONEY_DEBITED = EventSpec("MoneyDebited", "rpg.money.debited.v1", 1, "money.debited.v1", "events/money-debited.v1.schema.json")
+MONEY_DEBIT_REJECTED = EventSpec(
+    "MoneyDebitRejected",
+    "rpg.money.debit-rejected.v1",
+    1,
+    "money.debit.rejected.v1",
+    "events/money-debit-rejected.v1.schema.json",
+)
+MONEY_REFUNDED = EventSpec(
+    "MoneyRefunded", "rpg.money.refunded.v1", 1, "money.refunded.v1", "events/money-refunded.v1.schema.json"
+)
+
+CONSUMED_EVENTS = (
+    CHARACTER_VALIDATION_REQUESTED,
+    CHARACTER_VALIDATION_REQUESTED_V2,
+    ITEM_ACQUIRED,
+    ACQUISITION_CANCELLED,
+    MONEY_DEBIT_REQUESTED,
+    MONEY_REFUND_REQUESTED,
+)
+PRODUCED_EVENTS = (CHARACTER_VALIDATED, CHARACTER_REJECTED, MONEY_DEBITED, MONEY_DEBIT_REJECTED, MONEY_REFUNDED)
 
 
 class _Consumed(BaseModel):
@@ -134,3 +168,56 @@ class CharacterRejectedPayload(_Produced):
     quantity: Quantity
     reason: RejectionReason
     detail: Annotated[str, StringConstraints(max_length=500)] = ""
+
+
+# --- Dinheiro -------------------------------------------------------------------------------------
+
+Amount = Annotated[int, Field(ge=1, le=1_000_000)]
+Balance = Annotated[int, Field(ge=0)]
+
+
+class MoneyDebitRequestedPayload(_Consumed):
+    operationId: Id
+    campaignId: Id
+    characterId: Id
+    #: Quem está comprando (``sub`` do token do S4): o S2 confere que é o dono da ficha.
+    userId: Id
+    amount: Amount
+    itemId: Id | None = None
+    deadlineAt: AwareDatetime | None = None
+
+
+class MoneyRefundRequestedPayload(_Consumed):
+    operationId: Id
+    campaignId: Id
+    characterId: Id
+    #: Informativo: o S2 devolve o valor que ele mesmo debitou para a operação.
+    amount: Annotated[int, Field(ge=0)] | None = None
+
+
+class MoneyDebitedPayload(_Produced):
+    operationId: Id
+    campaignId: Id
+    characterId: Id
+    userId: Id
+    amount: Amount
+    balance: Balance
+
+
+class MoneyDebitRejectedPayload(_Produced):
+    operationId: Id
+    campaignId: Id
+    characterId: Id
+    userId: Id
+    amount: Amount
+    reason: MoneyRejectionReason
+    detail: Annotated[str, StringConstraints(max_length=500)] = ""
+
+
+class MoneyRefundedPayload(_Produced):
+    operationId: Id
+    campaignId: Id
+    characterId: Id
+    #: Valor devolvido; 0 quando não havia débito para a operação (reembolso antes do débito).
+    amount: Annotated[int, Field(ge=0)]
+    balance: Balance

@@ -41,6 +41,7 @@ def create_tables(client, manifest: dict, settings: Settings) -> None:
         "TABLE_INBOX": settings.table_inbox,
         "TABLE_OUTBOX": settings.table_outbox,
         "TABLE_READ_MODEL": settings.table_read_model,
+        "TABLE_TEMPLATES": settings.table_templates,
     }
     for table in manifest["dynamodb"]["tables"]:
         name = names.get(table.get("envOverride", ""), table["name"])

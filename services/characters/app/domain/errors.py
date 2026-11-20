@@ -66,3 +66,36 @@ class IdempotencyKeyReused(DomainError):
 class DependencyUnavailable(DomainError):
     code = "DEPENDENCY_UNAVAILABLE"
     http_status = 503
+
+
+class Unauthenticated(DomainError):
+    code = "UNAUTHENTICATED"
+    http_status = 401
+
+    def __init__(self, message: str = "faça login: envie o access token do S4 em Authorization: Bearer") -> None:
+        super().__init__(message)
+
+
+class NotCharacterOwner(DomainError):
+    code = "NOT_OWNER"
+    http_status = 403
+
+    def __init__(self, character_id: str) -> None:
+        super().__init__("só o dono da ficha pode fazer isso", characterId=character_id)
+
+
+class TemplateNotFound(DomainError):
+    code = "TEMPLATE_NOT_FOUND"
+    http_status = 404
+
+    def __init__(self, template_id: str, version: int | None = None) -> None:
+        what = f"modelo {template_id}" + (f" versão {version}" if version else "")
+        super().__init__(f"{what} não encontrado", templateId=template_id, version=version)
+
+
+class InsufficientFunds(DomainError):
+    code = "INSUFFICIENT_FUNDS"
+    http_status = 409
+
+    def __init__(self, balance: int, delta: int) -> None:
+        super().__init__(f"saldo insuficiente: há {balance} e o ajuste tira {-delta}", balance=balance, delta=delta)

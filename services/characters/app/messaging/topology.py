@@ -13,7 +13,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .events import ACQUISITION_CANCELLED, CHARACTER_VALIDATION_REQUESTED, CHARACTER_VALIDATION_REQUESTED_V2, ITEM_ACQUIRED
+from .events import (
+    ACQUISITION_CANCELLED,
+    CHARACTER_VALIDATION_REQUESTED,
+    CHARACTER_VALIDATION_REQUESTED_V2,
+    ITEM_ACQUIRED,
+    MONEY_DEBIT_REQUESTED,
+    MONEY_REFUND_REQUESTED,
+)
 
 
 @dataclass(frozen=True)
@@ -43,7 +50,9 @@ VALIDATION_QUEUE = QueueSpec(
     (CHARACTER_VALIDATION_REQUESTED.routing_key, CHARACTER_VALIDATION_REQUESTED_V2.routing_key),
 )
 OUTCOMES_QUEUE = QueueSpec("characters.acquisition-outcomes.v1", (ITEM_ACQUIRED.routing_key, ACQUISITION_CANCELLED.routing_key))
-CONSUMER_QUEUES: tuple[QueueSpec, ...] = (VALIDATION_QUEUE, OUTCOMES_QUEUE)
+# Débito e reembolso na mesma fila: chegam na ordem em que o S3 publicou para a mesma operação.
+MONEY_QUEUE = QueueSpec("characters.money-requests.v1", (MONEY_DEBIT_REQUESTED.routing_key, MONEY_REFUND_REQUESTED.routing_key))
+CONSUMER_QUEUES: tuple[QueueSpec, ...] = (VALIDATION_QUEUE, OUTCOMES_QUEUE, MONEY_QUEUE)
 
 
 def expected_manifest_queues() -> list[dict[str, object]]:

@@ -1,6 +1,10 @@
-/** Adaptador tipado do S2 Personagens. As telas nunca chamam fetch direto. */
+/**
+ * Adaptador tipado do S2 Personagens. As telas nunca chamam fetch direto.
+ * Toda rota exige login: as chamadas vão com o access token do S4 (authorizedRequest).
+ */
 import { services } from "../../shared/config";
-import { jsonBody, request } from "../../shared/http";
+import { jsonBody } from "../../shared/http";
+import { authorizedRequest } from "../auth/session";
 
 const base = services.characters.url;
 
@@ -38,8 +42,17 @@ export interface Character {
   portrait: { key: string; contentType: string; sizeBytes: number; uploadedAt: string } | null;
   sheet: Sheet | null;
   version: number;
+  /** Só o S2 altera o saldo: por ajuste do dono ou pela compra na loja. */
+  currency: Currency;
+  /** Modelo e versão de onde a ficha foi copiada. */
+  sourceTemplate: { templateId: string; version: number } | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Currency {
+  name: string;
+  amount: number;
 }
 
 export interface CharacterInput {
@@ -51,6 +64,7 @@ export interface CharacterInput {
   hp: { current: number; max: number };
   maxItems: number;
   sheet?: Sheet;
+  currency?: Currency;
 }
 
 /** PATCH com semântica de merge: em attributes/skills, null remove a chave. */
@@ -63,6 +77,8 @@ export interface CharacterPatch {
   maxItems?: number;
   active?: boolean;
   sheet?: Sheet;
+  /** Só o nome da moeda; o saldo não muda por PATCH. */
+  currencyName?: string;
 }
 
 export interface Hold {
@@ -87,7 +103,7 @@ export async function listCharacters(campaignId: string): Promise<Character[]> {
     }
 
     const page: { items: Character[]; nextCursor: string | null } = (
-      await request<{ items: Character[]; nextCursor: string | null }>(base, `/characters?${query}`)
+      await authorizedRequest<{ items: Character[]; nextCursor: string | null }>(base, `/characters?${query}`)
     ).data;
     all.push(...page.items);
     cursor = page.nextCursor;
@@ -97,11 +113,11 @@ export async function listCharacters(campaignId: string): Promise<Character[]> {
 }
 
 export async function getCharacter(id: string): Promise<Character> {
-  return (await request<Character>(base, `/characters/${encodeURIComponent(id)}`)).data;
+  return (await authorizedRequest<Character>(base, `/characters/${encodeURIComponent(id)}`)).data;
 }
 
 export async function createCharacter(input: CharacterInput): Promise<Character> {
-  return (await request<Character>(base, "/characters", { method: "POST", ...jsonBody(input) }))
+  return (await authorizedRequest<Character>(base, "/characters", { method: "POST", ...jsonBody(input) }))
     .data;
 }
 
@@ -113,11 +129,11 @@ export async function updateCharacter(
 ): Promise<Character> {
   const init = { method: "PATCH", ...jsonBody(patch, { "If-Match": `"${version}"` }) };
 
-  return (await request<Character>(base, `/characters/${encodeURIComponent(id)}`, init)).data;
+  return (await authorizedRequest<Character>(base, `/characters/${encodeURIComponent(id)}`, init)).data;
 }
 
 export async function listHolds(id: string): Promise<Hold[]> {
-  return (await request<{ items: Hold[] }>(base, `/characters/${encodeURIComponent(id)}/holds`))
+  return (await authorizedRequest<{ items: Hold[] }>(base, `/characters/${encodeURIComponent(id)}/holds`))
     .data.items;
 }
 
@@ -125,10 +141,14 @@ export async function listHolds(id: string): Promise<Hold[]> {
 export async function uploadPortrait(id: string, file: File): Promise<Character> {
   const init = { method: "PUT", body: file, headers: { "Content-Type": file.type } };
 
-  return (await request<Character>(base, `/characters/${encodeURIComponent(id)}/portrait`, init))
+  return (await authorizedRequest<Character>(base, `/characters/${encodeURIComponent(id)}/portrait`, init))
     .data;
 }
 
+/**
+ * Endereço do retrato para o <img>. É a única rota sem login: a imagem não tem como mandar o token,
+ * e o endereço só é conhecido por quem já leu a ficha.
+ */
 export function portraitUrl(character: Character): string | null {
   if (!character.portrait) {
     return null;
@@ -137,4 +157,87 @@ export function portraitUrl(character: Character): string | null {
   const stamp = encodeURIComponent(character.portrait.uploadedAt);
 
   return `${base}/characters/${encodeURIComponent(character.id)}/portrait/content?v=${stamp}`;
+}
+
+// --- Dinheiro ---------------------------------------------------------------------------------
+
+export interface MoneyEntry {
+  operationId: string;
+  kind: "PURCHASE" | "ADJUSTMENT";
+  amount: number;
+  status: "DEBITED" | "REFUNDED" | null;
+  reason: string | null;
+  createdAt: string;
+}
+
+/** Positivo credita, negativo debita. O serviço recusa (409) se o saldo ficaria negativo. */
+export async function adjustMoney(id: string, delta: number, reason: string): Promise<Character> {
+  const init = { method: "POST", ...jsonBody({ delta, reason }, { "Idempotency-Key": crypto.randomUUID() }) };
+
+  return (
+    await authorizedRequest<Character>(base, `/characters/${encodeURIComponent(id)}/money/adjustments`, init)
+  ).data;
+}
+
+export async function listMoney(id: string): Promise<MoneyEntry[]> {
+  return (
+    await authorizedRequest<{ items: MoneyEntry[] }>(
+      base,
+      `/characters/${encodeURIComponent(id)}/money/transactions`,
+    )
+  ).data.items;
+}
+
+// --- Modelos de ficha salvos no S2 -------------------------------------------------------------
+
+export interface InitialValues {
+  attributes: StatMap;
+  skills: StatMap;
+  hpMax: number;
+  maxItems: number;
+  currency: Currency;
+}
+
+/** Modelo privado de quem está logado. Cada edição gera uma versão nova. */
+export interface SavedTemplate {
+  templateId: string;
+  name: string;
+  description: string | null;
+  version: number;
+  sheetDefinition: Sheet | null;
+  initialValues: InitialValues;
+  updatedAt: string;
+}
+
+export interface TemplateInput {
+  name: string;
+  description?: string;
+  sheetDefinition: Sheet;
+  initialValues: InitialValues;
+}
+
+export async function listTemplates(): Promise<SavedTemplate[]> {
+  return (await authorizedRequest<{ items: SavedTemplate[] }>(base, "/templates")).data.items;
+}
+
+/** O serviço guarda só a estrutura: anotações, listas e o cabeçalho da ficha saem vazios. */
+export async function createTemplate(input: TemplateInput): Promise<SavedTemplate> {
+  return (await authorizedRequest<SavedTemplate>(base, "/templates", { method: "POST", ...jsonBody(input) }))
+    .data;
+}
+
+export async function deleteTemplate(templateId: string): Promise<void> {
+  await authorizedRequest<null>(base, `/templates/${encodeURIComponent(templateId)}`, { method: "DELETE" });
+}
+
+/** Ficha nova copiando a versão atual do modelo. */
+export async function createFromTemplate(
+  templateId: string,
+  input: { campaignId: string; name: string },
+): Promise<Character> {
+  const init = { method: "POST", ...jsonBody(input) };
+
+  return (
+    await authorizedRequest<Character>(base, `/characters/from-template/${encodeURIComponent(templateId)}`, init)
+  ).data;
 }

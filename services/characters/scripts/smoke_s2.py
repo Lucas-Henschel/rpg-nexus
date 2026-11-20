@@ -8,7 +8,11 @@ Faz o papel do S3 Inventário publicando eventos, e verifica as respostas e o es
 4. CharacterValidationRequested (op B)          -> CharacterRejected CAPACITY_EXCEEDED;
 5. AcquisitionCancelled (op A) (compensação/F1) -> capacidade volta a 1, hold RELEASED;
 6. AcquisitionCancelled (op C) antes do pedido  -> pedido C atrasado recusado OPERATION_CLOSED (F7);
-7. opcional --poison: payload inválido vai à DLQ após MAX_RETRIES tentativas (F4).
+7. MoneyDebitRequested (compra na loja)         -> MoneyDebited, saldo cai; repetido 4x não cobra de novo;
+   compra sem saldo -> MoneyDebitRejected; MoneyRefundRequested -> MoneyRefunded, saldo volta;
+8. opcional --poison: payload inválido vai à DLQ após MAX_RETRIES tentativas (F4).
+
+As chamadas HTTP vão com um access token igual ao do S4, assinado com o JWT_SECRET do ambiente.
 
     python -m scripts.smoke_s2 --base-url http://localhost:8000 [--poison]
 """
@@ -26,16 +30,28 @@ import urllib.request
 import uuid
 from typing import Any
 
+from app.config import Settings
 from app.messaging.topology import VALIDATION_QUEUE
+from app.security import sign_access_token
 
-from .rabbit_tools import EventListener, outcome, publish, queue_depth, validation_request
+from .rabbit_tools import EventListener, money_request, outcome, publish, queue_depth, validation_request
+
+#: Usuário do teste: dono das fichas que o smoke cria (o "comprador" dos débitos).
+SMOKE_USER = "smoke-user"
+
+
+def _token() -> str:
+    s = Settings.from_env()
+    return sign_access_token(s.jwt_secret, issuer=s.jwt_issuer, audience=s.jwt_audience, user_id=SMOKE_USER, username="smoke")
+
 
 RESULTS: list[tuple[str, bool, str]] = []
 
 
 def http(method: str, url: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
     data = json.dumps(body).encode() if body is not None else None
-    request = urllib.request.Request(url, data=data, method=method, headers={"Content-Type": "application/json"})  # noqa: S310
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {_token()}"}
+    request = urllib.request.Request(url, data=data, method=method, headers=headers)  # noqa: S310
     with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 — URL vinda do operador
         return json.loads(response.read() or b"{}")
 
@@ -133,6 +149,8 @@ async def run(base: str, poison: bool, poison_wait: float) -> None:
         await publish([outcome("cancelled", cid, op_t)])
         check("tracing: operação de teste compensada", await capacity_eventually(base, cid, 1) == 1)
 
+    await check_money(base, campaign)
+
     outbox = http("GET", f"{base}/internal/outbox")
     check("outbox drenada", outbox.get("pending") == 0, json.dumps(outbox, default=str))
 
@@ -143,6 +161,35 @@ async def run(base: str, poison: bool, poison_wait: float) -> None:
         await asyncio.sleep(poison_wait)
         after = await queue_depth(VALIDATION_QUEUE.dlq_name)
         check("F4: poison message chegou à DLQ", after == before + 1, f"{VALIDATION_QUEUE.dlq_name}: {before} -> {after}")
+
+
+async def check_money(base: str, campaign: str) -> None:
+    """Saga de compra, lado do S2: débito atômico e idempotente, recusa sem saldo e reembolso."""
+    body = {"campaignId": campaign, "name": "Compradora", "hp": {"current": 5, "max": 5}, "currency": {"amount": 100}}
+    buyer = http("POST", f"{base}/characters", body)["id"]
+
+    def balance() -> int:
+        return http("GET", f"{base}/characters/{buyer}")["currency"]["amount"]
+
+    keys = ["money.debited.v1", "money.debit.rejected.v1", "money.refunded.v1"]
+    async with EventListener(keys) as listener:
+        op_buy, op_broke = str(uuid.uuid4()), str(uuid.uuid4())
+        debit = money_request("debit", buyer, campaign, op_buy, user_id=SMOKE_USER, amount=30)
+        await publish([debit] * 5)  # o mesmo envelope 5 vezes (F3)
+        debited = await listener.wait_for(for_operation(op_buy, "rpg.money.debited.v1"))
+        await asyncio.sleep(2)
+        replies = [e for e in listener.events if e.get("payload", {}).get("operationId") == op_buy]
+        check("dinheiro: débito aprovado", len(debited) == 1 and debited[0]["payload"]["balance"] == 70)
+        check("dinheiro: duplicatas não cobram de novo", len(replies) == 1 and balance() == 70, f"saldo {balance()}")
+
+        await publish([money_request("debit", buyer, campaign, op_broke, user_id=SMOKE_USER, amount=500)])
+        rejected = await listener.wait_for(for_operation(op_broke, "rpg.money.debit-rejected.v1"))
+        reason = rejected[0]["payload"]["reason"] if rejected else None
+        check("dinheiro: compra sem saldo recusada", reason == "INSUFFICIENT_FUNDS" and balance() == 70, str(reason))
+
+        await publish([money_request("refund", buyer, campaign, op_buy)])
+        refunded = await listener.wait_for(for_operation(op_buy, "rpg.money.refunded.v1"))
+        check("dinheiro: reembolso devolve o valor", len(refunded) == 1 and balance() == 100, f"saldo {balance()}")
 
 
 async def find_cross_service_trace(jaeger: str, correlation_id: str, wait_seconds: float = 30.0) -> tuple[bool, str]:

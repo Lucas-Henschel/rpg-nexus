@@ -168,3 +168,104 @@ def test_outbox_guarda_e_devolve_o_contexto_de_trace(dynamo, clock):
     dynamo.record_outcome(inbox, outbox)
     (claimed,) = dynamo.claim_outbox(10, 30, "replica-a", clock())
     assert claimed.trace_context == {"traceparent": traceparent}
+
+
+# --- Dinheiro e modelos de ficha (escritas condicionais reais) ------------------------------------
+
+
+def test_debito_e_reembolso_no_dynamodb(dynamo, clock):
+    from .conftest import money_debit_request, money_refund_request
+
+    dynamo.create_character(_character(clock, owner_id="user-ana", currency_amount=50))
+    handlers = MessageHandlers(dynamo, clock=clock)
+
+    assert handlers.dispatch(money_debit_request(operation_id="op-1", amount=30)).outcome is Outcome.APPROVED
+    assert dynamo.get_character("p1").currency_amount == 20
+    # saldo insuficiente: a condição do DynamoDB recusa, e o handler responde com recusa
+    assert handlers.dispatch(money_debit_request(operation_id="op-2", amount=30)).outcome is Outcome.REJECTED
+    # mesma operação de novo, outro messageId: não cobra de novo
+    assert handlers.dispatch(money_debit_request(operation_id="op-1", amount=30)).outcome is Outcome.APPROVED_REPLAY
+    assert dynamo.get_character("p1").currency_amount == 20
+
+    assert handlers.dispatch(money_refund_request("op-1")).outcome is Outcome.MONEY_REFUNDED
+    assert handlers.dispatch(money_refund_request("op-1")).outcome is Outcome.ALREADY_APPLIED
+    assert dynamo.get_character("p1").currency_amount == 50
+    statuses = {m.operation_id: m.status.value for m in dynamo.list_money_entries("p1")}
+    assert statuses == {"op-1": "REFUNDED"}
+    assert dynamo.list_holds("p1") == []  # MONEY# não se mistura com HOLD#
+
+
+def test_debito_condicional_recusa_quando_saldo_mudou_entre_leitura_e_escrita(dynamo, clock):
+    from app.application.ports import ConcurrencyConflict, InboxRecord, OutboxRecord
+    from app.domain.models import MoneyEntry, MoneyStatus
+
+    dynamo.create_character(_character(clock, owner_id="user-ana", currency_amount=10))
+    entry = MoneyEntry("op-1", "p1", "PURCHASE", 30, MoneyStatus.DEBITED, clock(), clock(), campaign_id="c1", user_id="user-ana")
+    inbox = InboxRecord(str(uuid.uuid4()), "t", "op", "APPROVED", clock())
+    outbox = OutboxRecord(str(uuid.uuid4()), "t", "rk", "op", {}, clock())
+    with pytest.raises(ConcurrencyConflict):
+        dynamo.debit_money(inbox, entry, outbox)
+    assert dynamo.get_character("p1").currency_amount == 10
+
+
+def test_ajuste_manual_no_dynamodb(dynamo, clock):
+    from app.application.ports import AdjustmentAlreadyApplied, ConcurrencyConflict
+    from app.domain.models import MoneyEntry
+
+    dynamo.create_character(_character(clock, owner_id="user-ana"))
+    plus = MoneyEntry("ADJ-1", "p1", "ADJUSTMENT", 25, None, clock(), clock())
+    dynamo.adjust_money(plus)
+    with pytest.raises(AdjustmentAlreadyApplied):
+        dynamo.adjust_money(plus)
+    with pytest.raises(ConcurrencyConflict):
+        dynamo.adjust_money(MoneyEntry("ADJ-2", "p1", "ADJUSTMENT", -26, None, clock(), clock()))
+    assert dynamo.get_character("p1").currency_amount == 25
+
+
+def test_patch_da_ficha_nao_sobrescreve_o_saldo(dynamo, clock):
+    from app.domain.models import MoneyEntry
+
+    character = _character(clock, owner_id="user-ana", currency_amount=40)
+    dynamo.create_character(character)
+    dynamo.adjust_money(MoneyEntry("ADJ-1", "p1", "ADJUSTMENT", -15, None, clock(), clock()))
+    # a edição usa a ficha lida antes do ajuste (saldo 40): o saldo gravado continua 25
+    dynamo.save_profile(character.evolve(name="Lyra II", version=2, currency_name="Ouro"), 1, 0)
+    saved = dynamo.get_character("p1")
+    assert (saved.name, saved.currency_name, saved.currency_amount) == ("Lyra II", "Ouro", 25)
+
+
+def test_listagem_filtra_pelo_dono(dynamo, clock):
+    dynamo.create_character(_character(clock, id="a1", owner_id="user-ana"))
+    dynamo.create_character(_character(clock, id="b1", owner_id="user-bia"))
+    assert [c.id for c in dynamo.list_characters("c1", 50, None, owner_id="user-ana").items] == ["a1"]
+    assert {c.id for c in dynamo.list_characters("c1", 50, None).items} == {"a1", "b1"}
+
+
+def test_modelos_com_versoes_no_dynamodb(dynamo, clock):
+    from app.adapters.dynamodb_templates import DynamoDBTemplateStore
+    from app.application.ports import ConcurrencyConflict
+    from app.domain.models import CharacterTemplate, TemplateDefinition
+
+    store = DynamoDBTemplateStore(region="us-east-1", endpoint_url=None, table="character_templates", client=dynamo._client)
+    store.ping()
+    definition = TemplateDefinition({"template": None, "header": {}, "columns": [[]]}, {"forca": 10}, {}, 12, 5, "Moedas", 20)
+    v1 = CharacterTemplate("t1", "user-ana", "Fantasia", None, 1, definition, clock(), clock())
+    store.create_template(v1)
+
+    v2 = v1.evolve(name="Fantasia v2", version=2, definition=TemplateDefinition(None, {"forca": 12}, {}, 30, 5, "Ouro", 0))
+    store.add_version(v2, expected_version=1)
+    with pytest.raises(ConcurrencyConflict):  # edição concorrente que ainda acha que a atual é a v1
+        store.add_version(v2.evolve(version=2, name="Por cima"), expected_version=1)
+
+    assert store.get_template("t1").name == "Fantasia v2"
+    old = store.get_template("t1", version=1)
+    assert (old.name, old.definition.hp_max, old.definition.attributes) == ("Fantasia", 12, {"forca": 10})
+    assert [t.id for t in store.list_templates("user-ana")] == ["t1"]
+    assert store.list_templates("user-bia") == []
+
+    store.delete_template("t1", "user-bia")  # de outra pessoa: nada acontece
+    assert store.list_templates("user-ana") != []
+    store.delete_template("t1", "user-ana")
+    assert store.list_templates("user-ana") == []
+    assert store.get_template("t1").deleted is True
+    assert store.get_template("t1", version=1).name == "Fantasia"  # versões continuam legíveis

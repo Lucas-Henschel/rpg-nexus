@@ -18,6 +18,8 @@ from app.messaging.events import (
     CHARACTER_VALIDATION_REQUESTED,
     CHARACTER_VALIDATION_REQUESTED_V2,
     ITEM_ACQUIRED,
+    MONEY_DEBIT_REQUESTED,
+    MONEY_REFUND_REQUESTED,
     EventSpec,
 )
 from app.tracing import current_carrier, flush_tracing, init_tracing, producer_span
@@ -60,6 +62,17 @@ def outcome(kind: str, character_id: str, operation_id: str) -> dict[str, Any]:
     return _envelope(spec, operation_id, payload)
 
 
+def money_request(
+    kind: str, character_id: str, campaign_id: str, operation_id: str, *, user_id: str = "", amount: int = 0
+) -> dict[str, Any]:
+    """MoneyDebitRequested (kind="debit") ou MoneyRefundRequested (kind="refund"), como o S3 publicaria."""
+    payload: dict[str, Any] = {"operationId": operation_id, "campaignId": campaign_id, "characterId": character_id}
+    if kind == "debit":
+        payload.update(userId=user_id, amount=amount, itemId="demo-sword")
+        return _envelope(MONEY_DEBIT_REQUESTED, operation_id, payload)
+    return _envelope(MONEY_REFUND_REQUESTED, operation_id, payload)
+
+
 def _envelope(spec: EventSpec, correlation_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     return build_envelope(
         event_type=spec.type, version=spec.version, correlation_id=correlation_id, payload=payload, occurred_at=datetime.now(UTC)
@@ -67,7 +80,14 @@ def _envelope(spec: EventSpec, correlation_id: str, payload: dict[str, Any]) -> 
 
 
 def routing_key_for(envelope: dict[str, Any]) -> str:
-    for spec in (CHARACTER_VALIDATION_REQUESTED, CHARACTER_VALIDATION_REQUESTED_V2, ITEM_ACQUIRED, ACQUISITION_CANCELLED):
+    for spec in (
+        CHARACTER_VALIDATION_REQUESTED,
+        CHARACTER_VALIDATION_REQUESTED_V2,
+        ITEM_ACQUIRED,
+        ACQUISITION_CANCELLED,
+        MONEY_DEBIT_REQUESTED,
+        MONEY_REFUND_REQUESTED,
+    ):
         if envelope.get("type") == spec.type:
             return spec.routing_key
     return CHARACTER_VALIDATION_REQUESTED.routing_key

@@ -16,9 +16,20 @@ from app.messaging.events import (
     CHARACTER_VALIDATED,
     CHARACTER_VALIDATION_REQUESTED,
     CHARACTER_VALIDATION_REQUESTED_V2,
+    MONEY_DEBIT_REJECTED,
+    MONEY_DEBIT_REQUESTED,
+    MONEY_DEBITED,
+    MONEY_REFUND_REQUESTED,
+    MONEY_REFUNDED,
+    PRODUCED_EVENTS,
     AcquisitionOutcomePayload,
     CharacterRejectedPayload,
     CharacterValidatedPayload,
+    MoneyDebitedPayload,
+    MoneyDebitRejectedPayload,
+    MoneyDebitRequestedPayload,
+    MoneyRefundedPayload,
+    MoneyRefundRequestedPayload,
     ValidationRequestedPayload,
     ValidationRequestedPayloadV2,
 )
@@ -32,6 +43,11 @@ CONSUMED = SERVICE_ROOT / "contracts-consumed"
 OWNED = [
     (CHARACTER_VALIDATION_REQUESTED, "character-validation-requested.v1", ValidationRequestedPayload),
     (CHARACTER_VALIDATION_REQUESTED_V2, "character-validation-requested.v2", ValidationRequestedPayloadV2),
+    (MONEY_DEBIT_REQUESTED, "money-debit-requested.v1", MoneyDebitRequestedPayload),
+    (MONEY_REFUND_REQUESTED, "money-refund-requested.v1", MoneyRefundRequestedPayload),
+    (MONEY_DEBITED, "money-debited.v1", MoneyDebitedPayload),
+    (MONEY_DEBIT_REJECTED, "money-debit-rejected.v1", MoneyDebitRejectedPayload),
+    (MONEY_REFUNDED, "money-refunded.v1", MoneyRefundedPayload),
     (CHARACTER_VALIDATED, "character-validated.v1", CharacterValidatedPayload),
     (CHARACTER_REJECTED, "character-rejected.v1", CharacterRejectedPayload),
 ]
@@ -125,13 +141,15 @@ def test_eventos_produzidos_pelo_handler_respeitam_o_schema(store, clock, handle
 def test_manifesto_de_infra_igual_a_topologia_do_codigo():
     manifest = _load(REPO_ROOT / "infra" / "manifests" / "characters.json")
     assert manifest["rabbitmq"]["queues"] == expected_manifest_queues()
-    assert set(manifest["rabbitmq"]["publishes"]) == {CHARACTER_VALIDATED.routing_key, CHARACTER_REJECTED.routing_key}
+    assert set(manifest["rabbitmq"]["publishes"]) == {spec.routing_key for spec in PRODUCED_EVENTS}
     bound = {rk for q in CONSUMER_QUEUES for rk in q.bindings}
     assert bound == {
         "character.validation.requested.v1",
         "character.validation.requested.v2",
         "item.acquired.v1",
         "acquisition.cancelled.v1",
+        "money.debit.requested.v1",
+        "money.refund.requested.v1",
     }
 
 

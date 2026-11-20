@@ -6,7 +6,15 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from .errors import CapacityBelowUsage
-from .models import CapacityHold, Character, HoldStatus, RejectionReason
+from .models import (
+    CapacityHold,
+    Character,
+    HoldStatus,
+    MoneyEntry,
+    MoneyRejectionReason,
+    MoneyStatus,
+    RejectionReason,
+)
 
 
 @dataclass(frozen=True)
@@ -89,3 +97,98 @@ def merge_stat_map(current: dict[str, int], patch: dict[str, int | None]) -> dic
         else:
             merged[key] = value
     return merged
+
+
+# --- Dinheiro (Saga de compra) ---------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class MoneyDecision:
+    approved: bool
+    reason: MoneyRejectionReason | None = None
+    detail: str = ""
+    #: Débito já feito para a operação (pedido reenviado com outro messageId): confirma de novo sem cobrar.
+    replay: bool = False
+
+    @classmethod
+    def approve(cls, detail: str = "saldo debitado", *, replay: bool = False) -> MoneyDecision:
+        return cls(True, None, detail, replay)
+
+    @classmethod
+    def reject(cls, reason: MoneyRejectionReason, detail: str) -> MoneyDecision:
+        return cls(False, reason, detail)
+
+
+def evaluate_debit_request(
+    character: Character | None,
+    existing: MoneyEntry | None,
+    *,
+    user_id: str,
+    campaign_id: str,
+    amount: int,
+    deadline_at: datetime | None,
+    now: datetime,
+) -> MoneyDecision:
+    """Decide se o personagem paga ``amount`` na operação. Mesma ordem da validação de capacidade."""
+    if existing is not None:
+        if existing.status is MoneyStatus.DEBITED:
+            return MoneyDecision.approve("débito já feito para a operação", replay=True)
+        return MoneyDecision.reject(MoneyRejectionReason.OPERATION_CLOSED, "operação já encerrada no S2 (valor reembolsado)")
+
+    if deadline_at is not None and now >= deadline_at:
+        return MoneyDecision.reject(
+            MoneyRejectionReason.DEADLINE_EXPIRED, f"prazo da operação expirou em {deadline_at.isoformat()}"
+        )
+
+    if character is None:
+        return MoneyDecision.reject(MoneyRejectionReason.CHARACTER_NOT_FOUND, "personagem inexistente")
+
+    if character.owner_id != user_id:
+        return MoneyDecision.reject(MoneyRejectionReason.NOT_OWNER, "o personagem não pertence a quem está comprando")
+
+    if character.campaign_id != campaign_id:
+        return MoneyDecision.reject(
+            MoneyRejectionReason.CAMPAIGN_MISMATCH,
+            f"personagem pertence à campanha {character.campaign_id}, não a {campaign_id}",
+        )
+
+    if not character.active:
+        return MoneyDecision.reject(MoneyRejectionReason.CHARACTER_INACTIVE, "personagem inativo")
+
+    if character.currency_amount < amount:
+        return MoneyDecision.reject(MoneyRejectionReason.INSUFFICIENT_FUNDS, f"saldo {character.currency_amount}, preço {amount}")
+
+    return MoneyDecision.approve()
+
+
+# --- Modelos de ficha ------------------------------------------------------------------------------
+
+
+def template_sheet(sheet: dict | None) -> dict | None:
+    """Tira da organização da ficha o que é dado de um personagem e deixa só estrutura e valores iniciais.
+
+    * texto (anotações) e lista: conteúdo pessoal, sai vazio;
+    * contador: fica o máximo, e o atual volta ao máximo;
+    * rolagens: são estrutura (fórmulas), ficam;
+    * cabeçalho (nível, defesa…): valores do personagem, sai vazio.
+    """
+    if sheet is None:
+        return None
+    columns = []
+    for column in sheet.get("columns", []):
+        blocks = []
+        for block in column:
+            data = dict(block.get("data") or {})
+            kind = block.get("type")
+            if kind == "text":
+                data = {}
+            elif kind == "list":
+                data = {"items": []}
+            elif kind == "counter":
+                maximum = data.get("max")
+                data = {"max": maximum, "current": maximum} if maximum is not None else {}
+            elif kind != "dice":
+                data = {}
+            blocks.append({**block, "data": data})
+        columns.append(blocks)
+    return {"template": sheet.get("template"), "header": {}, "columns": columns}
