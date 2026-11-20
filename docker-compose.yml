@@ -46,6 +46,8 @@ x-campaigns: &campaigns
     CONTRACTS_DIR: /app/contracts
     # O mesmo segredo do S4, para validar o access token.
     JWT_SECRET: ${JWT_SECRET:-dev-only-change-this-jwt-secret-32-characters}
+    # O S2, consultado quando o dono escolhe o modelo de ficha da campanha.
+    CHARACTERS_URL: http://characters:8000
   networks:
     - rpg
 

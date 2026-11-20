@@ -7,8 +7,8 @@ import {
   TransactWriteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import type { Db } from "../db/client.js";
-import type { Campaign } from "../domain/campaign.js";
-import { JoinCodeTaken } from "../domain/errors.js";
+import type { AssignedTemplate, Campaign } from "../domain/campaign.js";
+import { CampaignNotFound, JoinCodeTaken } from "../domain/errors.js";
 import type { Member } from "../domain/member.js";
 import type { OutboxMessage } from "../messaging/outgoing.js";
 import { outboxPut } from "./outbox-repository.js";
@@ -22,6 +22,8 @@ const toCampaign = (item: Item): Campaign => ({
   ownerName: item.ownerName as string,
   joinCode: item.joinCode as string,
   createdAt: item.createdAt as string,
+  // Campanhas gravadas antes do modelo existir não têm o atributo.
+  template: (item.template as AssignedTemplate | undefined) ?? null,
 });
 
 /** O BatchGet aceita no máximo 100 chaves por chamada. */
@@ -88,6 +90,43 @@ export function createCampaignRepository(db: Db) {
     },
 
     find,
+
+    /** Troca o modelo da campanha e grava o evento na outbox, numa transação. */
+    async assignTemplate(
+      campaignId: string,
+      template: AssignedTemplate,
+      event: OutboxMessage,
+    ): Promise<void> {
+      try {
+        await db.doc.send(
+          new TransactWriteCommand({
+            TransactItems: [
+              {
+                Update: {
+                  TableName,
+                  Key: { campaignId },
+                  UpdateExpression: "SET #template = :template",
+                  // Não recria uma campanha que não existe.
+                  ConditionExpression: "attribute_exists(campaignId)",
+                  ExpressionAttributeNames: { "#template": "template" },
+                  ExpressionAttributeValues: { ":template": template },
+                },
+              },
+              outboxPut(db, event),
+            ],
+          }),
+        );
+      } catch (error) {
+        if (
+          error instanceof TransactionCanceledException &&
+          error.CancellationReasons?.[0]?.Code === "ConditionalCheckFailed"
+        ) {
+          throw new CampaignNotFound(campaignId);
+        }
+
+        throw error;
+      }
+    },
 
     async findByJoinCode(joinCode: string): Promise<Campaign | null> {
       const { Item } = await db.doc.send(

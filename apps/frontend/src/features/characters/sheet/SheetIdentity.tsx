@@ -1,10 +1,11 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useRef, type ChangeEvent } from "react";
 import { PORTRAIT_MAX_BYTES, PORTRAIT_TYPES, portraitUrl, type Character } from "../api";
 import { errorMessage } from "../../../shared/http";
 import { Initials } from "../../../shared/ui/Sheet";
 import { useToast } from "../../../shared/ui/toast-context";
-import { useAdjustMoney, useUploadPortrait } from "../queries";
+import { useUploadPortrait } from "../queries";
 import type { Draft } from "./sheetDraft";
+import { useCampaignCode } from "../../campaigns/queries";
 
 function PortraitPicker({ character, name, readOnly }: { character: Character; name: string; readOnly: boolean }) {
   const toast = useToast();
@@ -33,67 +34,14 @@ function PortraitPicker({ character, name, readOnly }: { character: Character; n
   </div>;
 }
 
-/**
- * Saldo do personagem. Ele não faz parte do rascunho: cada ajuste vai na hora para o S2, que nunca
- * deixa o saldo negativo. As compras na loja também mexem nele. Só o dono da ficha ajusta.
- */
+/** Saldo do personagem, só para leitura. Quem mexe nele são as compras na loja. */
 function MoneyPanel({ character }: { character: Character }) {
-  const toast = useToast();
-  const adjust = useAdjustMoney(character.id);
-  const [amount, setAmount] = useState("");
-  const value = Number(amount);
-  const valid = Number.isSafeInteger(value) && value > 0;
-
-  const send = (sign: 1 | -1) => (event?: FormEvent) => {
-    event?.preventDefault();
-    if (!valid) {
-      return toast("error", "Informe um valor inteiro maior que zero.");
-    }
-
-    adjust.mutate(
-      { delta: sign * value, reason: sign > 0 ? "ajuste na ficha (entrada)" : "ajuste na ficha (saída)" },
-      {
-        onSuccess: () => setAmount(""),
-        onError: (error) => toast("error", errorMessage(error, "Não foi possível ajustar o saldo.")),
-      },
-    );
-  };
-
-  const balance = (
-    <span className="money__balance">
-      <strong>{character.currency.amount}</strong> {character.currency.name}
-    </span>
-  );
-
-  if (!character.access?.adjustMoney) {
-    return (
-      <div className="money" aria-label="Dinheiro">
-        {balance}
-        <span className="money__hint">Só o dono da ficha ajusta o dinheiro.</span>
-      </div>
-    );
-  }
-
   return (
-    <form className="money" onSubmit={send(1)} aria-label="Dinheiro">
-      {balance}
-      <input
-        className="ink-input money__amount"
-        type="number"
-        min={1}
-        step={1}
-        value={amount}
-        onChange={(event) => setAmount(event.target.value)}
-        placeholder="Valor"
-        aria-label="Valor do ajuste"
-      />
-      <button type="submit" className="button button--ghost-ink" disabled={adjust.isPending}>
-        Adicionar
-      </button>
-      <button type="button" className="button button--ghost-ink" onClick={send(-1)} disabled={adjust.isPending}>
-        Gastar
-      </button>
-    </form>
+    <div className="money" aria-label="Dinheiro">
+      <span className="money__balance">
+        <strong>{character.currency.amount}</strong> {character.currency.name}
+      </span>
+    </div>
   );
 }
 
@@ -102,6 +50,7 @@ export function SheetIdentity({ character, draft, edit, readOnly = false }: {
   /** Ficha de outra pessoa (o mestre vendo a de um jogador): tudo só para leitura. */
   readOnly?: boolean;
 }) {
+  const campaignCode = useCampaignCode(character.campaignId);
   const header = draft.sheet.header ?? {};
   const setHeader = (key: string, value: string) => edit({ sheet: { ...draft.sheet, header: { ...header, [key]: value } } });
   const value = (key: string) => typeof header[key] === "string" || typeof header[key] === "number" ? String(header[key]) : "";
@@ -122,7 +71,7 @@ export function SheetIdentity({ character, draft, edit, readOnly = false }: {
       </fieldset>
       <MoneyPanel character={character} />
       <fieldset className="sheet__fieldset" disabled={readOnly}>
-      <div className="sheet__meta"><span>Campanha {character.campaignId}</span>
+      <div className="sheet__meta"><span>Campanha {campaignCode}</span>
         <label className="switch"><input type="checkbox" checked={draft.active} onChange={event => edit({ active: event.target.checked })} />
           <span>{draft.active ? "Ativo: pode receber itens" : "Inativo: não recebe itens"}</span>
         </label>

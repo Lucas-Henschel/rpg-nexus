@@ -1,6 +1,7 @@
 /** Consultas e alterações do S1 Campanhas. As telas usam estes hooks em vez de chamar a API. */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  assignTemplate,
   chooseCharacter,
   createCampaign,
   getCampaign,
@@ -56,6 +57,15 @@ export function useChooseCharacter(campaignId: string) {
   });
 }
 
+export function useAssignTemplate(campaignId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (templateId: string) => assignTemplate(campaignId, templateId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: campaignKeys.detail(campaignId) }),
+  });
+}
+
 export function useRemoveMember(campaignId: string) {
   const queryClient = useQueryClient();
 
@@ -63,4 +73,11 @@ export function useRemoveMember(campaignId: string) {
     mutationFn: (userId: string) => removeMember(campaignId, userId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: campaignKeys.all }),
   });
+}
+
+/** Código de entrada da campanha, para mostrar no lugar do id. Sem a campanha na lista da pessoa, fica o id. */
+export function useCampaignCode(campaignId: string) {
+  const campaigns = useCampaigns();
+
+  return campaigns.data?.find((campaign) => campaign.campaignId === campaignId)?.joinCode ?? campaignId;
 }

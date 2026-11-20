@@ -1,0 +1,15 @@
+{
+  "messageId": "6c5e1f4b-8d70-4192-8ead-4f5a6b7c8d93",
+  "correlationId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "type": "rpg.campaign.template.assigned.v1",
+  "version": 1,
+  "occurredAt": "2026-11-20T12:00:00Z",
+  "payload": {
+    "campaignId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "templateId": "2f1d3c4b-5a69-4788-9a0b-1c2d3e4f5a6b",
+    "templateVersion": 0,
+    "templateName": "Aventureiro de Ooo",
+    "assignedBy": "u-ana",
+    "assignedAt": "2026-11-20T12:00:00Z"
+  }
+}

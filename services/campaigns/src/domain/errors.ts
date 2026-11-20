@@ -62,3 +62,20 @@ export class CharacterInUse extends Error {
     super(`o personagem ${characterId} já é usado na campanha ${campaignId}`);
   }
 }
+
+/** O modelo não existe no S2, ou não é de quem pediu (o S2 responde 404 nos dois casos). */
+export class TemplateNotFound extends Error {
+  constructor(
+    readonly templateId: string,
+    readonly version?: number,
+  ) {
+    super(`o modelo ${templateId} não existe ou não é seu`);
+  }
+}
+
+/** O S2 não respondeu, ou respondeu algo que o S1 não entende. Pode dar certo mais tarde. */
+export class CharactersUnavailable extends Error {
+  constructor(cause?: unknown) {
+    super("o serviço de personagens não respondeu", { cause });
+  }
+}

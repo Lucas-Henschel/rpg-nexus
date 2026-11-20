@@ -1,11 +1,7 @@
 // Tabela de participantes: um item por usuário em cada campanha, com chave `campaignId` + `userId`.
 // O índice `byUser` (userId + campaignId) responde "de quais campanhas este usuário participa".
 import { TransactionCanceledException } from "@aws-sdk/client-dynamodb";
-import {
-  GetCommand,
-  QueryCommand,
-  TransactWriteCommand,
-} from "@aws-sdk/lib-dynamodb";
+import { GetCommand, QueryCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import type { Db } from "../db/client.js";
 import type { Member, Role } from "../domain/member.js";
 import { memberCharacterChosen, type OutboxMessage } from "../messaging/outgoing.js";
@@ -125,13 +121,25 @@ export function createMemberRepository(db: Db) {
       const previous = await find(campaignId, userId);
       if (!previous) throw new Error("campaign member disappeared");
       const updated: Member = { ...previous, characterId, characterName };
-      await db.doc.send(new TransactWriteCommand({ TransactItems: [
-        { Update: { TableName, Key: { campaignId, userId },
-          UpdateExpression: "SET characterId = :characterId, characterName = :characterName",
-          ConditionExpression: "attribute_exists(userId)",
-          ExpressionAttributeValues: { ":characterId": characterId, ":characterName": characterName } } },
-        outboxPut(db, memberCharacterChosen(campaignId, updated)),
-      ] }));
+      await db.doc.send(
+        new TransactWriteCommand({
+          TransactItems: [
+            {
+              Update: {
+                TableName,
+                Key: { campaignId, userId },
+                UpdateExpression: "SET characterId = :characterId, characterName = :characterName",
+                ConditionExpression: "attribute_exists(userId)",
+                ExpressionAttributeValues: {
+                  ":characterId": characterId,
+                  ":characterName": characterName,
+                },
+              },
+            },
+            outboxPut(db, memberCharacterChosen(campaignId, updated)),
+          ],
+        }),
+      );
       return updated;
     },
 

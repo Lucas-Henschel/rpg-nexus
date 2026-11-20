@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rpg-nexus:event:campaign-template-assigned:v1",
+  "title": "CampaignTemplateAssigned v1",
+  "description": "O dono definiu o modelo de ficha (template do S2) que os jogadores da campanha usam, numa versão fixa. Definir de novo o mesmo modelo e a mesma versão não gera evento. correlationId = campaignId.",
+  "x-routing": {
+    "exchange": "rpg.events",
+    "routingKey": "campaign.template.assigned.v1",
+    "producer": "campaigns (S1, P1)",
+    "consumers": ["actions (S4, P4) — fila actions.history.v1"]
+  },
+  "type": "object",
+  "allOf": [{ "$ref": "urn:rpg-nexus:envelope:v1" }],
+  "properties": {
+    "type": { "const": "rpg.campaign.template.assigned.v1" },
+    "version": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": [
+        "campaignId",
+        "templateId",
+        "templateVersion",
+        "templateName",
+        "assignedBy",
+        "assignedAt"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "campaignId": { "$ref": "#/$defs/id" },
+        "templateId": { "$ref": "#/$defs/id" },
+        "templateVersion": { "type": "integer", "minimum": 1 },
+        "templateName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "assignedBy": {
+          "$ref": "#/$defs/id",
+          "description": "O dono da campanha, que também é o dono do modelo no S2."
+        },
+        "assignedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" }
+  }
+}

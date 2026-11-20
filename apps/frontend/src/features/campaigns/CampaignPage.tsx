@@ -4,11 +4,11 @@ import { Link } from "../../app/router";
 import { errorMessage } from "../../shared/http";
 import { useToast } from "../../shared/ui/toast-context";
 import { useAuth } from "../auth/auth-context";
-import { useCharacters } from "../characters/queries";
+import { useCharacters, useTemplates } from "../characters/queries";
 import { CampaignShop } from "../inventory/CampaignShop";
 import type { CampaignView, Member } from "./api";
 import { formatDate, formatDateTime } from "./format";
-import { useCampaignView, useChooseCharacter, useRemoveMember } from "./queries";
+import { useAssignTemplate, useCampaignView, useChooseCharacter, useRemoveMember } from "./queries";
 
 const ROLE_LABEL = { OWNER: "Mestre", PLAYER: "Jogador" } as const;
 
@@ -62,6 +62,17 @@ function CampaignDetail({ campaign }: { campaign: CampaignView }) {
         Código de entrada <strong>{campaign.joinCode}</strong> · Mestre: {campaign.ownerName} ·
         Criada em {formatDate(campaign.createdAt)}
       </p>
+      <p className="page__lead">
+        Modelo de ficha:{" "}
+        {campaign.template ? (
+          <strong>
+            {campaign.template.name} (versão {campaign.template.version})
+          </strong>
+        ) : (
+          "nenhum definido"
+        )}
+      </p>
+      {isOwner && <TemplateForm campaign={campaign} />}
 
       <div className="campaign-columns">
         <section className="paper">
@@ -118,9 +129,7 @@ function MemberRow({ campaignId, member, isMe, canRemove }: MemberRowProps) {
   const leaving = isMe && member.role === "PLAYER";
 
   const run = async () => {
-    const question = leaving
-      ? "Sair desta campanha?"
-      : `Remover ${member.username} da campanha?`;
+    const question = leaving ? "Sair desta campanha?" : `Remover ${member.username} da campanha?`;
     if (!window.confirm(question)) {
       return;
     }
@@ -241,6 +250,79 @@ function CharacterForm({ campaign, me }: { campaign: CampaignView; me: Member })
         disabled={!chosen || chosen === me.characterId || choose.isPending}
       >
         Usar
+      </button>
+      {problem && <p className="field-error">{problem}</p>}
+    </form>
+  );
+}
+
+/** Só o mestre: o modelo de ficha da campanha, entre os modelos salvos por ele. */
+function TemplateForm({ campaign }: { campaign: CampaignView }) {
+  const toast = useToast();
+  const templates = useTemplates();
+  const assign = useAssignTemplate(campaign.campaignId);
+  const current = campaign.template?.templateId ?? "";
+  const [chosen, setChosen] = useState(current);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!chosen) {
+      return;
+    }
+
+    setProblem(null);
+    try {
+      const updated = await assign.mutateAsync(chosen);
+      toast("ok", `Os jogadores usam o modelo ${updated.template?.name ?? ""}.`);
+    } catch (error) {
+      setProblem(errorMessage(error, "Não foi possível definir o modelo."));
+    }
+  };
+
+  if (templates.isError) {
+    return (
+      <p className="campaign-empty">
+        {errorMessage(templates.error, "Não foi possível carregar seus modelos.")}
+      </p>
+    );
+  }
+
+  if (templates.isSuccess && templates.data.length === 0) {
+    return (
+      <p className="campaign-empty">
+        Você ainda não tem modelos de ficha. Salve um a partir de uma ficha para usá-lo aqui.
+      </p>
+    );
+  }
+
+  // Mesmo modelo, mas editado depois da escolha: definir de novo passa a usar a versão atual.
+  const latest = templates.data?.find((item) => item.templateId === chosen)?.version;
+  const unchanged = chosen === current && latest === campaign.template?.version;
+
+  return (
+    <form className="campaign-add" onSubmit={(e) => void submit(e)}>
+      <label htmlFor="campaign-template">Modelo de ficha</label>
+      <select
+        id="campaign-template"
+        className="ink-input"
+        value={chosen}
+        onChange={(e) => setChosen(e.target.value)}
+        disabled={templates.isPending}
+      >
+        <option value="">{templates.isPending ? "Carregando…" : "Escolha um modelo"}</option>
+        {templates.data?.map((item) => (
+          <option key={item.templateId} value={item.templateId}>
+            {item.name} (versão {item.version})
+          </option>
+        ))}
+      </select>
+      <button
+        type="submit"
+        className="button button--ink button--small"
+        disabled={!chosen || unchanged || assign.isPending}
+      >
+        Definir
       </button>
       {problem && <p className="field-error">{problem}</p>}
     </form>

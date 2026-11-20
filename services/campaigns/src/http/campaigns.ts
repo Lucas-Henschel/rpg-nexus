@@ -4,6 +4,7 @@ import type { TokenVerifier } from "../security/tokens.js";
 import type { CampaignService } from "../services/campaigns.js";
 import { requireLogin, userOf } from "./auth.js";
 import {
+  AssignTemplateBody,
   CampaignParams,
   ChooseCharacterBody,
   CreateCampaignBody,
@@ -51,6 +52,22 @@ export function campaignRoutes(
       { schema: { params: CampaignParams, body: ChooseCharacterBody } },
       async (request) => {
         return service.chooseCharacter(request.params.campaignId, userOf(request), request.body);
+      },
+    );
+
+    app.put(
+      "/campaigns/:campaignId/template",
+      { schema: { params: CampaignParams, body: AssignTemplateBody } },
+      async (request) => {
+        // O S2 só mostra os modelos de quem pergunta: vai o mesmo token que chegou aqui.
+        const authorization = request.headers.authorization ?? "";
+
+        return service.assignTemplate(
+          request.params.campaignId,
+          userOf(request),
+          request.body,
+          authorization,
+        );
       },
     );
 

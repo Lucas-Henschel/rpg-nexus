@@ -7,8 +7,9 @@ import {
   NotCampaignMember,
   NotCampaignOwner,
   OwnerCannotLeave,
+  TemplateNotFound,
 } from "../../src/domain/errors.js";
-import { createCampaignService } from "../../src/services/campaigns.js";
+import { createCampaignService, type TemplateCatalog } from "../../src/services/campaigns.js";
 import { fakeRepositories } from "../fake-repositories.js";
 
 const NOW = "2026-11-16T12:00:00.000Z";
@@ -39,6 +40,7 @@ describe("create", () => {
       ownerName: "ana",
       joinCode: "482731",
       createdAt: NOW,
+      template: null,
     });
     expect((await service.get(campaign.campaignId, ANA)).members).toEqual([
       {
@@ -349,5 +351,131 @@ describe("eventos na outbox", () => {
     await expect(service.removeMember(campaignId, BETO, "u-ana")).rejects.toThrow();
 
     expect(events()).toHaveLength(3);
+  });
+});
+
+describe("assignTemplate", () => {
+  const ANA_TOKEN = "Bearer token-da-ana";
+
+  /** O S2 de mentira: só a ANA vê o modelo t-aventureiro, que está na versão 3. */
+  function fakeTemplates() {
+    const calls: unknown[][] = [];
+    const templates: TemplateCatalog = {
+      async find(templateId, version, authorization) {
+        calls.push([templateId, version, authorization]);
+
+        if (templateId !== "t-aventureiro" || authorization !== ANA_TOKEN) {
+          return null;
+        }
+
+        return { templateId, version: version ?? 3, name: "Aventureiro de Ooo" };
+      },
+    };
+
+    return { templates, calls };
+  }
+
+  async function withCampaign() {
+    const repositories = fakeRepositories();
+    const { templates, calls } = fakeTemplates();
+    const service = createCampaignService(repositories, {
+      clock: () => NOW,
+      joinCode: codes("482731"),
+      templates,
+    });
+    const { campaignId } = await service.create({ name: "Um" }, ANA);
+
+    await service.join("482731", BETO);
+
+    const events = () =>
+      repositories.outbox
+        .map((message) => JSON.parse(message.body))
+        .filter(({ type }) => type === "rpg.campaign.template.assigned.v1")
+        .map(({ payload }) => payload);
+
+    return { service, campaignId, calls, events };
+  }
+
+  it("o dono define o modelo; sem versão, fica a atual do S2", async () => {
+    const { service, campaignId, events } = await withCampaign();
+
+    const campaign = await service.assignTemplate(
+      campaignId,
+      ANA,
+      { templateId: "t-aventureiro" },
+      ANA_TOKEN,
+    );
+
+    const template = {
+      templateId: "t-aventureiro",
+      version: 3,
+      name: "Aventureiro de Ooo",
+      assignedAt: NOW,
+    };
+
+    expect(campaign.template).toEqual(template);
+    expect((await service.get(campaignId, BETO)).template).toEqual(template);
+    expect(events()).toEqual([
+      {
+        campaignId,
+        templateId: "t-aventureiro",
+        templateVersion: 3,
+        templateName: "Aventureiro de Ooo",
+        assignedBy: "u-ana",
+        assignedAt: NOW,
+      },
+    ]);
+  });
+
+  it("com versão, fica a versão pedida", async () => {
+    const { service, campaignId, calls } = await withCampaign();
+
+    const campaign = await service.assignTemplate(
+      campaignId,
+      ANA,
+      { templateId: "t-aventureiro", version: 2 },
+      ANA_TOKEN,
+    );
+
+    expect(campaign.template?.version).toBe(2);
+    expect(calls).toEqual([["t-aventureiro", 2, ANA_TOKEN]]);
+  });
+
+  it("definir de novo o mesmo modelo e versão não publica outro evento", async () => {
+    const { service, campaignId, events } = await withCampaign();
+    const choice = { templateId: "t-aventureiro", version: 2 };
+
+    await service.assignTemplate(campaignId, ANA, choice, ANA_TOKEN);
+    await service.assignTemplate(campaignId, ANA, choice, ANA_TOKEN);
+    await service.assignTemplate(campaignId, ANA, { ...choice, version: 3 }, ANA_TOKEN);
+
+    expect(events().map((payload) => payload.templateVersion)).toEqual([2, 3]);
+  });
+
+  it("um jogador não define → NotCampaignOwner, sem perguntar ao S2", async () => {
+    const { service, campaignId, calls, events } = await withCampaign();
+
+    await expect(
+      service.assignTemplate(campaignId, BETO, { templateId: "t-aventureiro" }, "Bearer beto"),
+    ).rejects.toBeInstanceOf(NotCampaignOwner);
+    expect(calls).toEqual([]);
+    expect(events()).toEqual([]);
+  });
+
+  it("quem não participa → NotCampaignMember", async () => {
+    const { service, campaignId } = await withCampaign();
+
+    await expect(
+      service.assignTemplate(campaignId, CAIO, { templateId: "t-aventureiro" }, "Bearer caio"),
+    ).rejects.toBeInstanceOf(NotCampaignMember);
+  });
+
+  it("modelo que o dono não tem no S2 → TemplateNotFound", async () => {
+    const { service, campaignId, events } = await withCampaign();
+
+    await expect(
+      service.assignTemplate(campaignId, ANA, { templateId: "t-de-outro" }, ANA_TOKEN),
+    ).rejects.toBeInstanceOf(TemplateNotFound);
+    expect(events()).toEqual([]);
   });
 });

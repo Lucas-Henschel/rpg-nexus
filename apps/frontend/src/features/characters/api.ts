@@ -175,15 +175,6 @@ export interface MoneyEntry {
   createdAt: string;
 }
 
-/** Positivo credita, negativo debita. O serviço recusa (409) se o saldo ficaria negativo. */
-export async function adjustMoney(id: string, delta: number, reason: string): Promise<Character> {
-  const init = { method: "POST", ...jsonBody({ delta, reason }, { "Idempotency-Key": crypto.randomUUID() }) };
-
-  return (
-    await authorizedRequest<Character>(base, `/characters/${encodeURIComponent(id)}/money/adjustments`, init)
-  ).data;
-}
-
 export async function listMoney(id: string): Promise<MoneyEntry[]> {
   return (
     await authorizedRequest<{ items: MoneyEntry[] }>(

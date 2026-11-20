@@ -3,11 +3,13 @@ import { hasZodFastifySchemaValidationErrors } from "fastify-type-provider-zod";
 import {
   CampaignNotFound,
   CharacterInUse,
+  CharactersUnavailable,
   JoinCodeNotFound,
   MemberNotFound,
   NotCampaignMember,
   NotCampaignOwner,
   OwnerCannotLeave,
+  TemplateNotFound,
   Unauthenticated,
 } from "../domain/errors.js";
 
@@ -103,6 +105,19 @@ function domainError(error: unknown) {
     const message = "outro participante já usa esse personagem";
 
     return { status: 409, code: "CHARACTER_IN_USE", message, details };
+  }
+
+  if (error instanceof TemplateNotFound) {
+    const details = { templateId: error.templateId, version: error.version };
+    const message = "modelo não encontrado entre os seus";
+
+    return { status: 404, code: "TEMPLATE_NOT_FOUND", message, details };
+  }
+
+  if (error instanceof CharactersUnavailable) {
+    const message = "o serviço de personagens não respondeu; tente de novo";
+
+    return { status: 503, code: "CHARACTERS_UNAVAILABLE", message };
   }
 
   return null;

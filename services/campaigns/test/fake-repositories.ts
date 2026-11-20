@@ -30,6 +30,10 @@ export function fakeRepositories(): Repositories & { outbox: OutboxMessage[] } {
       async find(campaignId) {
         return campaigns.get(campaignId) ?? null;
       },
+      async assignTemplate(campaignId, template, event) {
+        campaigns.set(campaignId, { ...campaigns.get(campaignId)!, template });
+        outbox.push(event);
+      },
       async findByJoinCode(joinCode) {
         return [...campaigns.values()].find((c) => c.joinCode === joinCode) ?? null;
       },

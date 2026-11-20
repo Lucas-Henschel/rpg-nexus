@@ -1,13 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { loadEnv } from "../../src/config.js";
 import { buildApp } from "../../src/http/app.js";
-import { createCampaignService } from "../../src/services/campaigns.js";
+import { CharactersUnavailable } from "../../src/domain/errors.js";
+import { createCampaignService, type TemplateCatalog } from "../../src/services/campaigns.js";
 import { fakeRepositories } from "../fake-repositories.js";
 import { AUTH_ENV, accessToken } from "../tokens.js";
 
 const NOW = "2026-11-16T12:00:00.000Z";
 const ANA = { userId: "u-ana", username: "ana" };
 const BETO = { userId: "u-beto", username: "beto" };
+
+/** O S2 de mentira: t-aventureiro existe na versão 3; t-s2-fora simula o S2 sem responder. */
+const templates: TemplateCatalog = {
+  async find(templateId, version) {
+    if (templateId === "t-s2-fora") {
+      throw new CharactersUnavailable();
+    }
+
+    return templateId === "t-aventureiro"
+      ? { templateId, version: version ?? 3, name: "Aventureiro de Ooo" }
+      : null;
+  },
+};
 
 function testApp() {
   let next = 482731;
@@ -17,6 +31,7 @@ function testApp() {
     campaigns: createCampaignService(fakeRepositories(), {
       clock: () => NOW,
       joinCode: () => String(next++),
+      templates,
     }),
     pingDatabase: async () => {},
     isBusConnected: () => true,
@@ -75,6 +90,7 @@ describe("POST /campaigns", () => {
       ownerName: "ana",
       joinCode: "482731",
       createdAt: NOW,
+      template: null,
     });
   });
 
@@ -306,4 +322,73 @@ describe("DELETE /campaigns/:campaignId/members/:userId", () => {
       error: { code: "MEMBER_NOT_FOUND" },
     });
   });
+});
+
+describe("PUT /campaigns/:campaignId/template", () => {
+  async function withPlayer() {
+    const app = testApp();
+    const { campaignId, joinCode } = await createCampaign(app);
+
+    await app.inject({
+      method: "POST",
+      url: "/campaigns/join",
+      headers: as(BETO),
+      payload: { joinCode },
+    });
+
+    const assign = (payload: object, user = ANA) =>
+      app.inject({
+        method: "PUT",
+        url: `/campaigns/${campaignId}/template`,
+        headers: as(user),
+        payload,
+      });
+
+    return { assign };
+  }
+
+  it("200 com a campanha e o modelo na versão fixa", async () => {
+    const { assign } = await withPlayer();
+    const res = await assign({ templateId: "t-aventureiro" });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      template: { templateId: "t-aventureiro", version: 3, name: "Aventureiro de Ooo" },
+    });
+  });
+
+  it("jogador → 403 NOT_CAMPAIGN_OWNER", async () => {
+    const { assign } = await withPlayer();
+    const res = await assign({ templateId: "t-aventureiro" }, BETO);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({ error: { code: "NOT_CAMPAIGN_OWNER" } });
+  });
+
+  it("modelo que não existe no S2 → 404 TEMPLATE_NOT_FOUND", async () => {
+    const { assign } = await withPlayer();
+    const res = await assign({ templateId: "t-nada", version: 2 });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toMatchObject({
+      error: { code: "TEMPLATE_NOT_FOUND", details: { templateId: "t-nada", version: 2 } },
+    });
+  });
+
+  it("S2 fora → 503 CHARACTERS_UNAVAILABLE", async () => {
+    const { assign } = await withPlayer();
+    const res = await assign({ templateId: "t-s2-fora" });
+
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toMatchObject({ error: { code: "CHARACTERS_UNAVAILABLE" } });
+  });
+
+  it.each([[{}], [{ templateId: "t-aventureiro", version: 0 }], [{ templateId: "a b" }]])(
+    "corpo inválido %j → 422",
+    async (payload) => {
+      const { assign } = await withPlayer();
+
+      expect((await assign(payload)).statusCode).toBe(422);
+    },
+  );
 });

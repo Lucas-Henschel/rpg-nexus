@@ -20,3 +20,9 @@ export const ChooseCharacterBody = z.object({
   characterId: id,
   characterName: text,
 });
+
+export const AssignTemplateBody = z.object({
+  templateId: id,
+  /** Sem versão, o S1 fixa a atual do modelo. */
+  version: z.number().int().min(1).optional(),
+});

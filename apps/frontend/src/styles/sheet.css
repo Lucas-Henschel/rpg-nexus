@@ -560,13 +560,11 @@ input.stat-box__value:focus {
 .money { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.8rem; }
 .money__balance { margin-right: auto; color: var(--nanquim-suave); }
 .money__balance strong { color: var(--nanquim); font-family: var(--fonte-titulo); font-size: 1.55rem; }
-.money__amount { width: 7rem; }
 
 /* "Salvar como modelo" */
 .sheet__edit-action { gap: 0.6rem; flex-wrap: wrap; }
 .template-save { display: flex; flex-wrap: wrap; align-items: end; gap: 0.6rem; width: 100%; }
 .template-save label { display: grid; gap: 0.3rem; color: var(--nanquim-suave); font-size: 0.85rem; }
 .template-save__hint { flex-basis: 100%; margin: 0; color: var(--nanquim-suave); font-size: 0.85rem; }
-.money__hint { color: var(--nanquim-suave); font-size: 0.85rem; }
 .sheet__readonly { margin: 0 0 1rem; color: var(--nanquim-suave); font-size: 0.9rem; }
 .sheet__fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
