@@ -11,7 +11,9 @@
     "publishes": [
       "campaign.created.v1",
       "campaign.member.joined.v1",
-      "campaign.member.removed.v1"
+      "campaign.member.character-chosen.v1",
+      "campaign.member.removed.v1",
+      "campaign.template.assigned.v1"
     ],
     "queues": [
       {
