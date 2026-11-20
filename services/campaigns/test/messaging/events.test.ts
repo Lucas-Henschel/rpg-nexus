@@ -43,7 +43,7 @@ it("aceita a compra na loja (ShopItemPurchased) como aquisição", async () => {
     characterId: "p1",
     itemId: "sword",
     quantity: 1,
-    itemName: undefined,
+    itemName: "Espada de Cinzas",
   });
 });
 
