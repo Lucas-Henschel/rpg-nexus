@@ -1,7 +1,6 @@
 /** Consultas e alterações do S2 Personagens. As telas usam estes hooks em vez de chamar a API. */
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  adjustMoney,
   createTemplate,
   deleteTemplate,
   getCharacter,
@@ -90,16 +89,6 @@ export function useUploadPortrait(id: string) {
 
   return useMutation({
     mutationFn: (file: File) => uploadPortrait(id, file),
-    onSuccess: store,
-  });
-}
-
-/** Ajuste de saldo: a resposta é a ficha com o saldo novo, que vai direto para o cache. */
-export function useAdjustMoney(id: string) {
-  const store = useStoreCharacter();
-
-  return useMutation({
-    mutationFn: ({ delta, reason }: { delta: number; reason: string }) => adjustMoney(id, delta, reason),
     onSuccess: store,
   });
 }
