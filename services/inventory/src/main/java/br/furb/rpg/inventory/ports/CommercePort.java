@@ -13,6 +13,7 @@ public interface CommercePort {
     Shop saveShop(String campaignId, String name, boolean active);
     List<ShopItem> listShopItems(String campaignId);
     ShopItem findShopItem(String campaignId, String itemId);
+    ShopItem createShopItem(String campaignId, String name, String description, long price, long available);
     ShopItem saveShopItem(String campaignId, String itemId, String name, String description,
                           long price, long available);
     boolean removeShopItem(String campaignId, String itemId);

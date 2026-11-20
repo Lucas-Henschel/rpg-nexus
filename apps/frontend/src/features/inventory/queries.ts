@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { acquireItem, createItem, createStock, getAcquisition, getInventory, getShop, getStock, listItems, listShopItems, listStocks, saveShop, saveShopItem } from "./api";
+import { acquireItem, createItem, createShopItem, createStock, getAcquisition, getInventory, getShop, getStock, listItems, listShopItems, listStocks, removeShopItem, saveShop, saveShopItem, type ShopItemInput } from "./api";
 
 const keys = {
   catalog: ["inventory", "catalog"] as const,
@@ -59,30 +59,37 @@ export function useInventoryActions() {
       onSuccess: () => void client.invalidateQueries({ queryKey: keys.catalog }),
     }),
     createStock: useMutation({
-      mutationFn: ({ campaignId, itemId, available, userId }: { campaignId: string; itemId: string; available: number; userId: string }) =>
-        createStock(campaignId, itemId, available, userId),
+      mutationFn: ({ campaignId, itemId, available }: { campaignId: string; itemId: string; available: number }) =>
+        createStock(campaignId, itemId, available),
       onSuccess: () => {
         void client.invalidateQueries({ queryKey: ["inventory", "stock"] });
         void client.invalidateQueries({ queryKey: ["inventory", "stocks"] });
       },
     }),
     acquire: useMutation({
-      mutationFn: ({ campaignId, characterId, itemId, userId }: { campaignId: string; characterId: string; itemId: string; userId: string }) =>
-        acquireItem(campaignId, characterId, itemId, userId),
-      onSuccess: () => void client.invalidateQueries({ queryKey: ["inventory", "stock"] }),
+      mutationFn: ({ campaignId, characterId, itemId }: { campaignId: string; characterId: string; itemId: string }) =>
+        acquireItem(campaignId, characterId, itemId),
+      onSuccess: (_, variables) => {
+        void client.invalidateQueries({ queryKey: ["inventory", "stock"] });
+        void client.invalidateQueries({ queryKey: keys.shopItems(variables.campaignId) });
+      },
     }),
     saveShop: useMutation({
-      mutationFn: ({ campaignId, name, active, userId }: { campaignId: string; name: string; active: boolean; userId: string }) =>
-        saveShop(campaignId, name, active, userId),
+      mutationFn: ({ campaignId, name, active }: { campaignId: string; name: string; active: boolean }) =>
+        saveShop(campaignId, name, active),
       onSuccess: (_, variables) => void client.invalidateQueries({ queryKey: keys.shop(variables.campaignId) }),
     }),
     saveShopItem: useMutation({
-      mutationFn: ({ campaignId, item, userId }: { campaignId: string; item: { itemId: string; name: string; description: string; price: number; available: number }; userId: string }) =>
-        saveShopItem(campaignId, item, userId),
+      mutationFn: ({ campaignId, itemId, item }: { campaignId: string; itemId?: string; item: ShopItemInput }) =>
+        itemId ? saveShopItem(campaignId, itemId, item) : createShopItem(campaignId, item),
       onSuccess: (_, variables) => {
         void client.invalidateQueries({ queryKey: keys.shopItems(variables.campaignId) });
         void client.invalidateQueries({ queryKey: keys.stocks(variables.campaignId) });
       },
+    }),
+    removeShopItem: useMutation({
+      mutationFn: ({ campaignId, itemId }: { campaignId: string; itemId: string }) => removeShopItem(campaignId, itemId),
+      onSuccess: (_, variables) => void client.invalidateQueries({ queryKey: keys.shopItems(variables.campaignId) }),
     }),
     refreshOutcome: (characterId: string) => {
       void client.invalidateQueries({ queryKey: ["inventory", "stock"] });

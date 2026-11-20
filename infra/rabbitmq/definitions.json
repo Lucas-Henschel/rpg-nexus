@@ -368,6 +368,14 @@
       "vhost": "/",
       "destination": "inventory.campaign-members.v1",
       "destination_type": "queue",
+      "routing_key": "campaign.member.character-chosen.v1",
+      "arguments": {}
+    },
+    {
+      "source": "rpg.events",
+      "vhost": "/",
+      "destination": "inventory.campaign-members.v1",
+      "destination_type": "queue",
       "routing_key": "campaign.member.removed.v1",
       "arguments": {}
     },

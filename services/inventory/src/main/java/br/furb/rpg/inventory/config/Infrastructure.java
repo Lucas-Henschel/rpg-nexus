@@ -34,6 +34,7 @@ class Infrastructure {
             BindingBuilder.bind(replies).to(exchange).with("money.refunded.v1"),
             BindingBuilder.bind(campaignMembers).to(exchange).with("campaign.created.v1"),
             BindingBuilder.bind(campaignMembers).to(exchange).with("campaign.member.joined.v1"),
+            BindingBuilder.bind(campaignMembers).to(exchange).with("campaign.member.character-chosen.v1"),
             BindingBuilder.bind(campaignMembers).to(exchange).with("campaign.member.removed.v1"));
     }
     @Bean RabbitTemplate publisher(CachingConnectionFactory factory) {

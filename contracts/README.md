@@ -41,6 +41,7 @@ Todos passam pelo exchange `rpg.events` (tipo `topic`). As filas ficam em
 | `ShopItemPurchased` | `shop.item.purchased.v1` | S3 Inventário | S1 (`campaigns.activity.v1`), S4 (`actions.history.v1`) |
 | `CampaignCreated` | `campaign.created.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`), S4 (`actions.history.v1`) |
 | `CampaignMemberJoined` | `campaign.member.joined.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`), S4 (`actions.history.v1`) |
+| `CampaignMemberCharacterChosen` | `campaign.member.character-chosen.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`) |
 | `CampaignMemberRemoved` | `campaign.member.removed.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`), S4 (`actions.history.v1`) |
 
 Os payloads da aquisição têm `operationId`, `campaignId`, `characterId`, `itemId` e `quantity`. Os

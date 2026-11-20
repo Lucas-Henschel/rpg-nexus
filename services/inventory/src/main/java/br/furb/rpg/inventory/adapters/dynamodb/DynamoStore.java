@@ -117,14 +117,33 @@ public class DynamoStore implements CatalogPort, CommercePort, OutboxPort {
         var row=get("shop_items",campaignId+"#"+itemId);
         return row.isEmpty()?null:shopItem(row);
     }
+    @Override public ShopItem createShopItem(String campaignId,String name,String description,long price,long available) {
+        for(int attempt=0;attempt<3;attempt++) {
+            var itemId=UUID.randomUUID().toString();
+            var item=Map.of("id",s(campaignId+"#"+itemId),"campaignId",s(campaignId),"itemId",s(itemId),
+                "name",s(name),"description",s(description),"price",n(price));
+            var stock=Map.of("id",s(campaignId+"#"+itemId),"campaignId",s(campaignId),"itemId",s(itemId),
+                "available",n(available),"reserved",n(0));
+            try {
+                transact(List.of(insert("shop_items",item),insert("stocks",stock)));
+                return new ShopItem(campaignId,itemId,name,description,price,available,0);
+            } catch(TransactionCanceledException collision) {
+                if(get("shop_items",campaignId+"#"+itemId).isEmpty() && get("stocks",campaignId+"#"+itemId).isEmpty()) throw collision;
+            }
+        }
+        throw new IllegalStateException("unable to generate a unique item identifier");
+    }
     @Override public ShopItem saveShopItem(String campaignId,String itemId,String name,String description,long price,long available) {
         var item=Map.of("id",s(campaignId+"#"+itemId),"campaignId",s(campaignId),"itemId",s(itemId),
             "name",s(name),"description",s(description),"price",n(price));
         var stock=Map.of("id",s(campaignId+"#"+itemId),"campaignId",s(campaignId),"itemId",s(itemId),
             "available",n(available),"reserved",n(0));
         db.transactWriteItems(r -> r.transactItems(
-            TransactWriteItem.builder().put(Put.builder().tableName(table("shop_items")).item(item).build()).build(),
-            TransactWriteItem.builder().put(Put.builder().tableName(table("stocks")).item(stock).build()).build()));
+            TransactWriteItem.builder().put(Put.builder().tableName(table("shop_items")).item(item)
+                .conditionExpression("attribute_exists(id)").build()).build(),
+            TransactWriteItem.builder().put(Put.builder().tableName(table("stocks")).item(stock)
+                .conditionExpression("attribute_exists(id) AND (attribute_not_exists(reserved) OR reserved = :zero)")
+                .expressionAttributeValues(Map.of(":zero",n(0))).build()).build()));
         return new ShopItem(campaignId,itemId,name,description,price,available,0);
     }
     @Override public boolean removeShopItem(String campaignId,String itemId) {
@@ -132,7 +151,9 @@ public class DynamoStore implements CatalogPort, CommercePort, OutboxPort {
         if(get("shop_items",campaignId+"#"+itemId).isEmpty()) return false;
         db.transactWriteItems(r -> r.transactItems(
             TransactWriteItem.builder().delete(Delete.builder().tableName(table("shop_items")).key(key).build()).build(),
-            TransactWriteItem.builder().delete(Delete.builder().tableName(table("stocks")).key(key).build()).build()));
+            TransactWriteItem.builder().delete(Delete.builder().tableName(table("stocks")).key(key)
+                .conditionExpression("attribute_not_exists(reserved) OR reserved = :zero")
+                .expressionAttributeValues(Map.of(":zero",n(0))).build()).build()));
         return true;
     }
     @Override public Membership findMembership(String campaignId,String userId) {

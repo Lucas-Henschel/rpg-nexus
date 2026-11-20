@@ -40,9 +40,6 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
     @Override public StartResult start(String id,String campaign,String user,String character,String item) {
         var existing=store.get("acquisition_sagas",id);
         if(!existing.isEmpty()) return matches(existing,campaign,user,character,item)?StartResult.IDEMPOTENT:StartResult.CONFLICT;
-        var membership=store.findMembership(campaign,user);
-        if(membership==null || (!membership.characterId().isBlank() && !membership.characterId().equals(character)))
-            return StartResult.FORBIDDEN;
         var shopItem=store.findShopItem(campaign,item);
         var shop=store.findShop(campaign);
         if(shopItem==null || shop==null || !shop.active()) return StartResult.SHOP_ITEM_NOT_FOUND;

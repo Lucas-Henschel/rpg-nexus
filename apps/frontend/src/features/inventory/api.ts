@@ -1,6 +1,7 @@
 /** Adaptador tipado do S3 Inventário. */
 import { services } from "../../shared/config";
 import { jsonBody, request } from "../../shared/http";
+import { authorizedRequest } from "../auth/session";
 
 const base = services.inventory.url;
 
@@ -28,7 +29,7 @@ export interface InventoryEntry {
 }
 
 export type AcquisitionStatus =
-  | "PENDING" | "RESERVED" | "VALIDATING_CHARACTER" | "VALIDATING_EXTERNAL"
+  | "WAITING_MONEY" | "PENDING" | "RESERVED" | "VALIDATING_CHARACTER" | "VALIDATING_EXTERNAL"
   | "COMPLETED" | "COMPENSATING" | "COMPENSATED" | "REJECTED" | "EXPIRED";
 
 export interface Acquisition {
@@ -69,37 +70,51 @@ export function createItem(itemId: string, name: string): Promise<void> {
   return request(base, "/items", { method: "POST", ...jsonBody({ itemId, name }) }).then(() => undefined);
 }
 
-export function createStock(campaignId: string, itemId: string, available: number, userId: string): Promise<void> {
-  return request(base, "/stocks", {
-    method: "POST", ...jsonBody({ campaignId, itemId, available }, { "X-User-Id": userId }),
+export function createStock(campaignId: string, itemId: string, available: number): Promise<void> {
+  return authorizedRequest(base, "/stocks", {
+    method: "POST", ...jsonBody({ campaignId, itemId, available }),
   }).then(() => undefined);
 }
 
 export function getShop(campaignId: string): Promise<Shop> {
-  return request<Shop>(base, `/shops/${encodeURIComponent(campaignId)}`).then((response) => response.data);
+  return authorizedRequest<Shop>(base, `/shops/${encodeURIComponent(campaignId)}`).then((response) => response.data);
 }
 
-export function saveShop(campaignId: string, name: string, active: boolean, userId: string): Promise<Shop> {
-  return request<Shop>(base, `/shops/${encodeURIComponent(campaignId)}`, {
-    method: "PUT", ...jsonBody({ name, active }, { "X-User-Id": userId }),
+export function saveShop(campaignId: string, name: string, active: boolean): Promise<Shop> {
+  return authorizedRequest<Shop>(base, `/shops/${encodeURIComponent(campaignId)}`, {
+    method: "PUT", ...jsonBody({ name, active }),
   }).then((response) => response.data);
 }
 
 export function listShopItems(campaignId: string): Promise<ShopItem[]> {
-  return request<ShopItem[]>(base, `/shops/${encodeURIComponent(campaignId)}/items`).then((response) => response.data);
+  return authorizedRequest<ShopItem[]>(base, `/shops/${encodeURIComponent(campaignId)}/items`).then((response) => response.data);
 }
 
-export function saveShopItem(campaignId: string, item: Omit<ShopItem, "campaignId" | "reserved">, userId: string): Promise<ShopItem> {
-  return request<ShopItem>(base, `/shops/${encodeURIComponent(campaignId)}/items/${encodeURIComponent(item.itemId)}`, {
-    method: "PUT", ...jsonBody(item, { "X-User-Id": userId }),
+export type ShopItemInput = Pick<ShopItem, "name" | "description" | "price" | "available">;
+
+export function createShopItem(campaignId: string, item: ShopItemInput): Promise<ShopItem> {
+  return authorizedRequest<ShopItem>(base, `/shops/${encodeURIComponent(campaignId)}/items`, {
+    method: "POST", ...jsonBody(item),
   }).then((response) => response.data);
 }
 
-export async function acquireItem(campaignId: string, characterId: string, itemId: string, userId: string): Promise<AcquisitionAccepted> {
-  const response = await request<AcquisitionAccepted>(base, "/acquisitions", {
+export function saveShopItem(campaignId: string, itemId: string, item: ShopItemInput): Promise<ShopItem> {
+  return authorizedRequest<ShopItem>(base, `/shops/${encodeURIComponent(campaignId)}/items/${encodeURIComponent(itemId)}`, {
+    method: "PUT", ...jsonBody(item),
+  }).then((response) => response.data);
+}
+
+export function removeShopItem(campaignId: string, itemId: string): Promise<void> {
+  return authorizedRequest(base, `/shops/${encodeURIComponent(campaignId)}/items/${encodeURIComponent(itemId)}`, {
+    method: "DELETE",
+  }).then(() => undefined);
+}
+
+export async function acquireItem(campaignId: string, characterId: string, itemId: string): Promise<AcquisitionAccepted> {
+  const response = await authorizedRequest<AcquisitionAccepted>(base, "/acquisitions", {
     method: "POST",
     ...jsonBody({ campaignId, characterId, itemId }, {
-      "Idempotency-Key": crypto.randomUUID(), "X-User-Id": userId,
+      "Idempotency-Key": crypto.randomUUID(),
     }),
   });
   if (response.status !== 202) throw new Error("A aquisição não foi aceita para processamento.");
@@ -107,6 +122,6 @@ export async function acquireItem(campaignId: string, characterId: string, itemI
 }
 
 export function getAcquisition(operationId: string): Promise<Acquisition> {
-  return request<Acquisition>(base, `/acquisitions/${encodeURIComponent(operationId)}`)
+  return authorizedRequest<Acquisition>(base, `/acquisitions/${encodeURIComponent(operationId)}`)
     .then((response) => response.data);
 }

@@ -62,6 +62,12 @@ export const memberJoined = (campaignId: string, member: Member): OutboxMessage 
     joinedAt: member.joinedAt,
   });
 
+export const memberCharacterChosen = (campaignId: string, member: Member): OutboxMessage =>
+  outboxMessage("rpg.campaign.member.character-chosen.v1", campaignId, new Date().toISOString(), {
+    campaignId, userId: member.userId, role: member.role,
+    characterId: member.characterId, characterName: member.characterName,
+  });
+
 export const memberRemoved = (campaignId: string, removal: Removal): OutboxMessage =>
   outboxMessage("rpg.campaign.member.removed.v1", campaignId, removal.removedAt, {
     campaignId,

@@ -5,6 +5,7 @@ import { errorMessage } from "../../shared/http";
 import { useToast } from "../../shared/ui/toast-context";
 import { useAuth } from "../auth/auth-context";
 import { useCharacters } from "../characters/queries";
+import { CampaignShop } from "../inventory/CampaignShop";
 import type { CampaignView, Member } from "./api";
 import { formatDate, formatDateTime } from "./format";
 import { useCampaignView, useChooseCharacter, useRemoveMember } from "./queries";
@@ -89,7 +90,7 @@ function CampaignDetail({ campaign }: { campaign: CampaignView }) {
                 <li key={activity.operationId} className="campaign-list__row">
                   <span className="campaign-list__main">
                     {names.get(activity.characterId) ?? activity.characterId} conquistou{" "}
-                    {activity.quantity}× {activity.itemName ?? activity.itemId}
+                    {activity.quantity}× {activity.itemName ?? "item"}
                   </span>
                   <span className="campaign-list__side">{formatDateTime(activity.occurredAt)}</span>
                 </li>
@@ -98,6 +99,7 @@ function CampaignDetail({ campaign }: { campaign: CampaignView }) {
           )}
         </section>
       </div>
+      {me && <CampaignShop campaignId={campaign.campaignId} member={me} />}
     </>
   );
 }
