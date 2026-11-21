@@ -3,7 +3,7 @@ import { InvalidAccessToken } from "../domain/errors.js";
 import type { IdentityService } from "../services/identity.js";
 import { LoginBody, RefreshBody, RegisterBody } from "./schemas.js";
 
-function bearerToken(header: string | undefined): string {
+export function bearerToken(header: string | undefined): string {
   const [scheme, token, extra] = header?.trim().split(/\s+/) ?? [];
   if (scheme?.toLowerCase() !== "bearer" || !token || extra) throw new InvalidAccessToken();
   return token;

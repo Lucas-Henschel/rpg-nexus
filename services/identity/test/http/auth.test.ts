@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../../src/http/app.js";
-import { fakeIdentity } from "../fakes.js";
+import { fakeHistory, fakeIdentity } from "../fakes.js";
 
 function testApp() {
   const { deps, identity } = fakeIdentity();
-  return buildApp({ env: deps.env, identity, pingDatabase: async () => {}, logger: false });
+  return buildApp({ env: deps.env, identity, history: fakeHistory(), pingDatabase: async () => {}, logger: false });
 }
 
 const registration = { username: "Morgana", email: "morgana@example.com", password: "senha-segura-123" };
@@ -26,6 +26,15 @@ describe("POST /auth/register", () => {
     expect(body.tokens.accessToken.split(".")).toHaveLength(3);
     expect(JSON.stringify(body)).not.toContain("password");
     expect(JSON.stringify(body)).not.toContain("senha-segura-123");
+  });
+
+  it("registra auditoria de cadastro sem dados sensíveis", async () => {
+    const { deps, identity } = fakeIdentity();
+    const app = buildApp({ env: deps.env, identity, history: fakeHistory(), pingDatabase: async () => {}, logger: false });
+    await app.inject({ method: "POST", url: "/auth/register", payload: registration });
+    expect(deps.auditEvents[0]).toMatchObject({ action: "USER_REGISTERED", outcome: "SUCCESS" });
+    expect(JSON.stringify(deps.auditEvents)).not.toContain("senha-segura-123");
+    expect(JSON.stringify(deps.auditEvents)).not.toContain("morgana@example.com");
   });
 
   it("garante unicidade case-insensitive de e-mail e username", async () => {
@@ -92,6 +101,56 @@ describe("sessão", () => {
     expect(login.json().user.username).toBe("Morgana");
     expect(wrong.statusCode).toBe(401);
     expect(wrong.json()).toMatchObject({ error: { code: "INVALID_CREDENTIALS" } });
+  });
+
+  it("bloqueia temporariamente após cinco credenciais inválidas", async () => {
+    const app = testApp();
+    await app.inject({ method: "POST", url: "/auth/register", payload: registration });
+
+    for (let attempt = 1; attempt < 5; attempt += 1) {
+      const response = await app.inject({
+        method: "POST", url: "/auth/login",
+        payload: { identifier: "MORGANA", password: "senha-incorreta" },
+      });
+      expect(response.statusCode).toBe(401);
+    }
+
+    const locked = await app.inject({
+      method: "POST", url: "/auth/login",
+      payload: { identifier: "morgana", password: "senha-incorreta" },
+    });
+    const correctWhileLocked = await app.inject({
+      method: "POST", url: "/auth/login",
+      payload: { identifier: "morgana", password: registration.password },
+    });
+
+    expect(locked.statusCode).toBe(429);
+    expect(locked.headers["retry-after"]).toBe("900");
+    expect(locked.json()).toMatchObject({
+      error: { code: "LOGIN_TEMPORARILY_LOCKED", details: { retryAfterSeconds: 900 } },
+    });
+    expect(correctWhileLocked.statusCode).toBe(429);
+  });
+
+  it("limpa as falhas depois de um login válido", async () => {
+    const app = testApp();
+    await app.inject({ method: "POST", url: "/auth/register", payload: registration });
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await app.inject({
+        method: "POST", url: "/auth/login",
+        payload: { identifier: registration.email, password: "senha-incorreta" },
+      });
+    }
+    const success = await app.inject({
+      method: "POST", url: "/auth/login",
+      payload: { identifier: registration.email, password: registration.password },
+    });
+    const afterReset = await app.inject({
+      method: "POST", url: "/auth/login",
+      payload: { identifier: registration.email, password: "senha-incorreta" },
+    });
+    expect(success.statusCode).toBe(200);
+    expect(afterReset.statusCode).toBe(401);
   });
 
   it("GET /auth/me exige token válido", async () => {

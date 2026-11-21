@@ -12,3 +12,11 @@ export const LoginBody = z.object({
 });
 
 export const RefreshBody = z.object({ refreshToken: z.string().min(1).max(512) });
+
+export const HistoryParams = z.object({
+  campaignId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+});
+
+export const HistoryQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});

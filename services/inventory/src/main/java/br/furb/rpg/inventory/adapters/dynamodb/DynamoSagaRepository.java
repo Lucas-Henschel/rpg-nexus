@@ -46,7 +46,7 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
         var now=Instant.now();
         var row=Map.of("id",DynamoStore.s(id),"campaignId",DynamoStore.s(campaign),"userId",DynamoStore.s(user),
             "characterId",DynamoStore.s(character),"itemId",DynamoStore.s(item),"price",DynamoStore.n(shopItem.price()),
-            "status",DynamoStore.s("WAITING_MONEY"),"version",DynamoStore.n(0),
+            "status",DynamoStore.s("VALIDATING_EXTERNAL"),"version",DynamoStore.n(0),
             "deadlineAt",DynamoStore.s(now.plusSeconds(timeout).toString()),"createdAt",DynamoStore.s(now.toString()));
         var stock=TransactWriteItem.builder().update(Update.builder().tableName(store.table("stocks"))
             .key(Map.of("id",DynamoStore.s(campaign+"#"+item)))
@@ -57,7 +57,7 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
             try {
                 store.transact(List.of(stock,store.insert("acquisition_sagas",row),
                     transition(row,"STARTED"),
-                    event(id,"rpg.money.debit-requested.v1","money.debit.requested.v1",validationPayload(row))));
+                    event(id,"rpg.external.validation-requested.v1","external.validation.requested.v1",validationPayload(row))));
                 return StartResult.STARTED;
             } catch(TransactionCanceledException e) {
                 existing=store.get("acquisition_sagas",id);
@@ -106,22 +106,33 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
         String id=result.operationId();
         String type=result.type();
         if(result.version()!=1 || messageId.isBlank() || id.isBlank() || !Set.of(
+            "rpg.external.validation-succeeded.v1","rpg.external.validation-failed.v1",
             "rpg.money.debited.v1","rpg.money.debit-rejected.v1","rpg.money.refunded.v1").contains(type))
             throw new IllegalArgumentException("invalid envelope");
         var row=store.get("acquisition_sagas",id);
         if(row.isEmpty()) throw new IllegalArgumentException("unknown operation");
+        boolean moneyEvent=type.startsWith("rpg.money.");
         if(!id.equals(result.payloadOperationId()) ||
             !DynamoStore.str(row,"campaignId").equals(result.campaignId()) ||
-            !DynamoStore.str(row,"userId").equals(result.userId()) ||
             !DynamoStore.str(row,"characterId").equals(result.characterId()) ||
-            !DynamoStore.str(row,"itemId").equals(result.itemId()) || DynamoStore.num(row,"price")!=result.amount())
+            !DynamoStore.str(row,"itemId").equals(result.itemId()) ||
+            (moneyEvent && (!DynamoStore.str(row,"userId").equals(result.userId()) ||
+                DynamoStore.num(row,"price")!=result.amount())))
             throw new IllegalArgumentException("result does not match acquisition");
         var inbox=store.insert("inventory_inbox",Map.of("id",DynamoStore.s(messageId),"operationId",DynamoStore.s(id),
             "type",DynamoStore.s(type),"receivedAt",DynamoStore.s(Instant.now().toString())));
         var writes=new ArrayList<TransactWriteItem>(); writes.add(inbox);
         var decision=SagaTransition.decide(map(row),type,Instant.now());
         switch(decision.effect()) {
-            case RELEASE_STOCK -> compensate(row,decision.next().name(),false,writes);
+            case RELEASE_STOCK -> compensate(row,decision.next().name(),false,
+                type.equals("rpg.external.validation-failed.v1") ?
+                    ("DEADLINE_EXPIRED".equals(result.reason()) ? "DEADLINE_EXPIRED" : "EXTERNAL_VALIDATION_FAILED") :
+                type.equals("rpg.money.debit-rejected.v1") ? "PAYMENT_REJECTED" : "DEADLINE_EXPIRED", writes);
+            case REQUEST_MONEY -> {
+                writes.add(store.updateSaga(row,decision.next().name(),Instant.parse(DynamoStore.str(row,"deadlineAt"))));
+                writes.add(transition(row,"WAITING_MONEY"));
+                writes.add(event(id,"rpg.money.debit-requested.v1","money.debit.requested.v1",validationPayload(row)));
+            }
             case DELIVER_ITEM -> {
                 writes.add(store.insert("inventory",Map.of("id",DynamoStore.s(id),"characterId",row.get("characterId"),
                     "campaignId",row.get("campaignId"),"itemId",row.get("itemId"),"quantity",DynamoStore.n(1))));
@@ -141,14 +152,16 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
             throw e; // another replica changed the version: broker retry re-evaluates the state
         }
     }
-    void compensate(Map<String,AttributeValue> row,String terminal,boolean refund,List<TransactWriteItem> writes) {
+    void compensate(Map<String,AttributeValue> row,String terminal,boolean refund,String reason,List<TransactWriteItem> writes) {
         writes.add(TransactWriteItem.builder().update(Update.builder().tableName(store.table("stocks"))
             .key(Map.of("id",DynamoStore.s(DynamoStore.str(row,"campaignId")+"#"+DynamoStore.str(row,"itemId"))))
             .updateExpression("SET available = available + :one, reserved = reserved - :one")
             .expressionAttributeValues(Map.of(":one",DynamoStore.n(1))).build()).build());
         writes.add(store.updateSaga(row,terminal,Instant.parse(DynamoStore.str(row,"deadlineAt"))));
         writes.add(transition(row,terminal));
-        writes.add(event(DynamoStore.str(row,"id"),"rpg.acquisition.cancelled.v1","acquisition.cancelled.v1",payload(row)));
+        var cancelledPayload=new HashMap<String,Object>(payload(row));
+        cancelledPayload.put("reason",reason);
+        writes.add(event(DynamoStore.str(row,"id"),"rpg.acquisition.cancelled.v1","acquisition.cancelled.v1",cancelledPayload));
         if(refund) writes.add(event(DynamoStore.str(row,"id"),"rpg.money.refund-requested.v1","money.refund.requested.v1",payload(row)));
     }
     TransactWriteItem confirmReservation(Map<String,AttributeValue> row) {
@@ -162,14 +175,16 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
             "operationId",row.get("id"),"status",DynamoStore.s(status),"occurredAt",DynamoStore.s(Instant.now().toString())));
     }
     void expire(Map<String,AttributeValue> row) {
-        var writes=new ArrayList<TransactWriteItem>(); compensate(row,"EXPIRED",false,writes);
+        var writes=new ArrayList<TransactWriteItem>(); compensate(row,"EXPIRED",false,"DEADLINE_EXPIRED",writes);
         try { store.transact(writes); }
         catch(TransactionCanceledException e) { /* a concurrent result won the version check; next scan sees its state */ }
     }
     @Override public void expireDue() {
-        for(var row:store.scan("acquisition_sagas","#st = :waiting",
-            Map.of(":waiting",DynamoStore.s("WAITING_MONEY")))) {
-            if(!Instant.parse(DynamoStore.str(row,"deadlineAt")).isAfter(Instant.now())) expire(row);
+        for(String status:List.of("VALIDATING_EXTERNAL","WAITING_MONEY")) {
+            for(var row:store.scan("acquisition_sagas","#st = :waiting",
+                Map.of(":waiting",DynamoStore.s(status)))) {
+                if(!Instant.parse(DynamoStore.str(row,"deadlineAt")).isAfter(Instant.now())) expire(row);
+            }
         }
     }
 }

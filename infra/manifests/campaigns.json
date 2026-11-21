@@ -22,7 +22,8 @@
           "x-dead-letter-routing-key": "campaigns.activity.v1.dlq"
         },
         "bindings": [
-          "item.acquired.v1"
+          "item.acquired.v1",
+          "shop.item.purchased.v1"
         ]
       },
       {

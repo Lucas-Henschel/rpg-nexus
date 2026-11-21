@@ -7,9 +7,11 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "create-tables": "node dist/scripts/create-tables.js",
+    "dlq": "node scripts/dlq.mjs",
     "test": "vitest run --exclude 'test/**/*.int.test.ts'",
-    "test:integration": "vitest run test/**/*.int.test.ts",
-    "typecheck": "tsc -p tsconfig.test.json"
+    "test:integration": "vitest run test/integration",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test:dlq": "node scripts/test-dlq.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1169.0",

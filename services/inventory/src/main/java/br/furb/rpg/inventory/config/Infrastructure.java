@@ -29,6 +29,8 @@ class Infrastructure {
         var dead = QueueBuilder.durable("inventory.saga-replies.v1.dlq").build();
         var membersDead = QueueBuilder.durable("inventory.campaign-members.v1.dlq").build();
         return new Declarables(exchange, replies, campaignMembers, dead, membersDead,
+            BindingBuilder.bind(replies).to(exchange).with("external.validation.succeeded.v1"),
+            BindingBuilder.bind(replies).to(exchange).with("external.validation.failed.v1"),
             BindingBuilder.bind(replies).to(exchange).with("money.debited.v1"),
             BindingBuilder.bind(replies).to(exchange).with("money.debit-rejected.v1"),
             BindingBuilder.bind(replies).to(exchange).with("money.refunded.v1"),
