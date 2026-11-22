@@ -9,6 +9,7 @@ As operações da loja usam `Authorization: Bearer <access token>` do S4. O S3 v
 - **Ordem dos eventos:** entrada/saída e personagem escolhido guardam cada um o instante do evento; um evento mais antigo que o gravado é ignorado. Uma saída apaga o personagem escolhido.
 - **Consistência eventual:** logo depois de entrar na campanha ou escolher o personagem, a loja pode responder 403 por um instante, até o evento chegar.
 - **Retry:** falhas vão para `inventory.campaign-members.v1.retry` (1 s, 2 s, 4 s) e, depois de `MAX_RETRIES`, para a `.dlq`.
+- **Nomes das filas:** vêm do ambiente, como pede o enunciado. `RABBITMQ_QUEUE` e `RABBITMQ_RETRY_QUEUE` são as respostas da Saga; `RABBITMQ_MEMBERS_QUEUE` e `RABBITMQ_MEMBERS_RETRY_QUEUE`, a cópia de participantes. Os padrões são os de `infra/rabbitmq/definitions.json`.
 
 ## Rotas principais
 
