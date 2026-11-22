@@ -8,12 +8,16 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import type { Tables } from "./tables.js";
 
-function table(name: string, partitionKey: string): CreateTableCommandInput {
+function table(name: string, partitionKey: string, sortKey?: string): CreateTableCommandInput {
+  const keys = sortKey ? [partitionKey, sortKey] : [partitionKey];
   return {
     TableName: name,
     BillingMode: "PAY_PER_REQUEST",
-    KeySchema: [{ AttributeName: partitionKey, KeyType: "HASH" }],
-    AttributeDefinitions: [{ AttributeName: partitionKey, AttributeType: "S" }],
+    KeySchema: keys.map((key, index) => ({
+      AttributeName: key,
+      KeyType: index === 0 ? "HASH" : "RANGE",
+    })),
+    AttributeDefinitions: keys.map((key) => ({ AttributeName: key, AttributeType: "S" })),
   };
 }
 
@@ -21,6 +25,13 @@ const definitions = (tables: Tables): CreateTableCommandInput[] => [
   table(tables.users, "userId"),
   table(tables.identities, "identityKey"),
   table(tables.sessions, "sessionId"),
+  table(tables.loginAttempts, "throttleKey"),
+  table(tables.history, "campaignId", "historyKey"),
+  table(tables.historyInbox, "messageId"),
+  table(tables.historyMemberships, "campaignId", "userId"),
+  table(tables.audit, "auditId"),
+  table(tables.validationInbox, "messageId"),
+  table(tables.validationOutbox, "messageId"),
 ];
 
 async function createTable(client: DynamoDBClient, input: CreateTableCommandInput): Promise<void> {
@@ -33,7 +44,7 @@ async function createTable(client: DynamoDBClient, input: CreateTableCommandInpu
   await waitUntilTableExists({ client, maxWaitTime: 30 }, { TableName: input.TableName });
 }
 
-async function enableSessionTtl(client: DynamoDBClient, tableName: string): Promise<void> {
+async function enableTtl(client: DynamoDBClient, tableName: string): Promise<void> {
   try {
     await client.send(
       new UpdateTimeToLiveCommand({
@@ -49,5 +60,10 @@ async function enableSessionTtl(client: DynamoDBClient, tableName: string): Prom
 
 export async function ensureTables(client: DynamoDBClient, tables: Tables): Promise<void> {
   await Promise.all(definitions(tables).map((input) => createTable(client, input)));
-  await enableSessionTtl(client, tables.sessions);
+  await Promise.all([
+    enableTtl(client, tables.sessions),
+    enableTtl(client, tables.loginAttempts),
+    enableTtl(client, tables.historyInbox),
+    enableTtl(client, tables.validationInbox),
+  ]);
 }

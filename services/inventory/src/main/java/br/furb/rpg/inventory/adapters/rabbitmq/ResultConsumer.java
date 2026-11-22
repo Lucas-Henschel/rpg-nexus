@@ -35,7 +35,7 @@ class ResultConsumer {
                 envelope.path("correlationId").asText(),payload.path("operationId").asText(),envelope.path("type").asText(),
                 envelope.path("version").asInt(),payload.path("campaignId").asText(),
                 payload.path("userId").asText(),payload.path("characterId").asText(),payload.path("itemId").asText(),
-                payload.path("amount").asLong()));
+                payload.path("amount").asLong(),payload.path("reason").asText()));
             channel.basicAck(tag,false);
         } catch(Exception failure) {
             Integer previous=(Integer)message.getMessageProperties().getHeaders().getOrDefault("x-inventory-attempt",0);

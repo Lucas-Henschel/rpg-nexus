@@ -27,7 +27,7 @@ function testApp() {
   let next = 482731;
 
   return buildApp({
-    env: loadEnv(AUTH_ENV),
+    env: loadEnv({ ...AUTH_ENV, CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173" }),
     campaigns: createCampaignService(fakeRepositories(), {
       clock: () => NOW,
       joinCode: () => String(next++),
@@ -71,6 +71,28 @@ describe("autenticação", () => {
   it("/health continua aberto", async () => {
     expect((await testApp().inject({ method: "GET", url: "/health" })).statusCode).toBe(200);
   });
+});
+
+describe("CORS local", () => {
+  it.each(["http://localhost:5173", "http://127.0.0.1:5173"])(
+    "autoriza PUT com Authorization para %s",
+    async (origin) => {
+      const res = await testApp().inject({
+        method: "OPTIONS",
+        url: "/campaigns/c1/members/me/character",
+        headers: {
+          origin,
+          "access-control-request-method": "PUT",
+          "access-control-request-headers": "authorization,content-type",
+        },
+      });
+
+      expect(res.statusCode).toBe(204);
+      expect(res.headers["access-control-allow-origin"]).toBe(origin);
+      expect(res.headers["access-control-allow-methods"]).toContain("PUT");
+      expect(res.headers["access-control-allow-headers"]?.toLowerCase()).toContain("authorization");
+    },
+  );
 });
 
 describe("POST /campaigns", () => {

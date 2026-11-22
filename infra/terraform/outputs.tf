@@ -22,6 +22,13 @@ output "dynamodb_tables" {
       aws_dynamodb_table.identity_users.name,
       aws_dynamodb_table.identity_unique_identifiers.name,
       aws_dynamodb_table.identity_sessions.name,
+      aws_dynamodb_table.identity_login_attempts.name,
+      aws_dynamodb_table.action_history.name,
+      aws_dynamodb_table.action_history_inbox.name,
+      aws_dynamodb_table.action_history_memberships.name,
+      aws_dynamodb_table.identity_audit.name,
+      aws_dynamodb_table.action_validation_inbox.name,
+      aws_dynamodb_table.action_validation_outbox.name,
     ]
   }
 }

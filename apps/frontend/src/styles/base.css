@@ -156,6 +156,7 @@ code {
   color: var(--texto);
 }
 
+
 @media (max-width: 760px) {
   .topbar__nav {
     order: 3;

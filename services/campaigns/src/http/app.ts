@@ -22,7 +22,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.setSerializerCompiler(serializerCompiler);
   app.setErrorHandler(errorHandler);
   app.register(fastifyOtel.plugin());
-  app.register(cors, { origin: deps.env.CORS_ORIGINS });
+  app.register(cors, {
+    origin: deps.env.CORS_ORIGINS,
+    // O padrão do @fastify/cors permite apenas GET, HEAD e POST. As rotas de
+    // participantes usam PUT e DELETE, que precisam constar na resposta do preflight.
+    methods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
+  });
 
   app.register(healthRoutes(deps));
   app.register(campaignRoutes(deps.campaigns, createTokenVerifier(deps.env)));

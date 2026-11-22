@@ -39,3 +39,113 @@ resource "aws_dynamodb_table" "identity_sessions" {
     enabled        = true
   }
 }
+
+
+# Contadores e bloqueios temporários de login; as chaves são hashes, nunca e-mails ou usernames.
+resource "aws_dynamodb_table" "identity_login_attempts" {
+  name         = local.identity_env["TABLE_LOGIN_ATTEMPTS"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "throttleKey"
+
+  attribute {
+    name = "throttleKey"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+}
+
+resource "aws_dynamodb_table" "action_history" {
+  name         = local.identity_env["TABLE_HISTORY"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "campaignId"
+  range_key    = "historyKey"
+
+  attribute {
+    name = "campaignId"
+    type = "S"
+  }
+
+  attribute {
+    name = "historyKey"
+    type = "S"
+  }
+}
+
+# Projeção de participantes usada para autorizar a leitura do histórico.
+resource "aws_dynamodb_table" "action_history_memberships" {
+  name         = local.identity_env["TABLE_HISTORY_MEMBERSHIPS"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "campaignId"
+  range_key    = "userId"
+
+  attribute {
+    name = "campaignId"
+    type = "S"
+  }
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+}
+
+resource "aws_dynamodb_table" "action_history_inbox" {
+  name         = local.identity_env["TABLE_HISTORY_INBOX"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "messageId"
+
+  attribute {
+    name = "messageId"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+}
+
+# Auditoria de segurança do S4; eventos são append-only e não contêm credenciais.
+resource "aws_dynamodb_table" "identity_audit" {
+  name         = local.identity_env["TABLE_AUDIT"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "auditId"
+
+  attribute {
+    name = "auditId"
+    type = "S"
+  }
+}
+
+
+# Inbox idempotente e outbox transacional da dependência externa simulada.
+resource "aws_dynamodb_table" "action_validation_inbox" {
+  name         = local.identity_env["TABLE_VALIDATION_INBOX"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "messageId"
+
+  attribute {
+    name = "messageId"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+}
+
+resource "aws_dynamodb_table" "action_validation_outbox" {
+  name         = local.identity_env["TABLE_VALIDATION_OUTBOX"]
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "messageId"
+
+  attribute {
+    name = "messageId"
+    type = "S"
+  }
+}

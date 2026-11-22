@@ -39,9 +39,10 @@
           "enum": [
             "CHARACTER_REJECTED",
             "EXTERNAL_VALIDATION_FAILED",
-            "DEADLINE_EXPIRED"
+            "DEADLINE_EXPIRED",
+            "PAYMENT_REJECTED"
           ],
-          "description": "CHARACTER_REJECTED: o S2 recusou. EXTERNAL_VALIDATION_FAILED: o S4 recusou. DEADLINE_EXPIRED: a Saga passou do prazo sem resposta."
+          "description": "CHARACTER_REJECTED: o S2 recusou. EXTERNAL_VALIDATION_FAILED: o S4 recusou. DEADLINE_EXPIRED: a Saga passou do prazo sem resposta. PAYMENT_REJECTED: o débito do pagamento foi recusado."
         },
         "detail": { "type": "string", "maxLength": 500 }
       }

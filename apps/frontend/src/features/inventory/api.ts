@@ -29,7 +29,7 @@ export interface InventoryEntry {
 }
 
 export type AcquisitionStatus =
-  | "WAITING_MONEY" | "PENDING" | "RESERVED" | "VALIDATING_CHARACTER" | "VALIDATING_EXTERNAL"
+  | "VALIDATING_EXTERNAL" | "WAITING_MONEY" | "PENDING" | "RESERVED" | "VALIDATING_CHARACTER"
   | "COMPLETED" | "COMPENSATING" | "COMPENSATED" | "REJECTED" | "EXPIRED";
 
 export interface Acquisition {

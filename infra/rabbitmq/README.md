@@ -47,7 +47,8 @@ de consumo `Q` vem com:
 | `characters.acquisition-outcomes.v1` | S2 Personagens | `item.acquired.v1`, `acquisition.cancelled.v1` |
 | `inventory.saga-replies.v1` | S3 Inventário | `character.validated.v1`, `character.rejected.v1`, `external.validation.succeeded.v1`, `external.validation.failed.v1` |
 | `actions.validation-requested.v1` | S4 Ações | `external.validation.requested.v1` |
-| `actions.history.v1` | S4 Ações | `item.acquired.v1`, `acquisition.cancelled.v1` |
+| `characters.money-commands.v1` | S2 Personagens | `money.debit.requested.v1`, `money.refund.requested.v1` |
+| `actions.history.v1` | S4 Ações | `campaign.created.v1`, `campaign.member.joined.v1`, `campaign.member.removed.v1`, `shop.item.purchased.v1`, `item.acquired.v1`, `acquisition.cancelled.v1` |
 
 Um serviço que usa o RabbitMQ deve esperar a topologia no Compose:
 
@@ -72,3 +73,30 @@ docker compose run --rm terraform
 
 Mudar os argumentos de uma fila que já existe faz o Terraform apagá-la e criá-la de novo (o RabbitMQ
 não altera argumentos), e as mensagens dela se perdem.
+
+
+## Inspeção e replay seguro da DLQ do histórico
+
+A ferramenta do S4 inspeciona sem remover mensagens:
+
+```powershell
+cd services/identity
+npm run dlq -- inspect
+```
+
+O replay exige uma lista explícita de tipos e publica diretamente na fila
+`actions.history.v1`, evitando duplicar o evento nos outros serviços:
+
+```powershell
+npm run dlq -- replay --types=rpg.campaign.created.v1,rpg.campaign.member.joined.v1
+```
+
+Somente mensagens que passam pela validação mínima e pertencem aos tipos escolhidos
+são confirmadas na DLQ. As demais são recolocadas. Os eventos antigos
+`AcquisitionCancelled` sem `reason` permanecem preservados e não devem ser
+corrigidos por suposição; para removê-los ou enriquecê-los é necessária uma decisão
+operacional explícita baseada na causa real de cada aquisição.
+
+Use `--count=100`, `--source=<fila.dlq>` e `--target=<fila>` para ajustar o lote
+e as filas. O comando usa `RABBITMQ_URL`; a inspeção também usa
+`RABBITMQ_MANAGEMENT_URL` (padrão `http://localhost:15672`).

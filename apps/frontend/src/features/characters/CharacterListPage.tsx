@@ -8,6 +8,8 @@ import { HpBar, Initials } from "../../shared/ui/Sheet";
 import { toLabel } from "../../shared/labels";
 import { Link } from "../../app/router";
 import { useCharacters } from "./queries";
+import { useAuth } from "../auth/auth-context";
+import { useCampaigns } from "../campaigns/queries";
 
 function CharacterTile({ character }: { character: Character }) {
   const portrait = portraitUrl(character);
@@ -45,7 +47,17 @@ function CharacterTile({ character }: { character: Character }) {
 }
 
 export function CharacterListPage() {
-  const [campaign, setCampaign] = useCampaign();
+  const { user } = useAuth();
+  const userId = user?.userId ?? "";
+  const campaigns = useCampaigns(userId);
+  const [storedCampaign, setCampaign] = useCampaign(user?.userId);
+  const campaign = campaigns.isSuccess
+    ? (campaigns.data.find((item) => item.campaignId === storedCampaign)?.campaignId ??
+      campaigns.data[0]?.campaignId ??
+      "")
+    : campaigns.isError
+      ? storedCampaign
+      : "";
   const characters = useCharacters(campaign);
   const code = useCampaignCode(campaign);
 
@@ -54,18 +66,31 @@ export function CharacterListPage() {
       <header className="page__head">
         <div>
           <h1 className="page__title">Personagens</h1>
-          <CampaignPicker value={campaign} onChange={setCampaign} />
+          <CampaignPicker userId={userId} value={campaign} onChange={setCampaign} />
         </div>
         <Link to="/personagens/novo" className="button button--brass">
           Criar personagem
         </Link>
       </header>
 
-      {characters.isPending && (
+      {!campaign && campaigns.isPending && (
+        <p className="page__status">Carregando suas campanhas…</p>
+      )}
+
+      {campaigns.isSuccess && campaigns.data.length === 0 && (
+        <div className="notice">
+          <p>Você ainda não participa de nenhuma campanha.</p>
+          <Link to="/campanhas" className="button button--brass">
+            Ver campanhas
+          </Link>
+        </div>
+      )}
+
+      {characters.isPending && campaign && (
         <p className="page__status">Buscando as fichas da campanha {code}…</p>
       )}
 
-      {characters.isError && (
+      {characters.isError && campaign && (
         <div className="notice">
           <p>{errorMessage(characters.error, "Não foi possível carregar os personagens.")}</p>
           <button

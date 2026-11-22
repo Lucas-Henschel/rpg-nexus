@@ -1,9 +1,11 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 import { hasZodFastifySchemaValidationErrors } from "fastify-type-provider-zod";
 import {
+  CampaignHistoryForbidden,
   InvalidAccessToken,
   InvalidCredentials,
   InvalidRefreshToken,
+  LoginTemporarilyLocked,
   UserAlreadyExists,
   UserInactive,
 } from "../domain/errors.js";
@@ -29,6 +31,15 @@ export function errorHandler(error: FastifyError, request: FastifyRequest, reply
     return reply.status(401).send(errorBody("INVALID_CREDENTIALS", "credenciais inválidas"));
   }
 
+  if (error instanceof LoginTemporarilyLocked) {
+    return reply
+      .header("Retry-After", String(error.retryAfterSeconds))
+      .status(429)
+      .send(errorBody("LOGIN_TEMPORARILY_LOCKED", "muitas tentativas; tente novamente mais tarde", {
+        retryAfterSeconds: error.retryAfterSeconds,
+      }));
+  }
+
   if (error instanceof InvalidRefreshToken) {
     return reply.status(401).send(errorBody("INVALID_REFRESH_TOKEN", "sessão inválida ou expirada"));
   }
@@ -40,6 +51,11 @@ export function errorHandler(error: FastifyError, request: FastifyRequest, reply
   if (error instanceof UserInactive) {
     return reply.status(403).send(errorBody("USER_INACTIVE", "usuário desativado"));
   }
+
+  if (error instanceof CampaignHistoryForbidden) {
+    return reply.status(403).send(errorBody("CAMPAIGN_HISTORY_FORBIDDEN", "você não participa desta campanha"));
+  }
+
 
   if (error.statusCode !== undefined && error.statusCode < 500) {
     return reply.status(error.statusCode).send(errorBody("INVALID_REQUEST", "requisição inválida"));

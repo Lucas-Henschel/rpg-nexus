@@ -9,15 +9,20 @@ import {
   listMyCampaigns,
   removeMember,
 } from "./api";
+import { useAuth } from "../auth/auth-context";
 
 export const campaignKeys = {
   all: ["campaigns"] as const,
-  list: ["campaigns", "list"] as const,
+  list: (userId: string) => ["campaigns", "list", userId] as const,
   detail: (id: string) => ["campaigns", "detail", id] as const,
 };
 
-export function useCampaigns() {
-  return useQuery({ queryKey: campaignKeys.list, queryFn: listMyCampaigns });
+export function useCampaigns(userId: string) {
+  return useQuery({
+    queryKey: campaignKeys.list(userId),
+    queryFn: listMyCampaigns,
+    enabled: Boolean(userId),
+  });
 }
 
 export function useCampaignView(id: string) {
@@ -34,7 +39,7 @@ export function useCreateCampaign() {
 
   return useMutation({
     mutationFn: (name: string) => createCampaign(name),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: campaignKeys.list }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: campaignKeys.all }),
   });
 }
 
@@ -77,7 +82,8 @@ export function useRemoveMember(campaignId: string) {
 
 /** Código de entrada da campanha, para mostrar no lugar do id. Sem a campanha na lista da pessoa, fica o id. */
 export function useCampaignCode(campaignId: string) {
-  const campaigns = useCampaigns();
+  const { user } = useAuth();
+  const campaigns = useCampaigns(user?.userId ?? "");
 
   return campaigns.data?.find((campaign) => campaign.campaignId === campaignId)?.joinCode ?? campaignId;
 }

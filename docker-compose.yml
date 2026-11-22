@@ -51,15 +51,17 @@ x-campaigns: &campaigns
   networks:
     - rpg
 
-# Base comum do S4 Identidade. Nesta primeira etapa o serviço não consome RabbitMQ.
+# Base comum do S4 Identidade e histórico. Também consome os resultados das aquisições.
 x-identity: &identity
   build:
-    context: services/identity
+    context: .
+    dockerfile: services/identity/Dockerfile
   env_file: services/identity/.env.example
   environment:
-    <<: *aws-env
+    <<: *backend-env
     CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
     JWT_SECRET: ${JWT_SECRET:-dev-only-change-this-jwt-secret-32-characters}
+    CONTRACTS_DIR: /app/contracts
   networks:
     - rpg
 
@@ -279,6 +281,8 @@ services:
     depends_on:
       terraform:
         condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
 
   frontend:
     build:
@@ -288,6 +292,7 @@ services:
         VITE_INVENTORY_URL: http://localhost:${INVENTORY_PORT:-8080}
         VITE_CAMPAIGNS_URL: http://localhost:${CAMPAIGNS_PORT:-3001}
         VITE_IDENTITY_URL: http://localhost:${IDENTITY_PORT:-3002}
+        VITE_ACTIONS_URL: http://localhost:${IDENTITY_PORT:-3002}
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
     networks:

@@ -8,7 +8,7 @@ import { NewCharacterPage } from "../features/characters/NewCharacterPage";
 import { HomePage } from "../features/home/HomePage";
 import { CampaignPage } from "../features/campaigns/CampaignPage";
 import { CampaignsPage } from "../features/campaigns/CampaignsPage";
-import { HistoryPage } from "../features/placeholders/pages";
+import { HistoryPage } from "../features/history/HistoryPage";
 import { ItemsPage } from "../features/inventory/ItemsPage";
 import { AuthProvider } from "../features/auth/AuthProvider";
 import { useAuth } from "../features/auth/auth-context";

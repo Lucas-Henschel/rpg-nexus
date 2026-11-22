@@ -5,28 +5,36 @@ import { errorMessage } from "../../shared/http";
 import { useCampaigns } from "./queries";
 
 interface Props {
+  userId: string;
   value: string;
   onChange: (id: string) => void;
 }
 
-export function CampaignPicker({ value, onChange }: Props) {
-  const campaigns = useCampaigns();
-
+export function CampaignPicker({ userId, value, onChange }: Props) {
+  const campaigns = useCampaigns(userId);
   const items = campaigns.data ?? [];
-  // A campanha em uso pode não ser da pessoa (código antigo, outra conta) ou a lista ainda carrega.
   const known = items.some((campaign) => campaign.campaignId === value);
   const first = items[0]?.campaignId;
 
-  // Campanha lembrada que não é desta pessoa: passa para a primeira dela.
+  // Corrige seleção antiga ou inválida; se não houver campanhas, limpa o ID persistido.
   useEffect(() => {
-    if (campaigns.isSuccess && !known && first) {
+    if (!campaigns.isSuccess) return;
+    if (!items.length && value) {
+      onChange("");
+    } else if (first && !known) {
       onChange(first);
     }
-  }, [campaigns.isSuccess, known, first, onChange]);
+  }, [campaigns.isSuccess, first, items.length, known, onChange, value]);
 
   if (campaigns.isError) {
     return <TypedCampaign value={value} onChange={onChange} problem={campaigns.error} />;
   }
+
+  const emptyLabel = campaigns.isPending
+    ? "Carregando campanhas…"
+    : items.length
+      ? "Selecione uma campanha"
+      : "Você ainda não participa de campanhas";
 
   return (
     <div className="campaign-picker">
@@ -36,14 +44,14 @@ export function CampaignPicker({ value, onChange }: Props) {
         className="felt-input"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        disabled={campaigns.isPending}
+        disabled={campaigns.isPending || (campaigns.isSuccess && items.length === 0)}
       >
-        {!known && (
+        {!known && value && (
           <option value={value}>
-            {value}
-            {campaigns.isSuccess ? " (você não participa)" : ""}
+            {campaigns.isSuccess ? "Campanha anterior indisponível" : value}
           </option>
         )}
+        {!known && !value && <option value="">{emptyLabel}</option>}
         {items.map((campaign) => (
           <option key={campaign.campaignId} value={campaign.campaignId}>
             {campaign.name} · {campaign.joinCode}
@@ -55,7 +63,7 @@ export function CampaignPicker({ value, onChange }: Props) {
 }
 
 /** Sem o serviço de Campanhas, a pessoa ainda pode digitar o código. */
-function TypedCampaign({ value, onChange, problem }: Props & { problem: unknown }) {
+function TypedCampaign({ value, onChange, problem }: { value: string; onChange: (id: string) => void; problem: unknown }) {
   const [draft, setDraft] = useState(value);
   const valid = CAMPAIGN_PATTERN.test(draft.trim());
 

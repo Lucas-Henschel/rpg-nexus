@@ -23,6 +23,18 @@ Preço e estoque são inteiros não negativos. A edição do estoque e a remoç�
 
 ## Compra e dependência do S2
 
-O S3 reserva uma unidade de modo transacional, grava a Saga e publica `MoneyDebitRequested`. Quando receber `MoneyDebited`, entrega o item, confirma o estoque e publica `ShopItemPurchased` e `ItemAcquired`. Se o débito for recusado ou o prazo acabar, devolve a unidade. O S2 ainda não consome `characters.money-commands.v1` nem mantém saldo monetário; portanto **compras reais ainda expiram sem entrega** até essa integração ser implementada.
+O S3 reserva uma unidade de modo transacional, grava a Saga e solicita a validação externa simulada ao S4. Depois da aprovação, publica `MoneyDebitRequested`. O S2 consome `characters.money-commands.v1`, debita o campo **Dinheiro** da ficha e responde com `MoneyDebited` ou `MoneyDebitRejected`. Quando o débito é confirmado, o S3 entrega o item, confirma o estoque e publica `ShopItemPurchased` e `ItemAcquired`. Se a validação ou o débito forem recusados, ou se o prazo acabar, devolve a unidade; estornos usam `MoneyRefundRequested` e `MoneyRefunded`.
 
 Para iniciar a pilha, use `docker compose up --build` na raiz. O Terraform cria as tabelas e filas. O S3 também mantém endpoints legados de catálogo, estoque e inventário.
+
+
+## Ordem da Saga de compra
+
+1. O S3 reserva uma unidade de estoque e publica `ExternalValidationRequested`.
+2. A operação fica em `VALIDATING_EXTERNAL`.
+3. Quando o S4 aprova, o S3 muda para `WAITING_MONEY` e publica `MoneyDebitRequested`.
+4. O débito confirmado entrega o item; falha externa, débito recusado ou prazo expirado liberam a reserva.
+5. Um débito tardio após expiração gera `MoneyRefundRequested`.
+
+As respostas do S4 e do S2 passam pela mesma inbox idempotente da Saga. Uma
+resposta repetida ou fora de ordem é registrada sem repetir efeitos.
