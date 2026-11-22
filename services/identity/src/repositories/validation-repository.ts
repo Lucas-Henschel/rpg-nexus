@@ -58,14 +58,23 @@ export function createValidationRepository(db: Db, inboxTtlDays: number) {
     },
 
     async pending(limit = 25): Promise<PendingValidationResponse[]> {
-      const { Items = [] } = await db.doc.send(new ScanCommand({
-        TableName: db.tables.validationOutbox,
-        FilterExpression: "#status = :pending",
-        ExpressionAttributeNames: { "#status": "status" },
-        ExpressionAttributeValues: { ":pending": "PENDING" },
-        Limit: limit,
-      }));
-      return Items.map((item) => ({
+      // O Limit do Scan conta os itens lidos antes do filtro, e as respostas publicadas ficam na tabela:
+      // uma página pode vir sem nenhuma pendente e ainda haver mais. Segue as páginas até juntar o limite.
+      const Items: Record<string, unknown>[] = [];
+      let ExclusiveStartKey: Record<string, unknown> | undefined;
+      do {
+        const page = await db.doc.send(new ScanCommand({
+          TableName: db.tables.validationOutbox,
+          FilterExpression: "#status = :pending",
+          ExpressionAttributeNames: { "#status": "status" },
+          ExpressionAttributeValues: { ":pending": "PENDING" },
+          Limit: limit,
+          ExclusiveStartKey,
+        }));
+        Items.push(...(page.Items ?? []));
+        ExclusiveStartKey = page.LastEvaluatedKey;
+      } while (ExclusiveStartKey && Items.length < limit);
+      return Items.slice(0, limit).map((item) => ({
         messageId: item.messageId as string,
         routingKey: item.routingKey as PendingValidationResponse["routingKey"],
         envelope: item.envelope as ExternalValidationResponse,
