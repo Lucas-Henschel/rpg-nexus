@@ -15,6 +15,7 @@ conquistou. Usa **DynamoDB** (tabelas exclusivas), consome as aquisições de it
 | Entrada pelo código, papéis `OWNER`/`PLAYER`, personagem de cada um, sair e remover | Participar da Saga de aquisição (é do S3 Inventário)                          |
 | Consumir as aquisições: registrar a atividade e somar itens por participante        | Projetar permissões (é de quem consome os eventos, como o S3)                 |
 | Mostrar a campanha com participantes e as últimas 20 atividades                     | Ler tabelas de outros serviços                                                |
+|                                                                                     | Guardar a linha do tempo completa da campanha (é do S4; aqui só o resumo)     |
 | Publicar os eventos de campanha, participantes e modelo pela outbox (seção 5)       |                                                                               |
 
 ## 2. Organização do código
@@ -71,6 +72,10 @@ caracteres. Fora disso: 422 `VALIDATION_ERROR` com `details[].field`. Erros usam
 `{"error": {"code", "message", "details"}}`.
 
 ## 4. Consumo das aquisições
+
+> **Divisão com o S4.** O S1 guarda só um **resumo** para a página da campanha: as últimas 20
+> atividades e a soma de itens de cada participante. A **linha do tempo completa** (entradas, saídas,
+> compras e cancelamentos) é do S4, em `GET /campaigns/{id}/history`.
 
 Fila `campaigns.activity.v1` (ligada a `rpg.events` / `item.acquired.v1` e `shop.item.purchased.v1`),
 com `.retry` e `.dlq` criadas pelo Terraform ([`infra/terraform`](../../infra/terraform)). Uma compra

@@ -14,9 +14,6 @@ import { createTokenService } from "./security/tokens.js";
 import { createIdentityService } from "./services/identity.js";
 import { createHistoryService } from "./services/history.js";
 import { createAuditRepository } from "./repositories/audit-repository.js";
-import { createValidationRepository } from "./repositories/validation-repository.js";
-import { createValidationRequestParser, handleValidationDelivery } from "./messaging/validation.js";
-import { startValidationOutbox } from "./messaging/validation-outbox.js";
 
 const env = loadEnv();
 const db = createDb(env);
@@ -35,19 +32,13 @@ const identity = createIdentityService({
 });
 const history = createHistoryService(createHistoryRepository(db, env.HISTORY_INBOX_TTL_DAYS));
 const parser = createHistoryEventParser(resolve(env.CONTRACTS_DIR));
-const validationParser = createValidationRequestParser(resolve(env.CONTRACTS_DIR));
-const validationRepository = createValidationRepository(db, env.HISTORY_INBOX_TTL_DAYS);
 let historyConsumer: ReturnType<typeof startConsumer>;
-let validationConsumer: ReturnType<typeof startConsumer>;
-let validationOutbox: ReturnType<typeof startValidationOutbox>;
 const app = buildApp({
   env,
   identity,
   history,
   pingDatabase: () => pingDatabase(db),
-  isBusConnected: () => Boolean(
-    historyConsumer?.isConnected() && validationConsumer?.isConnected() && validationOutbox?.isConnected(),
-  ),
+  isBusConnected: () => Boolean(historyConsumer?.isConnected()),
 });
 historyConsumer = startConsumer({
   url: env.RABBITMQ_URL,
@@ -66,33 +57,11 @@ historyConsumer = startConsumer({
   log: app.log,
   consumerName: "history",
 });
-validationConsumer = startConsumer({
-  url: env.RABBITMQ_URL,
-  queue: env.VALIDATION_QUEUE,
-  retryQueue: env.VALIDATION_RETRY_QUEUE,
-  prefetch: env.RABBITMQ_PREFETCH,
-  handle: (body, headers) => handleValidationDelivery({
-    parse: validationParser,
-    repository: validationRepository,
-    policy: { maxRetries: env.MAX_RETRIES, baseDelayMs: env.RETRY_BASE_DELAY_MS, maxDelayMs: env.RETRY_MAX_DELAY_MS },
-    failureRate: env.VALIDATION_FAILURE_RATE,
-    minDelayMs: env.VALIDATION_MIN_DELAY_MS,
-    maxDelayMs: env.VALIDATION_MAX_DELAY_MS,
-  }, body, headers),
-  log: app.log,
-  consumerName: "validation",
-});
-validationOutbox = startValidationOutbox({
-  url: env.RABBITMQ_URL,
-  exchange: env.RABBITMQ_EXCHANGE,
-  intervalMs: env.VALIDATION_OUTBOX_INTERVAL_MS,
-  repository: validationRepository,
-  log: app.log,
-});
+// A validação externa simulada da Saga roda à parte: veja src/validator.ts (serviço identity-validator).
 
 async function shutdown(signal: string) {
   app.log.info({ signal }, "shutdown");
-  await Promise.all([historyConsumer.close(), validationConsumer.close(), validationOutbox.close()]);
+  await historyConsumer.close();
   await app.close();
   process.exit(0);
 }

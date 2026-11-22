@@ -229,6 +229,7 @@ def container():
             "MESSAGING_ENABLED": "false",
             "LOG_FORMAT": "text",
             "PORTRAIT_MAX_BYTES": "2048",
+            "ENABLE_INTERNAL_ENDPOINTS": "true",
         }
     )
     container = build_container(settings)

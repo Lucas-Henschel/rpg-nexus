@@ -66,28 +66,6 @@ public class DynamoStore implements CatalogPort, CommercePort, OutboxPort {
     public boolean conditionalFailure(Exception e) {
         return e instanceof ConditionalCheckFailedException || e instanceof TransactionCanceledException;
     }
-    @Override public void saveItem(String itemId, String name) {
-        db.putItem(r -> r.tableName(table("items")).item(Map.of("id",s(itemId),"name",s(name))));
-    }
-    @Override public List<Item> listItems() {
-        return scan("items",null,Map.of()).stream()
-            .map(row -> new Item(str(row,"id"),str(row,"name"))).toList();
-    }
-    @Override public List<Stock> listStocks(String campaignId) {
-        return scan("stocks","campaignId = :campaign",Map.of(":campaign",s(campaignId))).stream()
-            .map(row -> new Stock(campaignId,str(row,"itemId"),num(row,"available"))).toList();
-    }
-    @Override public CreateStock createStock(String campaignId, String itemId, int available) {
-        if(get("items",itemId).isEmpty()) return CreateStock.ITEM_NOT_FOUND;
-        var row=Map.of("id",s(campaignId+"#"+itemId),"campaignId",s(campaignId),
-            "itemId",s(itemId),"available",n(available));
-        try { put("stocks",row,"attribute_not_exists(id)"); return CreateStock.CREATED; }
-        catch(ConditionalCheckFailedException e) { return CreateStock.ALREADY_EXISTS; }
-    }
-    @Override public Stock findStock(String campaignId, String itemId) {
-        var row=get("stocks",campaignId+"#"+itemId);
-        return row.isEmpty()?null:new Stock(campaignId,itemId,num(row,"available"));
-    }
     @Override public List<InventoryEntry> findInventory(String characterId) {
         return scan("inventory","characterId = :c",Map.of(":c",s(characterId))).stream()
             .map(r -> new InventoryEntry(str(r,"id"),str(r,"campaignId"),str(r,"itemId"),num(r,"quantity"))).toList();
@@ -158,28 +136,62 @@ public class DynamoStore implements CatalogPort, CommercePort, OutboxPort {
     }
     @Override public Membership findMembership(String campaignId,String userId) {
         var row=get("campaign_members",campaignId+"#"+userId);
-        return row.isEmpty()?null:new Membership(campaignId,userId,str(row,"role"),optional(row,"characterId"));
+        if(row.isEmpty()) return null;
+        // Linhas antigas (antes do campo active) contam como participante ativo.
+        var active=row.get("active");
+        if(active!=null && Boolean.FALSE.equals(active.bool())) return null;
+        // character-chosen chegou antes do joined: ainda não é participante.
+        if(active==null && row.get("membershipAt")==null && row.get("characterAt")!=null) return null;
+        return new Membership(campaignId,userId,optional(row,"role"),optional(row,"characterId"));
     }
+    /**
+     * Cópia local dos participantes, feita só com os eventos do S1.
+     * Cada parte tem o seu instante: entrada/saída (membershipAt) e personagem (characterAt).
+     * Um evento mais antigo que o gravado é ignorado, então a ordem de chegada não importa.
+     */
     @Override public void projectCampaignEvent(String messageId,String type,String campaignId,String userId,
-                                                String role,String characterId) {
+                                                String role,String characterId,long occurredAtMillis) {
         var inbox=insert("inventory_inbox",Map.of("id",s(messageId),"type",s(type),
             "receivedAt",s(Instant.now().toString())));
         var key=Map.of("id",s(campaignId+"#"+userId));
-        TransactWriteItem projection;
-        if(type.equals("rpg.campaign.member-removed.v1")) {
-            projection=TransactWriteItem.builder().delete(Delete.builder().tableName(table("campaign_members"))
-                .key(key).build()).build();
-        } else {
-            var row=new HashMap<String,AttributeValue>();
-            row.put("id",key.get("id")); row.put("campaignId",s(campaignId)); row.put("userId",s(userId));
-            row.put("role",s(role)); row.put("characterId",s(characterId==null?"":characterId));
-            projection=TransactWriteItem.builder().put(Put.builder().tableName(table("campaign_members"))
-                .item(row).build()).build();
+        var values=new HashMap<String,AttributeValue>();
+        values.put(":campaign",s(campaignId)); values.put(":user",s(userId)); values.put(":at",n(occurredAtMillis));
+        var names=new HashMap<String,String>();
+        String update; String condition;
+        switch(type) {
+            case "rpg.campaign.created.v1","rpg.campaign.member.joined.v1" -> {
+                values.put(":role",s(role)); values.put(":on",AttributeValue.builder().bool(true).build());
+                names.put("#role","role");
+                update="SET campaignId=:campaign, userId=:user, #role=:role, active=:on, membershipAt=:at";
+                condition="attribute_not_exists(membershipAt) OR membershipAt <= :at";
+            }
+            case "rpg.campaign.member.removed.v1" -> {
+                values.put(":off",AttributeValue.builder().bool(false).build()); values.put(":none",s(""));
+                update="SET campaignId=:campaign, userId=:user, active=:off, membershipAt=:at, characterId=:none, characterAt=:at";
+                condition="attribute_not_exists(membershipAt) OR membershipAt <= :at";
+            }
+            case "rpg.campaign.member.character-chosen.v1" -> {
+                values.put(":character",s(characterId==null?"":characterId));
+                update="SET campaignId=:campaign, userId=:user, characterId=:character, characterAt=:at";
+                condition="(attribute_not_exists(characterAt) OR characterAt <= :at)"
+                    +" AND (attribute_not_exists(membershipAt) OR membershipAt <= :at OR active = :on)";
+                values.put(":on",AttributeValue.builder().bool(true).build());
+            }
+            default -> throw new IllegalArgumentException("unsupported campaign event "+type);
         }
+        var builder=Update.builder().tableName(table("campaign_members")).key(key)
+            .updateExpression(update).conditionExpression(condition).expressionAttributeValues(values);
+        if(!names.isEmpty()) builder.expressionAttributeNames(names);
+        var projection=TransactWriteItem.builder().update(builder.build()).build();
         try { transact(List.of(inbox,projection)); }
         catch(TransactionCanceledException e) {
-            if(!get("inventory_inbox",messageId).isEmpty()) return;
-            throw e;
+            if(!get("inventory_inbox",messageId).isEmpty()) return; // reentrega: já aplicado
+            var reasons=e.cancellationReasons();
+            boolean stale=reasons!=null && reasons.size()>1 && "ConditionalCheckFailed".equals(reasons.get(1).code());
+            if(!stale) throw e;
+            // Evento mais antigo que o gravado: registra na inbox e não muda a cópia.
+            try { transact(List.of(inbox)); }
+            catch(TransactionCanceledException duplicate) { if(get("inventory_inbox",messageId).isEmpty()) throw duplicate; }
         }
     }
     @Override public List<PendingEvent> pendingEvents() {

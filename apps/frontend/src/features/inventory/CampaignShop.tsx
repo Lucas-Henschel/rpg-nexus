@@ -6,6 +6,7 @@ import { useAcquisition, useInventoryActions, useShop } from "./queries";
 import type { ShopItem } from "./api";
 
 const PURCHASE_STATUS: Record<string, string> = {
+  VALIDATING_CHARACTER: "Conferindo o personagem e a mochila", VALIDATING_EXTERNAL: "Validando a compra",
   WAITING_MONEY: "Aguardando pagamento", COMPLETED: "Item entregue",
   COMPENSATED: "Compra cancelada", REJECTED: "Compra recusada", EXPIRED: "Prazo encerrado",
 };

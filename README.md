@@ -31,7 +31,7 @@ para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
 | Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns`, `campaigns-worker` |
 | Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters`, `characters-worker` |
 | Inventário (S3, Java) | [`services/inventory`](services/inventory/README.md) | `inventory` |
-| Identidade (S4, Node.js) | [`services/identity`](services/identity/README.md) | `identity` |
+| Identidade (S4, Node.js) | [`services/identity`](services/identity/README.md) | `identity`, `identity-validator` |
 | Front-end (React + Vite) | [`apps/frontend`](apps/frontend/README.md) | `frontend` |
 
 ## Pré-requisitos

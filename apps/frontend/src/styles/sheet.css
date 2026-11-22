@@ -560,6 +560,7 @@ input.stat-box__value:focus {
 .money { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.8rem; }
 .money__balance { margin-right: auto; color: var(--nanquim-suave); }
 .money__balance strong { color: var(--nanquim); font-family: var(--fonte-titulo); font-size: 1.55rem; }
+.money__hint { display: block; width: 100%; color: var(--nanquim-suave); font-size: 0.8rem; }
 
 /* "Salvar como modelo" */
 .sheet__edit-action { gap: 0.6rem; flex-wrap: wrap; }

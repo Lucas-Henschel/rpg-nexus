@@ -18,6 +18,7 @@ public interface CommercePort {
                           long price, long available);
     boolean removeShopItem(String campaignId, String itemId);
     Membership findMembership(String campaignId, String userId);
+    /** Grava um evento do S1 na cópia local; eventos mais antigos que o já gravado são ignorados. */
     void projectCampaignEvent(String messageId, String type, String campaignId, String userId,
-                              String role, String characterId);
+                              String role, String characterId, long occurredAtMillis);
 }

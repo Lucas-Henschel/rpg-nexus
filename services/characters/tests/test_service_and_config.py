@@ -178,3 +178,9 @@ def test_atraso_simulado_do_consumidor_e_configuravel():
     assert Settings.from_env({"CONSUMER_SIMULATED_DELAY_MS": "250"}).consumer_simulated_delay_ms == 250
     with pytest.raises(ConfigError):
         Settings.from_env({"CONSUMER_SIMULATED_DELAY_MS": "-1"})
+
+
+def test_internal_endpoints_are_off_by_default():
+    # /internal/* não pede login; só liga quando ENABLE_INTERNAL_ENDPOINTS=true (Compose local).
+    assert Settings.from_env({}).enable_internal_endpoints is False
+    assert Settings.from_env({"ENABLE_INTERNAL_ENDPOINTS": "true"}).enable_internal_endpoints is True
