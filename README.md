@@ -13,6 +13,14 @@ emulados pelo MiniStack.
 | [S4 Identidade](services/identity/README.md) | TypeScript (Node.js) | Nicolle | Cadastro, login (JWT), histórico de ações e validador externo da compra |
 | [Front-end](apps/frontend/README.md) | React + Vite | Grupo | Telas de todos os serviços |
 
+## Tema e registro
+
+### Texto-base para registrar o RPG Nexus
+
+**Integrantes:** Lucas, Ana, Christian e Nicolle. **Serviços e linguagens:** S1 Campanhas em TypeScript/Node.js (Lucas); S2 Personagens em Python (Ana); S3 Inventário e Loja em Java (Christian); S4 Identidade em TypeScript/Node.js (Nicolle). **Infraestrutura:** MiniStack, que emula DynamoDB e S3 da AWS localmente, e RabbitMQ em contêiner.
+
+O RPG Nexus permite que grupos organizem campanhas de RPG, criem personagens e comprem itens em uma loja compartilhada. Na compra, o S3 reserva uma unidade do estoque e solicita ao S2 a validação do personagem e a reserva de espaço na mochila. Depois, o S4 encaminha a validação por meio do `identity-validator`, uma dependência simulada como lenta e instável, e o S2 realiza o débito do saldo. Quando uma etapa falha ou expira, a Saga do S3 libera o estoque; o S2 libera o espaço reservado na mochila e, se o débito já ocorreu, processa o estorno. Esse fluxo forma a **transação distribuída com compensação** entre S3, S2 e S4. A **dependência instável** é o `identity-validator`, cuja latência e taxa de falha são configuráveis. Ao concluir uma compra, o S3 publica o evento lógico `item.acquired` pela outbox; S1, S2 e S4 consomem esse evento para atualizar a atividade da campanha, confirmar a mochila e registrar o histórico, respectivamente, demonstrando um **evento com vários interessados**.
+
 ## Arquitetura
 
 ```mermaid
@@ -34,20 +42,20 @@ flowchart TB
     end
     subgraph S4["S4 Identidade · Node.js"]
         direction TB
-        A4["API"] --- D4[("DynamoDB")]
-        V4["Validador externo<br/>(lento e instável)"] --- D4
+        A4["API + consumidor de histórico"] --- D4[("DynamoDB · identidade e histórico")]
     end
+    V4["identity-validator<br/>contêiner separado · dependência lenta e instável"]
 
     MQ{{"RabbitMQ · exchange rpg.events"}}
 
     FE -- HTTP --> A1 & A2 & A3 & A4
+    A1 -- "HTTP · consulta de modelo" --> A2
     A1 & A2 & A3 & A4 & V4 <-.-> MQ
 ```
 
-Setas do front são chamadas HTTP; as pontilhadas são eventos passando pelo RabbitMQ. DynamoDB e S3 são os da AWS, emulados pelo MiniStack num único contêiner. Cada serviço só lê e
-escreve nas próprias tabelas; o que ele precisa saber dos outros chega por evento. Todo evento usa o mesmo envelope (`messageId`, `correlationId`, `type`, `version`,
+As setas sólidas representam chamadas HTTP: do front-end às APIs e a consulta que o S1 faz ao S2 para validar um modelo de ficha. As setas pontilhadas representam eventos pelo RabbitMQ. O validador externo usa o broker, mas não acessa o banco da Identidade. DynamoDB e S3 são os serviços da AWS emulados pelo MiniStack num único contêiner; cada microsserviço mantém suas próprias tabelas. A integração entre serviços acontece principalmente por eventos, com a consulta HTTP de modelo feita pelo S1 ao S2. Todo evento usa o mesmo envelope (`messageId`, `correlationId`, `type`, `version`,
 `occurredAt`, `payload`) e tem esquema em [`contracts/`](contracts/README.md). O Jaeger recebe os
-traces (OpenTelemetry) e não aparece no diagrama.
+traces (OpenTelemetry), mas foi omitido do diagrama de negócio.
 
 **Por que estas escolhas** (resumo; a justificativa completa vai na apresentação):
 
@@ -119,7 +127,7 @@ só o endereço no host; entre contêineres o MiniStack continua em `http://mini
 | R5 Dependência instável | [`validator.ts`](services/identity/src/validator.ts): `VALIDATION_FAILURE_RATE`, `VALIDATION_MIN_DELAY_MS`, `VALIDATION_MAX_DELAY_MS` |
 | R6 Reconexão | S1 [`connection.ts`](services/campaigns/src/messaging/connection.ts), S2 [`rabbitmq.py`](services/characters/app/messaging/rabbitmq.py), S3 Spring AMQP, S4 [`consumer.ts`](services/identity/src/messaging/consumer.ts) |
 | Retry e DLQ | Filas `.retry` e `.dlq` de cada consumidor em [`infra/rabbitmq`](infra/rabbitmq/README.md) |
-| Bônus: tracing | OpenTelemetry e Jaeger: [S1](services/campaigns/src/tracing), [S2](services/characters/app/tracing.py) |
+| Bônus: tracing | OpenTelemetry e Jaeger implementados em [S1](services/campaigns/src/tracing), [S2](services/characters/app/tracing.py) e [S3](services/inventory/src/main/java/br/furb/rpg/inventory/tracing); ainda falta instrumentar o S4 e o `identity-validator` para cobrir todos os serviços. |
 | Bônus: infraestrutura como código | [`infra/terraform`](infra/terraform/README.md) |
 | Bônus: autoescala | [`infra/autoscaler`](infra/autoscaler/README.md) |
 | Bônus: CQRS | Modelo de leitura do S2 em [`dynamodb_read_model.py`](services/characters/app/adapters/dynamodb_read_model.py) |
