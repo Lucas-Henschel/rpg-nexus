@@ -5,6 +5,7 @@ de seis dígitos, montam as fichas e compram itens. Trabalho final de Sistemas D
 quatro microsserviços em três linguagens, falando por eventos no RabbitMQ e usando DynamoDB e S3
 emulados pelo MiniStack.
 
+
 | Serviço | Linguagem | Responsável | O que faz |
 | --- | --- | --- | --- |
 | [S1 Campanhas](services/campaigns/README.md) | TypeScript (Node.js) | Lucas | Campanhas, participantes, código de entrada, modelo de ficha da campanha, atividade |
@@ -12,12 +13,6 @@ emulados pelo MiniStack.
 | [S3 Inventário e Loja](services/inventory/README.md) | Java | Christian | Loja da campanha, estoque, Saga de compra, inventário |
 | [S4 Identidade](services/identity/README.md) | TypeScript (Node.js) | Nicolle | Cadastro, login (JWT), histórico de ações e validador externo da compra |
 | [Front-end](apps/frontend/README.md) | React + Vite | Grupo | Telas de todos os serviços |
-
-## Tema e registro
-
-### Texto-base para registrar o RPG Nexus
-
-**Integrantes:** Lucas, Ana, Christian e Nicolle. **Serviços e linguagens:** S1 Campanhas em TypeScript/Node.js (Lucas); S2 Personagens em Python (Ana); S3 Inventário e Loja em Java (Christian); S4 Identidade em TypeScript/Node.js (Nicolle). **Infraestrutura:** MiniStack, que emula DynamoDB e S3 da AWS localmente, e RabbitMQ em contêiner.
 
 O RPG Nexus permite que grupos organizem campanhas de RPG, criem personagens e comprem itens em uma loja compartilhada. Na compra, o S3 reserva uma unidade do estoque e solicita ao S2 a validação do personagem e a reserva de espaço na mochila. Depois, o S4 encaminha a validação por meio do `identity-validator`, uma dependência simulada como lenta e instável, e o S2 realiza o débito do saldo. Quando uma etapa falha ou expira, a Saga do S3 libera o estoque; o S2 libera o espaço reservado na mochila e, se o débito já ocorreu, processa o estorno. Esse fluxo forma a **transação distribuída com compensação** entre S3, S2 e S4. A **dependência instável** é o `identity-validator`, cuja latência e taxa de falha são configuráveis. Ao concluir uma compra, o S3 publica o evento lógico `item.acquired` pela outbox; S1, S2 e S4 consomem esse evento para atualizar a atividade da campanha, confirmar a mochila e registrar o histórico, respectivamente, demonstrando um **evento com vários interessados**.
 
