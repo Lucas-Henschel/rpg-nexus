@@ -1,167 +1,137 @@
-# RPG — base do monorepo
+# RPG Nexus
 
-Ambiente local para o trabalho de sistemas distribuídos. A base contém RabbitMQ
-para mensageria, MiniStack para S3 e DynamoDB, inicialização idempotente do bucket
-S3 e contratos JSON Schema com envelope comum. Os serviços de negócio serão
-adicionados quando forem implementados.
+Plataforma para mesas de RPG: o mestre cria a campanha e a loja, os jogadores entram por um código
+de seis dígitos, montam as fichas e compram itens. Trabalho final de Sistemas Distribuídos (FURB):
+quatro microsserviços em três linguagens, falando por eventos no RabbitMQ e usando DynamoDB e S3
+emulados pelo MiniStack.
 
-## Estrutura
+| Serviço | Linguagem | Responsável | O que faz |
+| --- | --- | --- | --- |
+| [S1 Campanhas](services/campaigns/README.md) | TypeScript (Node.js) | Lucas | Campanhas, participantes, código de entrada, modelo de ficha da campanha, atividade |
+| [S2 Personagens](services/characters/README.md) | Python | Ana | Fichas, modelos, retratos no S3, mochila e saldo (débito e estorno) |
+| [S3 Inventário e Loja](services/inventory/README.md) | Java | Christian | Loja da campanha, estoque, Saga de compra, inventário |
+| [S4 Identidade](services/identity/README.md) | TypeScript (Node.js) | Nicolle | Cadastro, login (JWT), histórico de ações e validador externo da compra |
+| [Front-end](apps/frontend/README.md) | React + Vite | Grupo | Telas de todos os serviços |
 
-| Pasta | Conteúdo |
-| --- | --- |
-| `apps/` | Aplicações (front-end, clientes). |
-| `services/` | Serviços de back-end do sistema distribuído. |
-| `contracts/` | Contratos JSON Schema dos eventos trocados entre serviços. |
-| `infra/` | Configuração da infraestrutura local (RabbitMQ, MiniStack). |
+## Arquitetura
 
-Cada serviço fica em sua própria pasta dentro de `services/`, com `Dockerfile` e
-endpoint de health check, e é declarado no `docker-compose.yml`. Os projetos são
-independentes: cada um tem suas próprias dependências e lockfile (`package.json`,
-`pom.xml`, `requirements.txt`) e seu Dockerfile usa a própria pasta como contexto,
-podendo ser construído isoladamente com `docker build services/<serviço>`. As exceções
-são `services/characters`, `services/campaigns` e `services/inventory`, cujo build usa a raiz como contexto
-para copiar `contracts/` (e `infra/manifests/`, no caso do S2):
-`docker build -f services/<serviço>/Dockerfile .`.
+```mermaid
+flowchart LR
+    FE["Front-end<br/>React"]
 
-| Projeto | Pasta | Serviços no Compose |
-| --- | --- | --- |
-| Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns-init`, `campaigns` |
-| Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters-init`, `characters`, `characters-worker` |
-| Inventário e Loja (S3, Java) | [`services/inventory`](services/inventory/README.md) | `inventory-init`, `inventory` |
-| Campanhas (S1, Node.js) | [`services/campaigns`](services/campaigns/README.md) | `campaigns`, `campaigns-worker` |
-| Personagens (S2, Python) | [`services/characters`](services/characters/README.md) | `characters`, `characters-worker` |
-| Inventário (S3, Java) | [`services/inventory`](services/inventory/README.md) | `inventory` |
-| Identidade (S4, Node.js) | [`services/identity`](services/identity/README.md) | `identity`, `identity-validator` |
-| Front-end (React + Vite) | [`apps/frontend`](apps/frontend/README.md) | `frontend` |
+    subgraph servicos["Microsserviços"]
+        S1["S1 Campanhas<br/>Node.js"]
+        S2["S2 Personagens<br/>Python"]
+        S3["S3 Inventário e Loja<br/>Java"]
+        S4["S4 Identidade<br/>Node.js"]
+        V["Validador externo<br/>(instável, parte do S4)"]
+    end
 
-## Pré-requisitos
+    MQ{{"RabbitMQ<br/>exchange rpg.events"}}
 
-- Opcional: Node.js 24 LTS, apenas para desenvolver os projetos JavaScript fora do
-  Docker. Veja [Instalação do Node.js](docs/instalacao-node.md).
-- Opcional: dekit (mprocs), para ver os logs de cada serviço num painel separado. Veja
-  [Logs por serviço no terminal](docs/logs-por-servico.md).
-- Docker Engine ou Docker Desktop em execução, com Docker Compose v2.
-- Portas locais `5672`, `15672`, `4566`, `3001`, `3002`, `8000`, `8080` e `5173` livres, ou portas alternativas no `.env`.
+    subgraph nuvem["MiniStack (AWS emulada)"]
+        D1[("DynamoDB<br/>tabelas do S1")]
+        D2[("DynamoDB<br/>tabelas do S2")]
+        D3[("DynamoDB<br/>tabelas do S3")]
+        D4[("DynamoDB<br/>tabelas do S4")]
+        B[("S3<br/>retratos")]
+    end
 
-## Primeiro uso
+    FE -- HTTP --> S1 & S2 & S3 & S4
+    S1 & S2 & S3 & S4 & V <-- eventos --> MQ
+    S1 --- D1
+    S2 --- D2
+    S2 --- B
+    S3 --- D3
+    S4 --- D4
+    V --- D4
+```
 
-Após clonar o repositório, execute na raiz (o primeiro uso exige acesso à internet
-para baixar as dependências e as imagens Docker):
+Cada serviço só lê e escreve nas próprias tabelas; o que ele precisa saber dos outros chega por
+evento. Todo evento usa o mesmo envelope (`messageId`, `correlationId`, `type`, `version`,
+`occurredAt`, `payload`) e tem esquema em [`contracts/`](contracts/README.md). O Jaeger recebe os
+traces (OpenTelemetry) e não aparece no diagrama.
+
+**Por que estas escolhas** (resumo; a justificativa completa vai na apresentação):
+
+- **RabbitMQ:** filas de retry e DLQ por consumidor, várias filas ligadas ao mesmo evento e painel
+  para inspecionar mensagens, tudo num contêiner.
+- **DynamoDB:** transações (`TransactWriteItems`) para gravar efeito, inbox e outbox juntos, e
+  escrita condicional para não vender a mesma unidade duas vezes.
+- **S3:** retratos dos personagens, enviados direto pelo navegador com URL assinada.
+- **MiniStack:** as mesmas APIs da AWS rodando local, sem conta e sem custo.
+
+## Fluxo principal: compra na loja
+
+1. O jogador pede a compra no S3, que responde **202** com um `operationId` e reserva uma unidade do
+   estoque com escrita condicional.
+2. O S2 confere o personagem e reserva espaço na mochila (`character.validation.requested`).
+3. O validador externo, lento e com falhas configuráveis, aprova ou recusa
+   (`external.validation.requested`).
+4. O S2 debita o saldo do personagem (`money.debit.requested`).
+5. O S3 entrega o item e publica `item.acquired` e `shop.item.purchased`. **Vários interessados:**
+   o S1 conta o item na atividade da campanha, o S2 confirma a mochila e o S4 grava o histórico.
+6. **Compensação:** se um passo falha ou o prazo vence, a Saga devolve o estoque, publica
+   `acquisition.cancelled` (o S2 libera a mochila) e, se o débito já aconteceu, pede o estorno.
+
+## Como rodar
+
+Pré-requisito: Docker Desktop (ou Docker Engine) com Compose v2. Na raiz:
 
 ```sh
 cp .env.example .env
 docker compose up --build
 ```
 
-O arquivo `.env` não deve ser versionado. As credenciais de exemplo são fictícias
-e exclusivas deste ambiente local.
+O contêiner `terraform` cria toda a infraestrutura antes dos serviços: tabelas DynamoDB, bucket S3
+e exchange, filas e ligações do RabbitMQ. Rodar de novo não muda nada; um recurso apagado é
+recriado. Depois disso, abra o front-end em [localhost:5173](http://localhost:5173).
 
-**`docker compose up --build` é a entrada principal**, subindo
-a infraestrutura e todos os serviços declarados no Compose, com os logs anexados
-ao terminal. Depois que o MiniStack e o RabbitMQ ficam saudáveis, o contêiner
-`terraform` cria toda a infraestrutura e termina: as tabelas DynamoDB dos serviços,
-o bucket S3 com CORS e o exchange, as filas e as ligações de
-`infra/rabbitmq/definitions.json`. Rodar de novo não muda nada, e um recurso apagado
-é recriado no próximo `up`. Os serviços só sobem depois que ele termina com sucesso;
-se ele falhar, o `docker compose up` falha. Detalhes em
-[`infra/terraform/README.md`](infra/terraform/README.md).
-
-Com a pilha no ar, abra o
-front-end em [localhost:5173](http://localhost:5173).
-
-### Logs separados por serviço
-
-`docker compose up` mistura os logs de todos os contêineres, com o nome do serviço como
-prefixo. Para ver cada serviço no seu próprio painel, suba a pilha em segundo plano e abra
-o mprocs com o `mprocs.yaml` da raiz:
-
-```sh
-docker compose up --build --detach --wait
-dekit mprocs
-```
-
-A instalação no Windows, Linux e macOS, as teclas e como incluir um serviço novo estão em
-[Logs por serviço no terminal](docs/logs-por-servico.md). Sem instalar nada, também dá para
-usar `docker compose logs -f <serviço>` (um terminal por serviço) ou a aba de logs de cada
-contêiner no Docker Desktop.
-
-## Comandos
-
-| Comando | Comportamento |
-| --- | --- |
-| `docker compose up --build` | Sobe a pilha completa e acompanha os logs no terminal. |
-| `docker compose up --build --detach --wait` | Sobe a pilha em segundo plano e aguarda saúde e inicialização. |
-| `docker compose up --build <serviço>` | Sobe um serviço e suas dependências. |
-| `docker compose logs -f [serviço]` | Acompanha os logs de todos os serviços ou de um. |
-| `docker compose down` | Encerra a pilha, preservando os volumes. |
-| `docker compose down --volumes` | **Destrutivo:** encerra a pilha e remove os volumes (mensagens, objetos S3, dados DynamoDB). |
-
-### Serviços opcionais (perfis)
-
-Um serviço só sobe quando o perfil é pedido e não muda o `docker compose up` padrão:
-
-| Perfil | Serviço | O que faz | Detalhes |
-| --- | --- | --- | --- |
-| `autoscale` | `autoscaler` | Ajusta as réplicas de `characters-worker` pelo tamanho da fila. | [infra/autoscaler](infra/autoscaler/README.md) |
-
-## Higiene Git e reprodução
-
-Cada projeto versiona seu próprio lockfile (ex.: `package-lock.json`, instalado
-com `npm ci`). `.env.example` é versionado; `.env`, suas variantes locais,
-`node_modules/` e os diretórios locais `data/` e `.local/` são ignorados.
-Os dados da pilha ficam nos volumes nomeados do Docker, fora da árvore Git.
-
-Para validar a configuração de referência, execute
-`docker compose --env-file .env.example config --quiet`. As imagens RabbitMQ e
-MiniStack usam tags móveis; os lockfiles fixam as dependências dos projetos, mas
-não congelam as imagens Docker.
-
-## Endpoints e variáveis
-
-As portas publicadas ficam restritas a `127.0.0.1`. Os nomes de serviço são
-resolvidos entre contêineres na rede Compose, e não no host.
-
-| Recurso | No host (defaults) | Entre contêineres Compose |
+| O quê | No host | Entre contêineres |
 | --- | --- | --- |
-| RabbitMQ AMQP | `amqp://localhost:5672` | `amqp://rabbitmq:5672` |
-| RabbitMQ Management | [localhost:15672](http://localhost:15672) | `http://rabbitmq:15672` |
-| MiniStack S3 / DynamoDB | `http://localhost:4566` | `http://ministack:4566` |
-| Campanhas (API) | [localhost:3001/campaigns](http://localhost:3001/campaigns) | `http://campaigns:3001` |
-| Identidade (API) | [localhost:3002/health](http://localhost:3002/health) | `http://identity:3002` |
-| Personagens (API) | [localhost:8000/docs](http://localhost:8000/docs) | `http://characters:8000` |
-| Inventário e Loja (API) | [localhost:8080/health](http://localhost:8080/health) | `http://inventory:8080` |
-| Inventário (API) | [localhost:8080](http://localhost:8080) | `http://inventory:8080` |
 | Front-end | [localhost:5173](http://localhost:5173) | — |
+| S1 Campanhas | [localhost:3001](http://localhost:3001/health) | `http://campaigns:3001` |
+| S4 Identidade | [localhost:3002](http://localhost:3002/health) | `http://identity:3002` |
+| S2 Personagens | [localhost:8000/docs](http://localhost:8000/docs) | `http://characters:8000` |
+| S3 Inventário e Loja | [localhost:8080](http://localhost:8080/health) | `http://inventory:8080` |
+| RabbitMQ (painel, `dev`/`dev`) | [localhost:15672](http://localhost:15672) | `amqp://rabbitmq:5672` |
+| MiniStack (DynamoDB e S3) | `http://localhost:4566` | `http://ministack:4566` |
 | Jaeger (traces) | [localhost:16686](http://localhost:16686) | OTLP/HTTP em `http://jaeger:4318` |
 
-| Variável em `.env` | Default | Uso |
-| --- | --- | --- |
-| `RABBITMQ_USER` | `dev` | Usuário inicial do RabbitMQ. |
-| `RABBITMQ_PASSWORD` | `dev` | Senha fictícia do RabbitMQ. |
-| `RABBITMQ_PORT` | `5672` | Porta AMQP publicada no host. |
-| `RABBITMQ_MANAGEMENT_PORT` | `15672` | Porta do painel e API de saúde no host. |
-| `MINISTACK_PORT` | `4566` | Porta S3/DynamoDB publicada no host. |
-| `AWS_ENDPOINT_URL` | `http://ministack:4566` | Endpoint interno usado pelo inicializador Compose. |
-| `AWS_REGION` | `us-east-1` | Região usada na inicialização. |
-| `AWS_ACCESS_KEY_ID` | `test` | Chave fictícia para o MiniStack. |
-| `AWS_SECRET_ACCESS_KEY` | `test` | Segredo fictício para o MiniStack. |
-| `RPG_ASSETS_BUCKET` | `rpg-assets` | Bucket criado pelo inicializador e usado pelo serviço de Personagens. |
-| `CAMPAIGNS_PORT` | `3001` | Porta da API de Campanhas no host; também é o endereço gravado no build do front-end. |
-| `IDENTITY_PORT` | `3002` | Porta da API de cadastro e autenticação no host. |
-| `CHARACTERS_PORT` | `8000` | Porta da API de Personagens no host; também é o endereço gravado no build do front-end. |
-| `INVENTORY_PORT` | `8080` | Porta da API de Inventário e Loja no host; também é o endereço gravado no build do front-end. |
-| `INVENTORY_PORT` | `8080` | Porta da API de Inventário no host; também é o endereço gravado no build do front-end. |
-| `JWT_SECRET` | segredo local fictício | Assina os tokens do S4; deve ser substituído e protegido fora do ambiente local. |
-| `TRACING_ENABLED` | `true` | Liga o envio de spans ao Jaeger nos serviços. |
-| `JAEGER_UI_PORT` | `16686` | Porta da interface do Jaeger no host. |
-| `OTLP_HTTP_PORT` | `4318` | Porta OTLP/HTTP do Jaeger no host, para serviços rodando fora do Docker. |
-| `FRONTEND_PORT` | `5173` | Porta do front-end no host; também é a origem liberada no CORS de Campanhas, de Personagens e do bucket. |
+| Comando | Efeito |
+| --- | --- |
+| `docker compose up --build --detach --wait` | Sobe tudo em segundo plano e espera ficar saudável. |
+| `docker compose logs -f <serviço>` | Logs de um serviço ([um painel por serviço](docs/logs-por-servico.md)). |
+| `docker compose up -d --scale characters-worker=3` | Três réplicas do consumidor do S2. |
+| `docker compose --profile autoscale up -d` | Liga a [autoescala](infra/autoscaler/README.md) do consumidor do S2. |
+| `docker compose down` | Para tudo e mantém os dados. |
+| `docker compose down --volumes` | **Apaga os dados** (filas, tabelas, arquivos) e para tudo. |
 
-Mudar uma porta publicada altera somente o endereço no host. A porta interna do
-MiniStack continua `4566`, portanto mantenha `AWS_ENDPOINT_URL=http://ministack:4566`
-para o Compose. Clientes executados no host usam `http://localhost:4566`, ajustando
-a porta se necessário. As credenciais iniciais do RabbitMQ são criadas com o volume
-vazio; mudar `.env` não altera usuários já persistidos.
+Endpoints, credenciais, portas e nomes de filas vêm de variáveis de ambiente, comentadas em
+[`.env.example`](.env.example) e no `.env.example` de cada serviço. Mudar uma porta no `.env` muda
+só o endereço no host; entre contêineres o MiniStack continua em `http://ministack:4566`.
 
-Os detalhes ficam em [contratos](contracts/README.md),
-[RabbitMQ](infra/rabbitmq/README.md) e [MiniStack](infra/ministack/README.md).
+## Onde está cada requisito
+
+| Requisito | Onde |
+| --- | --- |
+| R1 At-least-once com idempotência | Inbox gravada na mesma transação do efeito: S1 [`repositories/`](services/campaigns/src/repositories), S2 [`dynamodb_store.py`](services/characters/app/adapters/dynamodb_store.py), S3 [`DynamoSagaRepository.java`](services/inventory/src/main/java/br/furb/rpg/inventory/adapters/dynamodb/DynamoSagaRepository.java), S4 [`repositories/`](services/identity/src/repositories) |
+| R2 Controle de concorrência | Reserva de estoque com escrita condicional em [`DynamoSagaRepository.java`](services/inventory/src/main/java/br/furb/rpg/inventory/adapters/dynamodb/DynamoSagaRepository.java) |
+| R3 API assíncrona | `POST /acquisitions` responde 202; `GET /acquisitions/{id}` mostra o andamento ([`InventoryApi.java`](services/inventory/src/main/java/br/furb/rpg/inventory/api/InventoryApi.java)) |
+| R4 Consumidores concorrentes | `characters-worker` e `campaigns-worker` no [`docker-compose.yml`](docker-compose.yml) |
+| R5 Dependência instável | [`validator.ts`](services/identity/src/validator.ts): `VALIDATION_FAILURE_RATE`, `VALIDATION_MIN_DELAY_MS`, `VALIDATION_MAX_DELAY_MS` |
+| R6 Reconexão | S1 [`connection.ts`](services/campaigns/src/messaging/connection.ts), S2 [`rabbitmq.py`](services/characters/app/messaging/rabbitmq.py), S3 Spring AMQP, S4 [`consumer.ts`](services/identity/src/messaging/consumer.ts) |
+| Retry e DLQ | Filas `.retry` e `.dlq` de cada consumidor em [`infra/rabbitmq`](infra/rabbitmq/README.md) |
+| Bônus: tracing | OpenTelemetry e Jaeger: [S1](services/campaigns/src/tracing), [S2](services/characters/app/tracing.py) |
+| Bônus: infraestrutura como código | [`infra/terraform`](infra/terraform/README.md) |
+| Bônus: autoescala | [`infra/autoscaler`](infra/autoscaler/README.md) |
+| Bônus: CQRS | Modelo de leitura do S2 em [`dynamodb_read_model.py`](services/characters/app/adapters/dynamodb_read_model.py) |
+| Bônus: versionamento de eventos | `CharacterValidationRequested` v1 e v2 em [`contracts/events`](contracts/events) e [`events.py`](services/characters/app/messaging/events.py) |
+
+## Documentação
+
+- [Contratos dos eventos](contracts/README.md): envelope, tipos, quem publica e quem consome.
+- Infraestrutura: [Terraform](infra/terraform/README.md), [RabbitMQ](infra/rabbitmq/README.md),
+  [MiniStack](infra/ministack/README.md), [autoescala](infra/autoscaler/README.md).
+- [Instalar o Node.js](docs/instalacao-node.md), só para desenvolver fora do Docker.
+- [Logs por serviço no terminal](docs/logs-por-servico.md).
