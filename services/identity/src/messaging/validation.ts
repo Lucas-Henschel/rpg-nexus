@@ -11,6 +11,7 @@ import type { ValidationRepository } from "../repositories/validation-repository
 import { PoisonMessage } from "./events.js";
 import type { Outcome } from "./handle-delivery.js";
 import { decideRetry, readRetryCount, type RetryPolicy } from "./retry.js";
+import { traceHeaders } from "../tracing/spans.js";
 
 interface Envelope {
   messageId: string;
@@ -124,7 +125,7 @@ export async function handleValidationDelivery(
   await sleep(delay);
   const response = createValidationResponse(request, (deps.now ?? (() => new Date()))(), deps.failureRate, random);
   try {
-    const result = await deps.repository.record(request, response);
+    const result = await deps.repository.record(request, response, traceHeaders());
     return { kind: "ack", campaignId: request.campaignId, result };
   } catch (error) {
     const reason = error instanceof Error ? error.message || error.name : String(error);

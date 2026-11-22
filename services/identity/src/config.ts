@@ -2,6 +2,8 @@ import { z } from "zod";
 
 const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3002),
+  TRACING_ENABLED: z.stringbool().default(false),
+  SERVICE_NAME: z.string().default("identity"),
   CORS_ORIGINS: z
     .string()
     .default("http://localhost:5173,http://127.0.0.1:5173")

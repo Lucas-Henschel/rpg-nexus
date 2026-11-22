@@ -16,6 +16,7 @@ export function createValidationRepository(db: Db, inboxTtlDays: number) {
     async record(
       request: ExternalValidationRequest,
       response: ExternalValidationResponse,
+      traceContext: Record<string, string> = {},
     ): Promise<"applied" | "duplicate"> {
       const expiresAt = Math.floor(Date.now() / 1000) + inboxTtlDays * 24 * 60 * 60;
       const routingKey = response.type === "rpg.external.validation-succeeded.v1"
@@ -39,6 +40,7 @@ export function createValidationRepository(db: Db, inboxTtlDays: number) {
                   requestMessageId: request.messageId,
                   routingKey,
                   envelope: response,
+                  traceContext,
                   status: "PENDING",
                   createdAt: response.occurredAt,
                 },
@@ -78,6 +80,7 @@ export function createValidationRepository(db: Db, inboxTtlDays: number) {
         messageId: item.messageId as string,
         routingKey: item.routingKey as PendingValidationResponse["routingKey"],
         envelope: item.envelope as ExternalValidationResponse,
+        traceContext: (item.traceContext as Record<string, string> | undefined) ?? {},
       }));
     },
 

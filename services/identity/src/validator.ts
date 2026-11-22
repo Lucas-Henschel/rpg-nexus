@@ -11,8 +11,10 @@ import { startConsumer } from "./messaging/consumer.js";
 import { createValidationRequestParser, handleValidationDelivery } from "./messaging/validation.js";
 import { startValidationOutbox } from "./messaging/validation-outbox.js";
 import { createValidationRepository } from "./repositories/validation-repository.js";
+import { startTracing, stopTracing } from "./tracing/setup.js";
 
 const env = loadEnv();
+if (env.TRACING_ENABLED) startTracing(env.SERVICE_NAME);
 const db = createDb(env);
 const repository = createValidationRepository(db, env.HISTORY_INBOX_TTL_DAYS);
 const parser = createValidationRequestParser(resolve(env.CONTRACTS_DIR));
@@ -54,6 +56,7 @@ async function shutdown(signal: string) {
   app.log.info({ signal }, "shutdown");
   await Promise.all([consumer.close(), outbox.close()]);
   await app.close();
+  await stopTracing();
   process.exit(0);
 }
 
