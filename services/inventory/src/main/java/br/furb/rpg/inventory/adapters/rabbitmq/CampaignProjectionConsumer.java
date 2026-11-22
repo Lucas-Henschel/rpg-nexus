@@ -19,8 +19,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 class CampaignProjectionConsumer {
-    static final String QUEUE="inventory.campaign-members.v1";
-    static final String RETRY_QUEUE=QUEUE+".retry";
     private static final Set<String> TYPES=Set.of("rpg.campaign.created.v1","rpg.campaign.member.joined.v1",
         "rpg.campaign.member.removed.v1","rpg.campaign.member.character-chosen.v1");
     private final CommercePort commerce;
@@ -28,14 +26,17 @@ class CampaignProjectionConsumer {
     private final RabbitTemplate rabbit;
     private final int maxRetries;
     private final long retryBaseDelayMs;
+    private final String retryQueue;
     CampaignProjectionConsumer(CommercePort commerce,ObjectMapper json,RabbitTemplate rabbit,
                                @Value("${inventory.max-retries}") int maxRetries,
-                               @Value("${inventory.retry-base-delay-ms}") long retryBaseDelayMs) {
+                               @Value("${inventory.retry-base-delay-ms}") long retryBaseDelayMs,
+                               @Value("${inventory.members-retry-queue}") String retryQueue) {
         this.commerce=commerce;this.json=json;this.rabbit=rabbit;
-        this.maxRetries=maxRetries;this.retryBaseDelayMs=retryBaseDelayMs;
+        this.maxRetries=maxRetries;this.retryBaseDelayMs=retryBaseDelayMs;this.retryQueue=retryQueue;
     }
 
-    @RabbitListener(queues=QUEUE)
+    /** Fila e fila de retry vêm do ambiente: RABBITMQ_MEMBERS_QUEUE e RABBITMQ_MEMBERS_RETRY_QUEUE. */
+    @RabbitListener(queues="${inventory.members-queue}")
     void consume(Message message,Channel channel) throws Exception {
         long tag=message.getMessageProperties().getDeliveryTag();
         try {
@@ -64,7 +65,7 @@ class CampaignProjectionConsumer {
             try {
                 Message copy=MessageBuilder.fromMessage(message).setHeader("x-inventory-attempt",attempt)
                     .setExpiration(delay).setDeliveryMode(MessageDeliveryMode.PERSISTENT).build();
-                rabbit.invoke(ops -> { ops.send("",RETRY_QUEUE,copy);ops.waitForConfirmsOrDie(5000);return null; });
+                rabbit.invoke(ops -> { ops.send("",retryQueue,copy);ops.waitForConfirmsOrDie(5000);return null; });
                 channel.basicAck(tag,false);
             } catch(Exception publishFailure) { channel.basicNack(tag,false,true); }
         }
