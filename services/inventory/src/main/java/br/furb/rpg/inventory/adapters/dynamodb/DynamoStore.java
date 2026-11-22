@@ -196,7 +196,7 @@ public class DynamoStore implements CatalogPort, CommercePort, OutboxPort {
     }
     @Override public List<PendingEvent> pendingEvents() {
         return scan("inventory_outbox","#st = :pending",Map.of(":pending",s("PENDING"))).stream()
-            .map(r -> new PendingEvent(str(r,"id"),str(r,"route"),str(r,"envelope"))).toList();
+            .map(r -> new PendingEvent(str(r,"id"),str(r,"route"),str(r,"envelope"),optional(r,"traceparent"))).toList();
     }
     @Override public void markPublished(String id) {
         db.updateItem(r -> r.tableName(table("inventory_outbox"))

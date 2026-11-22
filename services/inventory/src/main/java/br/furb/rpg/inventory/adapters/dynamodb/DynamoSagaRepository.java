@@ -4,6 +4,7 @@ import br.furb.rpg.inventory.domain.Acquisition;
 import br.furb.rpg.inventory.domain.SagaTransition;
 import br.furb.rpg.inventory.domain.ValidationResult;
 import br.furb.rpg.inventory.ports.SagaPort.StartResult;
+import br.furb.rpg.inventory.tracing.TraceContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.*;
@@ -41,8 +42,14 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
     TransactWriteItem event(String operationId, String type, String route, Map<String,Object> payload) {
         var envelope=Map.of("messageId",UUID.randomUUID().toString(),"correlationId",operationId,
             "type",type,"version",1,"occurredAt",Instant.now().toString(),"payload",payload);
-        return store.insert("inventory_outbox",Map.of("id",DynamoStore.s(UUID.randomUUID().toString()),
-            "status",DynamoStore.s("PENDING"),"route",DynamoStore.s(route),"envelope",DynamoStore.s(encode(envelope))));
+        var item=new HashMap<String,AttributeValue>();
+        item.put("id",DynamoStore.s(UUID.randomUUID().toString()));
+        item.put("status",DynamoStore.s("PENDING"));
+        item.put("route",DynamoStore.s(route));
+        item.put("envelope",DynamoStore.s(encode(envelope)));
+        var traceparent=TraceContext.currentTraceparent();
+        if(traceparent!=null) item.put("traceparent",DynamoStore.s(traceparent));
+        return store.insert("inventory_outbox",item);
     }
     @Override public StartResult start(String id,String campaign,String user,String character,String item) {
         var existing=store.get("acquisition_sagas",id);
