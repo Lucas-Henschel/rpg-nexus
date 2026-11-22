@@ -16,39 +16,36 @@ emulados pelo MiniStack.
 ## Arquitetura
 
 ```mermaid
-flowchart LR
-    FE["Front-end<br/>React"]
+flowchart TB
+    FE["Front-end · React"]
 
-    subgraph servicos["Microsserviços"]
-        S1["S1 Campanhas<br/>Node.js"]
-        S2["S2 Personagens<br/>Python"]
-        S3["S3 Inventário e Loja<br/>Java"]
-        S4["S4 Identidade<br/>Node.js"]
-        V["Validador externo<br/>(instável, parte do S4)"]
+    subgraph S1["S1 Campanhas · Node.js"]
+        direction TB
+        A1["API + worker"] --- D1[("DynamoDB")]
+    end
+    subgraph S2["S2 Personagens · Python"]
+        direction TB
+        A2["API + worker"] --- D2[("DynamoDB")]
+        A2 --- B2[("S3 · retratos")]
+    end
+    subgraph S3["S3 Inventário e Loja · Java"]
+        direction TB
+        A3["API + Saga"] --- D3[("DynamoDB")]
+    end
+    subgraph S4["S4 Identidade · Node.js"]
+        direction TB
+        A4["API"] --- D4[("DynamoDB")]
+        V4["Validador externo<br/>(lento e instável)"] --- D4
     end
 
-    MQ{{"RabbitMQ<br/>exchange rpg.events"}}
+    MQ{{"RabbitMQ · exchange rpg.events"}}
 
-    subgraph nuvem["MiniStack (AWS emulada)"]
-        D1[("DynamoDB<br/>tabelas do S1")]
-        D2[("DynamoDB<br/>tabelas do S2")]
-        D3[("DynamoDB<br/>tabelas do S3")]
-        D4[("DynamoDB<br/>tabelas do S4")]
-        B[("S3<br/>retratos")]
-    end
-
-    FE -- HTTP --> S1 & S2 & S3 & S4
-    S1 & S2 & S3 & S4 & V <-- eventos --> MQ
-    S1 --- D1
-    S2 --- D2
-    S2 --- B
-    S3 --- D3
-    S4 --- D4
-    V --- D4
+    FE -- HTTP --> A1 & A2 & A3 & A4
+    A1 & A2 & A3 & A4 & V4 <-.-> MQ
 ```
 
-Cada serviço só lê e escreve nas próprias tabelas; o que ele precisa saber dos outros chega por
-evento. Todo evento usa o mesmo envelope (`messageId`, `correlationId`, `type`, `version`,
+Setas do front são chamadas HTTP; as pontilhadas são eventos passando pelo RabbitMQ. DynamoDB e S3 são os da AWS, emulados pelo MiniStack num único contêiner. Cada serviço só lê e
+escreve nas próprias tabelas; o que ele precisa saber dos outros chega por evento. Todo evento usa o mesmo envelope (`messageId`, `correlationId`, `type`, `version`,
 `occurredAt`, `payload`) e tem esquema em [`contracts/`](contracts/README.md). O Jaeger recebe os
 traces (OpenTelemetry) e não aparece no diagrama.
 
