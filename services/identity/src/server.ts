@@ -14,8 +14,10 @@ import { createTokenService } from "./security/tokens.js";
 import { createIdentityService } from "./services/identity.js";
 import { createHistoryService } from "./services/history.js";
 import { createAuditRepository } from "./repositories/audit-repository.js";
+import { startTracing, stopTracing } from "./tracing/setup.js";
 
 const env = loadEnv();
+if (env.TRACING_ENABLED) startTracing(env.SERVICE_NAME);
 const db = createDb(env);
 const identity = createIdentityService({
   env,
@@ -63,6 +65,7 @@ async function shutdown(signal: string) {
   app.log.info({ signal }, "shutdown");
   await historyConsumer.close();
   await app.close();
+  await stopTracing();
   process.exit(0);
 }
 

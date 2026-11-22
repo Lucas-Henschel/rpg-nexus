@@ -33,4 +33,5 @@ export interface PendingValidationResponse {
   messageId: string;
   routingKey: "external.validation.succeeded.v1" | "external.validation.failed.v1";
   envelope: ExternalValidationResponse;
+  traceContext?: Record<string, string>;
 }

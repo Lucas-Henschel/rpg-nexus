@@ -62,6 +62,7 @@ x-identity: &identity
     CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
     JWT_SECRET: ${JWT_SECRET:-dev-only-change-this-jwt-secret-32-characters}
     CONTRACTS_DIR: /app/contracts
+    SERVICE_NAME: identity
   networks:
     - rpg
 
@@ -292,6 +293,7 @@ services:
     environment:
       <<: *backend-env
       CONTRACTS_DIR: /app/contracts
+      SERVICE_NAME: identity-validator
       PORT: 3003
       VALIDATION_MIN_DELAY_MS: ${VALIDATION_MIN_DELAY_MS:-100}
       VALIDATION_MAX_DELAY_MS: ${VALIDATION_MAX_DELAY_MS:-500}
