@@ -14,6 +14,8 @@ procs:
     cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "characters"]
   identity:
     cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "identity"]
+  identity-validator:
+    cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "identity-validator"]
   frontend:
     cmd: ["docker", "compose", "logs", "--follow", "--no-log-prefix", "--tail", "200", "frontend"]
   rabbitmq:

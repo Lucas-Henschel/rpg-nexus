@@ -9,6 +9,8 @@
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-amqp</artifactId></dependency>
     <dependency><groupId>software.amazon.awssdk</groupId><artifactId>dynamodb</artifactId><version>${aws.version}</version></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
+    <!-- DynamoDB em memória para os testes da Saga e da cópia de participantes (sem Docker). -->
+    <dependency><groupId>software.amazon.dynamodb</groupId><artifactId>DynamoDBLocal</artifactId><version>3.3.2</version><scope>test</scope></dependency>
   </dependencies>
   <build><plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin></plugins></build>
 </project>

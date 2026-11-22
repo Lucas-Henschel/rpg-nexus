@@ -53,8 +53,8 @@ faz o S2 devolver o espaço reservado na mochila.
 Os eventos de campanha usam `correlationId = campaignId` e saem da outbox do S1, gravados na mesma
 transação da mudança. Criar uma campanha publica `CampaignCreated` e também `CampaignMemberJoined`
 do dono (`role = OWNER`), então quem projeta participantes só precisa tratar entrada e saída. Entrar
-de novo quem já participa não gera evento. A fila `inventory.campaign-members.v1` é para a projeção
-de participantes do S3: as mensagens ficam guardadas nela até o S3 começar a consumir.
+de novo quem já participa não gera evento. A fila `inventory.campaign-members.v1` alimenta a cópia
+local de participantes do S3, que é o que autoriza a loja e as compras.
 
 `CampaignTemplateAssigned` diz qual modelo de ficha do S2 (id e versão fixa) os jogadores da
 campanha usam. O S2 guarda essa definição e libera o modelo, só nessa versão, para os participantes

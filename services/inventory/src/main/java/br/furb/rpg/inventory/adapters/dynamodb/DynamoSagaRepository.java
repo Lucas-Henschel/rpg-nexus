@@ -53,7 +53,7 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
         var now=Instant.now();
         var row=new HashMap<String,AttributeValue>(Map.of("id",DynamoStore.s(id),"campaignId",DynamoStore.s(campaign),"userId",DynamoStore.s(user),
             "characterId",DynamoStore.s(character),"itemId",DynamoStore.s(item),"price",DynamoStore.n(shopItem.price()),
-            "status",DynamoStore.s("VALIDATING_EXTERNAL"),"version",DynamoStore.n(0),
+            "status",DynamoStore.s("VALIDATING_CHARACTER"),"version",DynamoStore.n(0),
             "deadlineAt",DynamoStore.s(now.plusSeconds(timeout).toString()),"createdAt",DynamoStore.s(now.toString())));
         row.put("itemName",DynamoStore.s(shopItem.name()));
         var stock=TransactWriteItem.builder().update(Update.builder().tableName(store.table("stocks"))
@@ -65,7 +65,7 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
             try {
                 store.transact(List.of(stock,store.insert("acquisition_sagas",row),
                     transition(row,"STARTED"),
-                    event(id,"rpg.external.validation-requested.v1","external.validation.requested.v1",validationPayload(row))));
+                    event(id,"rpg.character.validation-requested.v1","character.validation.requested.v1",validationPayload(row))));
                 return StartResult.STARTED;
             } catch(TransactionCanceledException e) {
                 existing=store.get("acquisition_sagas",id);
@@ -114,6 +114,7 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
         String id=result.operationId();
         String type=result.type();
         if(result.version()!=1 || messageId.isBlank() || id.isBlank() || !Set.of(
+            "rpg.character.validated.v1","rpg.character.rejected.v1",
             "rpg.external.validation-succeeded.v1","rpg.external.validation-failed.v1",
             "rpg.money.debited.v1","rpg.money.debit-rejected.v1","rpg.money.refunded.v1").contains(type))
             throw new IllegalArgumentException("invalid envelope");
@@ -133,9 +134,15 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
         var decision=SagaTransition.decide(map(row),type,Instant.now());
         switch(decision.effect()) {
             case RELEASE_STOCK -> compensate(row,decision.next().name(),false,
+                type.equals("rpg.character.rejected.v1") ? "CHARACTER_REJECTED" :
                 type.equals("rpg.external.validation-failed.v1") ?
                     ("DEADLINE_EXPIRED".equals(result.reason()) ? "DEADLINE_EXPIRED" : "EXTERNAL_VALIDATION_FAILED") :
                 type.equals("rpg.money.debit-rejected.v1") ? "PAYMENT_REJECTED" : "DEADLINE_EXPIRED", writes);
+            case REQUEST_EXTERNAL -> {
+                writes.add(store.updateSaga(row,decision.next().name(),Instant.parse(DynamoStore.str(row,"deadlineAt"))));
+                writes.add(transition(row,"VALIDATING_EXTERNAL"));
+                writes.add(event(id,"rpg.external.validation-requested.v1","external.validation.requested.v1",validationPayload(row)));
+            }
             case REQUEST_MONEY -> {
                 writes.add(store.updateSaga(row,decision.next().name(),Instant.parse(DynamoStore.str(row,"deadlineAt"))));
                 writes.add(transition(row,"WAITING_MONEY"));
@@ -188,7 +195,7 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
         catch(TransactionCanceledException e) { /* a concurrent result won the version check; next scan sees its state */ }
     }
     @Override public void expireDue() {
-        for(String status:List.of("VALIDATING_EXTERNAL","WAITING_MONEY")) {
+        for(String status:List.of("VALIDATING_CHARACTER","VALIDATING_EXTERNAL","WAITING_MONEY")) {
             for(var row:store.scan("acquisition_sagas","#st = :waiting",
                 Map.of(":waiting",DynamoStore.s(status)))) {
                 if(!Instant.parse(DynamoStore.str(row,"deadlineAt")).isAfter(Instant.now())) expire(row);

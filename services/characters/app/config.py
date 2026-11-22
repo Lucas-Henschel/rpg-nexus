@@ -98,7 +98,8 @@ class Settings:
     log_level: str = "INFO"
     log_format: str = "json"
     cors_origins: tuple[str, ...] = ("http://localhost:5173",)
-    enable_internal_endpoints: bool = True
+    #: Rotas /internal/* (inbox, outbox, rebuild do modelo de leitura) não pedem login: só em desenvolvimento.
+    enable_internal_endpoints: bool = False
 
     # Persistência
     store_backend: str = "dynamodb"  # dynamodb | memory
@@ -177,7 +178,7 @@ class Settings:
             log_level=e.choice("LOG_LEVEL", "INFO", {"debug", "info", "warning", "error"}).upper(),
             log_format=e.choice("LOG_FORMAT", "json", {"json", "text"}),
             cors_origins=e.csv("CORS_ORIGINS", ",".join(defaults.cors_origins)),
-            enable_internal_endpoints=e.bool("ENABLE_INTERNAL_ENDPOINTS", True),
+            enable_internal_endpoints=e.bool("ENABLE_INTERNAL_ENDPOINTS", False),
             store_backend=e.choice("STORE_BACKEND", "dynamodb", {"dynamodb", "memory"}),
             aws_region=e.str("AWS_REGION", e.str("AWS_DEFAULT_REGION", defaults.aws_region)),
             dynamodb_endpoint_url=e.opt("DYNAMODB_ENDPOINT_URL") or aws_endpoint,

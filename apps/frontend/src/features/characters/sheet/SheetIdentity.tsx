@@ -39,8 +39,9 @@ function MoneyPanel({ character }: { character: Character }) {
   return (
     <div className="money" aria-label="Dinheiro">
       <span className="money__balance">
-        <strong>{character.currency.amount}</strong> {character.currency.name}
+        Saldo: <strong>{character.currency.amount}</strong> {character.currency.name}
       </span>
+      <small className="money__hint">Muda só pelas compras na loja; o saldo inicial vem do modelo de ficha.</small>
     </div>
   );
 }
@@ -66,7 +67,7 @@ export function SheetIdentity({ character, draft, edit, readOnly = false }: {
         <label>Nível <input className="ink-input" type="number" min={0} value={value("level")} onChange={event => setHeader("level", event.target.value)} /></label>
         <label>Descrição do nível <input className="ink-input" value={value("levelDescription")} onChange={event => setHeader("levelDescription", event.target.value)} placeholder="Ex.: Explorador" /></label>
         <label>Defesa <input className="ink-input" type="number" min={0} value={value("defense")} onChange={event => setHeader("defense", event.target.value)} /></label>
-        <label>Moeda <input className="ink-input" value={draft.currencyName} onChange={event => edit({ currencyName: event.target.value })} maxLength={30} /></label>
+        <label>Nome da moeda <input className="ink-input" placeholder="Ex.: Ouro" value={draft.currencyName} onChange={event => edit({ currencyName: event.target.value })} maxLength={30} /></label>
       </div>
       </fieldset>
       <MoneyPanel character={character} />

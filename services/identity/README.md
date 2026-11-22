@@ -2,7 +2,8 @@
 
 Serviço 4 responsável por cadastro, autenticação e histórico. Usa Fastify,
 TypeScript, DynamoDB e consome do RabbitMQ os resultados das aquisições para
-montar a linha do tempo de cada campanha sem duplicar reentregas. O mesmo serviço simula a dependência externa instável usada pela Saga de compra.
+montar a linha do tempo de cada campanha sem duplicar reentregas. A dependência externa
+instável da Saga de compra fica no contêiner `identity-validator` (veja abaixo).
 
 ## Endpoints
 
@@ -24,9 +25,15 @@ compartilhado por variável segura e nunca enviado ao navegador.
 
 A leitura de histórico exige JWT válido e participação projetada na campanha.
 
+O histórico do S4 é a **linha do tempo completa** da campanha. O S1 mostra, na página da campanha,
+só um resumo (últimas 20 atividades e itens por participante); os dois consomem os mesmos eventos
+de compra, cada um para a sua tela.
+
 ## Validação externa simulada
 
-O S4 consome `actions.validation-requested.v1`, espera um intervalo configurável e
+O contêiner `identity-validator` (porta interna 3003, ponto de entrada `src/validator.ts`) usa a
+mesma imagem do S4, mas roda separado: se ele ficar lento ou cair, login e histórico continuam
+no ar. Ele consome `actions.validation-requested.v1`, espera um intervalo configurável e
 publica `ExternalValidationSucceeded` ou `ExternalValidationFailed`. A solicitação
 e a resposta são persistidas atomicamente em inbox/outbox; reentregas não criam
 novas decisões. As variáveis `VALIDATION_MIN_DELAY_MS`,

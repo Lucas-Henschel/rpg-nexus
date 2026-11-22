@@ -69,8 +69,7 @@ export function ItemsPage() {
         "Inventário de cada personagem",
       ]}
       endpoints={[
-        "POST /items",
-        "POST /stocks",
+        "GET /shops/{campaignId}/items",
         "POST /acquisitions (responde 202 com operationId)",
         "GET /acquisitions/{operationId}",
         "GET /inventory/{characterId}",

@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import threading
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 
 from app.application.handlers import MessageHandlers, Outcome
 from app.domain.models import HoldStatus
-from app.messaging.envelope import Envelope
+from app.messaging.envelope import Envelope, build_envelope
 from app.messaging.errors import PoisonMessage
+from app.messaging.events import ACQUISITION_CANCELLED, CHARACTER_VALIDATION_REQUESTED, ITEM_ACQUIRED
 
 from .conftest import make_character, outcome_event, validation_request, validation_request_v2
 
@@ -301,3 +303,56 @@ def test_modelo_da_campanha_ignora_evento_antigo_e_repetido(store, clock, handle
     assert late.outcome is Outcome.STALE
     assert handlers.dispatch(newer).outcome is Outcome.DUPLICATE
     assert store.get_campaign_template("camp").version == 3
+
+
+# --- Formato exato que o S3 Inventário envia (com userId, amount, deadlineAt e itemName a mais) ---------
+
+
+def _from_s3(event_type: str, operation_id: str, extra: dict) -> Envelope:
+    payload = {"operationId": operation_id, "campaignId": "c1", "characterId": "p1", "itemId": "sword",
+               "quantity": 1, "userId": "user-ana", "amount": 10, **extra}
+    return Envelope.model_validate(
+        build_envelope(event_type=event_type, version=1, correlation_id=operation_id, payload=payload,
+                       occurred_at=datetime(2026, 11, 11, 12, 0, tzinfo=UTC))
+    )
+
+
+def test_compra_da_loja_reserva_e_confirma_a_mochila(store, clock, handlers):
+    make_character(store, clock, max_items=1)
+    request = _from_s3(CHARACTER_VALIDATION_REQUESTED.type, "op-s3", {"deadlineAt": "2026-11-11T12:01:00Z"})
+    assert handlers.handle_validation_requested(request).outcome is Outcome.APPROVED
+    assert store.get_hold("p1", "op-s3").status is HoldStatus.HELD
+
+    delivered = _from_s3(ITEM_ACQUIRED.type, "op-s3", {"itemName": "Poção"})
+    assert handlers.handle_item_acquired(delivered).outcome is Outcome.HOLD_COMMITTED
+    assert store.get_hold("p1", "op-s3").status is HoldStatus.COMMITTED
+
+    # mochila cheia (1/1): a próxima compra é recusada
+    again = _from_s3(CHARACTER_VALIDATION_REQUESTED.type, "op-s3-2", {"deadlineAt": "2026-11-11T12:01:00Z"})
+    assert handlers.handle_validation_requested(again).outcome is Outcome.REJECTED
+    assert _last_event(store)["payload"]["reason"] == "CAPACITY_EXCEEDED"
+
+
+@pytest.mark.parametrize("reason", ["DEADLINE_EXPIRED", "EXTERNAL_VALIDATION_FAILED", "PAYMENT_REJECTED"])
+def test_compra_da_loja_encerrada_devolve_a_mochila(store, clock, handlers, reason):
+    make_character(store, clock, max_items=1)
+    request = _from_s3(CHARACTER_VALIDATION_REQUESTED.type, "op-x", {"deadlineAt": "2026-11-11T12:01:00Z"})
+    handlers.handle_validation_requested(request)
+    assert store.get_character("p1").slots_available == 0
+
+    cancelled = _from_s3(ACQUISITION_CANCELLED.type, "op-x", {"reason": reason})
+    assert handlers.handle_acquisition_cancelled(cancelled).outcome is Outcome.HOLD_RELEASED
+    assert store.get_character("p1").slots_available == 1
+    assert store.get_hold("p1", "op-x").status is HoldStatus.RELEASED
+
+
+def test_compra_recusada_pela_mochila_e_depois_cancelada_nao_devolve_espaco_que_nao_reservou(store, clock, handlers):
+    make_character(store, clock, max_items=0)
+    request = _from_s3(CHARACTER_VALIDATION_REQUESTED.type, "op-r", {"deadlineAt": "2026-11-11T12:01:00Z"})
+    assert handlers.handle_validation_requested(request).outcome is Outcome.REJECTED
+
+    cancelled = _from_s3(ACQUISITION_CANCELLED.type, "op-r", {"reason": "CHARACTER_REJECTED"})
+    handlers.handle_acquisition_cancelled(cancelled)
+    character = store.get_character("p1")
+    assert character.slots_used == 0
+    assert character.slots_available == 0

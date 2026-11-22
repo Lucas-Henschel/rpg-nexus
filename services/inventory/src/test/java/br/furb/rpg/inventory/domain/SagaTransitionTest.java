@@ -38,4 +38,41 @@ class SagaTransitionTest {
         var decision = SagaTransition.decide(expired, "rpg.money.debited.v1", now);
         assertThat(decision.effect()).isEqualTo(SagaTransition.Effect.REFUND_MONEY);
     }
+
+    @Test void characterApprovalRequestsExternalValidation() {
+        var decision = SagaTransition.decide(acquisition(Acquisition.Status.VALIDATING_CHARACTER),
+            "rpg.character.validated.v1", now);
+        assertThat(decision.next()).isEqualTo(Acquisition.Status.VALIDATING_EXTERNAL);
+        assertThat(decision.effect()).isEqualTo(SagaTransition.Effect.REQUEST_EXTERNAL);
+    }
+
+    @Test void characterRejectionReleasesStockAndRejects() {
+        var decision = SagaTransition.decide(acquisition(Acquisition.Status.VALIDATING_CHARACTER),
+            "rpg.character.rejected.v1", now);
+        assertThat(decision.next()).isEqualTo(Acquisition.Status.REJECTED);
+        assertThat(decision.effect()).isEqualTo(SagaTransition.Effect.RELEASE_STOCK);
+    }
+
+    @Test void externalAndMoneyAreIgnoredBeforeCharacterApproval() {
+        for (var type : new String[] {"rpg.external.validation-succeeded.v1", "rpg.money.debited.v1"}) {
+            var decision = SagaTransition.decide(acquisition(Acquisition.Status.VALIDATING_CHARACTER), type, now);
+            assertThat(decision.next()).isEqualTo(Acquisition.Status.VALIDATING_CHARACTER);
+            assertThat(decision.effect()).isEqualTo(SagaTransition.Effect.NONE);
+        }
+    }
+
+    @Test void characterValidationThatArrivesLateDoesNothing() {
+        for (var status : new Acquisition.Status[] {Acquisition.Status.EXPIRED, Acquisition.Status.COMPENSATED}) {
+            var decision = SagaTransition.decide(acquisition(status), "rpg.character.validated.v1", now);
+            assertThat(decision.next()).isEqualTo(status);
+            assertThat(decision.effect()).isEqualTo(SagaTransition.Effect.NONE);
+        }
+    }
+
+    @Test void characterStepExpiresAfterDeadline() {
+        var late = SagaTransition.decide(acquisition(Acquisition.Status.VALIDATING_CHARACTER),
+            "rpg.character.validated.v1", now.plusSeconds(120));
+        assertThat(late.next()).isEqualTo(Acquisition.Status.EXPIRED);
+        assertThat(late.effect()).isEqualTo(SagaTransition.Effect.RELEASE_STOCK);
+    }
 }
