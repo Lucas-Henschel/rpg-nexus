@@ -29,6 +29,25 @@ O histórico do S4 é a **linha do tempo completa** da campanha. O S1 mostra, na
 só um resumo (últimas 20 atividades e itens por participante); os dois consomem os mesmos eventos
 de compra, cada um para a sua tela.
 
+## Tracing distribuído
+
+O S4 e o contêiner `identity-validator` exportam spans OpenTelemetry para o endpoint OTLP/HTTP
+definido em `OTEL_EXPORTER_OTLP_ENDPOINT` (no Compose, Jaeger). O nome do serviço é `identity` no
+processo de autenticação/histórico e `identity-validator` no consumidor da validação externa.
+`TRACING_ENABLED` controla a instrumentação; o Compose a habilita pelo `backend-env`.
+
+As rotas Fastify e operações do DynamoDB geram spans. Os consumidores extraem `traceparent` e
+`tracestate` dos headers AMQP. O validador guarda esses headers junto à resposta pendente na outbox;
+quando o relay publica a resposta, abre um span filho do processamento original e propaga o novo
+contexto no AMQP. O contexto fica nos headers e não é adicionado ao envelope dos contratos. `/health`
+e `/ready` são ignorados para evitar traces de sondagens.
+
+Os testes em `test/tracing/` e `test/repositories/validation-repository.test.ts` cobrem a continuidade
+HTTP/AMQP, o contexto gravado e recuperado pela outbox e os spans de acesso ao DynamoDB. Para
+inspecionar no ambiente Compose, abra Jaeger em
+`http://localhost:16686` e filtre pelos serviços `identity` e `identity-validator`. O trace completo
+da compra também depende de S3/Inventário propagar o contexto na sua mensagem de saída.
+
 ## Validação externa simulada
 
 O contêiner `identity-validator` (porta interna 3003, ponto de entrada `src/validator.ts`) usa a

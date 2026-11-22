@@ -8,6 +8,7 @@ import { authRoutes } from "./auth.js";
 import { errorHandler } from "./errors.js";
 import { type HealthChecks, healthRoutes } from "./health.js";
 import { historyRoutes } from "./history.js";
+import { fastifyOtel } from "../tracing/http.js";
 
 export interface AppDeps extends HealthChecks {
   env: Env;
@@ -26,6 +27,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.setErrorHandler(errorHandler);
+  app.register(fastifyOtel.plugin());
   app.register(cors, { origin: deps.env.CORS_ORIGINS });
   app.register(healthRoutes(deps));
   app.register(authRoutes(deps.identity));

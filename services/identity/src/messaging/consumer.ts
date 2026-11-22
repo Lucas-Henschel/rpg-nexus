@@ -3,6 +3,7 @@ import type { ConsumeMessage } from "amqplib";
 import type { FastifyBaseLogger } from "fastify";
 import type { Outcome } from "./handle-delivery.js";
 import { settle } from "./settle.js";
+import { markError, withConsumerSpan } from "../tracing/spans.js";
 
 interface ConsumerOptions {
   url: string;
@@ -24,12 +25,17 @@ export function startConsumer(options: ConsumerOptions) {
   channel.on("error", (err) => options.log.error({ err }, "rabbitmq.channel_error"));
 
   async function onMessage(message: ConsumeMessage) {
-    const outcome = await options.handle(message.content, message.properties.headers);
-    const details = { messageId: message.properties.messageId, outcome: outcome.kind };
-    outcome.kind === "dead-letter"
-      ? options.log.error({ ...details, reason: outcome.reason }, `actions.${name}.dead_letter`)
-      : options.log.info(details, `actions.${name}.processed`);
-    await settle(channel, message, outcome, options.retryQueue);
+    const { headers, messageId } = message.properties;
+    await withConsumerSpan(options.queue, headers, messageId ? { "messaging.message.id": messageId } : {}, async (span) => {
+      const outcome = await options.handle(message.content, headers);
+      span.setAttribute("identity.outcome", outcome.kind);
+      if (outcome.kind === "dead-letter") markError(span, outcome.reason);
+      const details = { messageId, outcome: outcome.kind };
+      outcome.kind === "dead-letter"
+        ? options.log.error({ ...details, reason: outcome.reason }, `actions.${name}.dead_letter`)
+        : options.log.info(details, `actions.${name}.processed`);
+      await settle(channel, message, outcome, options.retryQueue);
+    });
   }
 
   channel.consume(options.queue, (message) => {
