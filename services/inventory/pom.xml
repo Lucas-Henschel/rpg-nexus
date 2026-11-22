@@ -7,6 +7,7 @@
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-amqp</artifactId></dependency>
+    <dependency><groupId>io.opentelemetry</groupId><artifactId>opentelemetry-api</artifactId><version>1.45.0</version></dependency>
     <dependency><groupId>software.amazon.awssdk</groupId><artifactId>dynamodb</artifactId><version>${aws.version}</version></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
     <!-- DynamoDB em memória para os testes da Saga e da cópia de participantes (sem Docker). -->

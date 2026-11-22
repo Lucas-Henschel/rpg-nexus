@@ -23,6 +23,8 @@ inventory:
   exchange: ${RABBITMQ_EXCHANGE:rpg.events}
   queue: ${RABBITMQ_QUEUE:inventory.saga-replies.v1}
   retry-queue: ${RABBITMQ_RETRY_QUEUE:inventory.saga-replies.v1.retry}
+  members-queue: ${RABBITMQ_MEMBERS_QUEUE:inventory.campaign-members.v1}
+  members-retry-queue: ${RABBITMQ_MEMBERS_RETRY_QUEUE:inventory.campaign-members.v1.retry}
   retry-base-delay-ms: ${RETRY_BASE_DELAY_MS:1000}
   saga-timeout-seconds: ${SAGA_TIMEOUT_SECONDS:60}
   max-retries: ${MAX_RETRIES:3}

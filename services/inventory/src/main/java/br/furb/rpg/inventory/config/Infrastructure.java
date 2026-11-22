@@ -20,14 +20,17 @@ class Infrastructure {
         if (!endpoint.isBlank()) builder.endpointOverride(URI.create(endpoint));
         return builder.build();
     }
-    @Bean Declarables inventoryTopology(@Value("${inventory.exchange}") String exchangeName) {
+    /** Os nomes das filas vêm do ambiente (RABBITMQ_QUEUE e RABBITMQ_MEMBERS_QUEUE); a .dlq segue o nome de cada uma. */
+    @Bean Declarables inventoryTopology(@Value("${inventory.exchange}") String exchangeName,
+                                        @Value("${inventory.queue}") String repliesQueue,
+                                        @Value("${inventory.members-queue}") String membersQueue) {
         var exchange = new TopicExchange(exchangeName, true, false);
-        var replies = QueueBuilder.durable("inventory.saga-replies.v1")
-            .deadLetterExchange("").deadLetterRoutingKey("inventory.saga-replies.v1.dlq").build();
-        var campaignMembers = QueueBuilder.durable("inventory.campaign-members.v1")
-            .deadLetterExchange("").deadLetterRoutingKey("inventory.campaign-members.v1.dlq").build();
-        var dead = QueueBuilder.durable("inventory.saga-replies.v1.dlq").build();
-        var membersDead = QueueBuilder.durable("inventory.campaign-members.v1.dlq").build();
+        var replies = QueueBuilder.durable(repliesQueue)
+            .deadLetterExchange("").deadLetterRoutingKey(repliesQueue + ".dlq").build();
+        var campaignMembers = QueueBuilder.durable(membersQueue)
+            .deadLetterExchange("").deadLetterRoutingKey(membersQueue + ".dlq").build();
+        var dead = QueueBuilder.durable(repliesQueue + ".dlq").build();
+        var membersDead = QueueBuilder.durable(membersQueue + ".dlq").build();
         return new Declarables(exchange, replies, campaignMembers, dead, membersDead,
             BindingBuilder.bind(replies).to(exchange).with("external.validation.succeeded.v1"),
             BindingBuilder.bind(replies).to(exchange).with("external.validation.failed.v1"),
