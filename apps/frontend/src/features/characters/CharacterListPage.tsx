@@ -1,5 +1,5 @@
 import { portraitUrl, type Character } from "./api";
-import { errorMessage } from "../../shared/http";
+import { errorMessage, isMembershipPending, MEMBERSHIP_GIVE_UP_MESSAGE } from "../../shared/http";
 import { useCampaign } from "../../shared/campaign";
 import { CampaignPicker } from "../campaigns/CampaignPicker";
 import { useCampaignCode } from "../campaigns/queries";
@@ -87,12 +87,20 @@ export function CharacterListPage() {
       )}
 
       {characters.isPending && campaign && (
-        <p className="page__status">Buscando as fichas da campanha {code}…</p>
+        <p className="page__status">
+          {isMembershipPending(characters.failureReason)
+            ? `Confirmando sua entrada na campanha ${code}…`
+            : `Buscando as fichas da campanha ${code}…`}
+        </p>
       )}
 
       {characters.isError && campaign && (
         <div className="notice">
-          <p>{errorMessage(characters.error, "Não foi possível carregar os personagens.")}</p>
+          <p>
+            {isMembershipPending(characters.error)
+              ? MEMBERSHIP_GIVE_UP_MESSAGE
+              : errorMessage(characters.error, "Não foi possível carregar os personagens.")}
+          </p>
           <button
             type="button"
             className="button button--ghost-felt"

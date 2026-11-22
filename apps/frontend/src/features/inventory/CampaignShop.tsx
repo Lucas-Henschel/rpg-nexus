@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ApiError, errorMessage } from "../../shared/http";
+import { ApiError, errorMessage, isMembershipPending, MEMBERSHIP_GIVE_UP_MESSAGE } from "../../shared/http";
 import { useToast } from "../../shared/ui/toast-context";
 import type { Member } from "../campaigns/api";
 import { useAcquisition, useInventoryActions, useShop } from "./queries";
@@ -74,10 +74,15 @@ export function CampaignShop({ campaignId, member }: { campaignId: string; membe
 
   return <section className="paper inventory-panel" aria-labelledby="campaign-shop-title">
     <h2 id="campaign-shop-title" className="sheet__heading">Loja de itens</h2>
-    {shop.isPending && <p>Carregando loja…</p>}
-    {shop.isError && !(shop.error instanceof ApiError && shop.error.status === 404) &&
+    {/* Logo depois de criar ou entrar na campanha, o S3 pode ainda não saber disso (evento do S1 a caminho). */}
+    {shop.isPending && <p>{isMembershipPending(shop.failureReason) ? "Confirmando sua entrada na campanha…" : "Carregando loja…"}</p>}
+    {shop.isError && isMembershipPending(shop.error) && <p className="field-error">
+      {MEMBERSHIP_GIVE_UP_MESSAGE}{" "}
+      <button type="button" className="text-button" onClick={() => void shop.refetch()}>Tentar de novo</button>
+    </p>}
+    {shop.isError && !isMembershipPending(shop.error) && !(shop.error instanceof ApiError && shop.error.status === 404) &&
       <p className="field-error">{errorMessage(shop.error, "Não foi possível carregar a loja.")}</p>}
-    {!shop.data && !shop.isPending && <p>Esta campanha ainda não tem loja.</p>}
+    {shop.isError && shop.error instanceof ApiError && shop.error.status === 404 && <p>Esta campanha ainda não tem loja.</p>}
     {owner && <div className="inventory-inline">
       <label className="inventory-field">Nome da loja
         <input value={name} onChange={event => setName(event.target.value)} maxLength={100} />

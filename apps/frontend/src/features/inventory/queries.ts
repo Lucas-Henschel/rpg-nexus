@@ -17,7 +17,7 @@ export function useCatalog(campaignId: string) {
   return { items, stocks };
 }
 export function useShop(campaignId: string) {
-  const shop = useQuery({ queryKey: keys.shop(campaignId), queryFn: () => getShop(campaignId), enabled: Boolean(campaignId), retry: false });
+  const shop = useQuery({ queryKey: keys.shop(campaignId), queryFn: () => getShop(campaignId), enabled: Boolean(campaignId) });
   const items = useQuery({ queryKey: keys.shopItems(campaignId), queryFn: () => listShopItems(campaignId), enabled: Boolean(campaignId) });
   return { shop, items };
 }
