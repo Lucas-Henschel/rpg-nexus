@@ -11,12 +11,16 @@ import {
 
 export const campaignKeys = {
   all: ["campaigns"] as const,
-  list: ["campaigns", "list"] as const,
+  list: (userId: string) => ["campaigns", "list", userId] as const,
   detail: (id: string) => ["campaigns", "detail", id] as const,
 };
 
-export function useCampaigns() {
-  return useQuery({ queryKey: campaignKeys.list, queryFn: listMyCampaigns });
+export function useCampaigns(userId: string) {
+  return useQuery({
+    queryKey: campaignKeys.list(userId),
+    queryFn: listMyCampaigns,
+    enabled: Boolean(userId),
+  });
 }
 
 export function useCampaignView(id: string) {
@@ -33,7 +37,7 @@ export function useCreateCampaign() {
 
   return useMutation({
     mutationFn: (name: string) => createCampaign(name),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: campaignKeys.list }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: campaignKeys.all }),
   });
 }
 

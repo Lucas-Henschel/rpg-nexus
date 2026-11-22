@@ -1,30 +1,47 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
-const KEY = "rpg-nexus.campaign";
+const LEGACY_KEY = "rpg-nexus.campaign";
+const KEY_PREFIX = "rpg-nexus.campaign.";
 export const CAMPAIGN_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
-function read(): string {
+function keyFor(userId: string | undefined): string | null {
+  return userId ? KEY_PREFIX + userId : null;
+}
+
+function read(userId: string | undefined): string {
   try {
-    return window.localStorage.getItem(KEY) || "c1";
+    // Remove a preferência antiga, compartilhada entre todas as contas.
+    window.localStorage.removeItem(LEGACY_KEY);
+    const key = keyFor(userId);
+    return key ? window.localStorage.getItem(key) ?? "" : "";
   } catch {
-    return "c1";
+    return "";
   }
 }
 
-/**
- * Campanha em uso, lembrada entre visitas. A pessoa escolhe no CampaignPicker (lista de
- * GET /campaigns) ou ao abrir uma campanha; sem o serviço de Campanhas, digita o código.
- */
-export function useCampaign(): [string, (id: string) => void] {
-  const [campaign, setCampaign] = useState(read);
-  const update = (id: string) => {
-    setCampaign(id);
-    try {
-      window.localStorage.setItem(KEY, id);
-    } catch {
-      /* armazenamento indisponível: vale só para esta visita */
-    }
-  };
+function write(userId: string | undefined, campaignId: string): void {
+  const key = keyFor(userId);
+  if (!key) return;
 
-  return [campaign, update];
+  try {
+    if (campaignId) {
+      window.localStorage.setItem(key, campaignId);
+    } else {
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    /* armazenamento indisponível: vale só para esta visita */
+  }
+}
+
+/** Campanha em uso, lembrada separadamente para cada usuário autenticado. */
+export function useCampaign(userId: string | undefined): [string, (id: string) => void] {
+  const [selection, setSelection] = useState(() => ({ userId, campaignId: read(userId) }));
+  const campaignId = selection.userId === userId ? selection.campaignId : read(userId);
+  const update = useCallback((id: string) => {
+    setSelection({ userId, campaignId: id });
+    write(userId, id);
+  }, [userId]);
+
+  return [campaignId, update];
 }

@@ -11,9 +11,9 @@ import { useCampaigns, useCreateCampaign, useJoinCampaign } from "./queries";
 const JOIN_CODE = /^\d{6}$/;
 
 export function CampaignsPage() {
-  const campaigns = useCampaigns();
   const { user } = useAuth();
-  const [, setCampaign] = useCampaign();
+  const campaigns = useCampaigns(user?.userId ?? "");
+  const [, setCampaign] = useCampaign(user?.userId);
 
   // Abrir uma campanha também a torna a campanha em uso nas outras telas.
   const open = (campaign: Campaign) => {

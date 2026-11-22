@@ -5,6 +5,8 @@ import { CampaignPicker } from "../campaigns/CampaignPicker";
 import { formatDateTime } from "../campaigns/format";
 import type { HistoryEntry } from "./api";
 import { useHistory } from "./queries";
+import { useAuth } from "../auth/auth-context";
+import { useCampaigns } from "../campaigns/queries";
 
 const REASONS: Record<NonNullable<HistoryEntry["reason"]>, string> = {
   CHARACTER_REJECTED: "O personagem não pôde receber o item",
@@ -44,7 +46,13 @@ function description(entry: HistoryEntry): string {
 }
 
 export function HistoryPage() {
-  const [campaignId, setCampaignId] = useCampaign();
+  const { user } = useAuth();
+  const userId = user?.userId ?? "";
+  const campaigns = useCampaigns(userId);
+  const [storedCampaignId, setCampaignId] = useCampaign(user?.userId);
+  const campaignId = campaigns.isSuccess
+    ? campaigns.data.find((item) => item.campaignId === storedCampaignId)?.campaignId ?? campaigns.data[0]?.campaignId ?? ""
+    : campaigns.isError ? storedCampaignId : "";
   const history = useHistory(campaignId);
 
   return (
@@ -54,10 +62,12 @@ export function HistoryPage() {
           <h1 className="page__title">Histórico</h1>
           <p className="page__lead">Acontecimentos registrados durante a campanha.</p>
         </div>
-        <CampaignPicker value={campaignId} onChange={setCampaignId} />
+        <CampaignPicker userId={userId} value={campaignId} onChange={setCampaignId} />
       </header>
 
-      {history.isPending && <p className="history-state">Carregando a linha do tempo.</p>}
+      {!campaignId && campaigns.isPending && <p className="history-state">Carregando suas campanhas.</p>}
+      {campaigns.isSuccess && campaigns.data.length === 0 && <div className="history-state"><h2>Você ainda não participa de nenhuma campanha</h2><p>Crie uma campanha ou entre com um código para consultar o histórico.</p><Link to="/campanhas" className="button button--brass">Ver campanhas</Link></div>}
+      {history.isPending && campaignId && <p className="history-state">Carregando a linha do tempo.</p>}
       {history.isError && (
         <div className="history-state history-state--error" role="alert">
           <p>{errorMessage(history.error, "Não foi possível carregar o histórico.")}</p>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { currentUser, endSession, login, register, type AuthUser } from "./api";
 import { AuthContext, type AuthContextValue } from "./auth-context";
+import { queryClient } from "../../app/queryClient";
 import {
   accessToken,
   clearSession,
@@ -17,7 +18,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   // Refresh recusado em qualquer chamada: volta ao login.
-  useEffect(() => onSessionEnded(() => setUser(null)), []);
+  useEffect(() => onSessionEnded(() => {
+    queryClient.clear();
+    setUser(null);
+  }), []);
 
   useEffect(() => {
     let active = true;
@@ -69,12 +73,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (identifier: string, password: string) => {
     const session = await login(identifier, password);
+    queryClient.clear();
     saveSession(session.user, session.tokens);
     setUser(session.user);
   }, []);
 
   const signUp = useCallback(async (input: Parameters<typeof register>[0]) => {
     const session = await register(input);
+    queryClient.clear();
     saveSession(session.user, session.tokens);
     setUser(session.user);
   }, []);
@@ -82,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     const session = readSession();
     clearSession();
+    queryClient.clear();
     setUser(null);
 
     if (session) {

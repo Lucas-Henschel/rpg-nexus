@@ -26,6 +26,7 @@ export function useCharacters(campaignId: string) {
   return useQuery({
     queryKey: characterKeys.list(campaignId),
     queryFn: () => listCharacters(campaignId),
+    enabled: Boolean(campaignId),
   });
 }
 

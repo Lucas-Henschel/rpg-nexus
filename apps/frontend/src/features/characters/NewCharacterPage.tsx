@@ -8,6 +8,8 @@ import { useToast } from "../../shared/ui/toast-context";
 import { navigate } from "../../app/navigation";
 import { Link } from "../../app/router";
 import { sheetFromTemplate, TEMPLATES, type Template } from "./sheet/templates";
+import { useAuth } from "../auth/auth-context";
+import { useCampaigns } from "../campaigns/queries";
 
 function TemplateIcon({ icon }: { icon: Template["icon"] }) {
   const paths: Record<Template["icon"], string> = {
@@ -90,7 +92,13 @@ function SavedTemplates({
 }
 
 export function NewCharacterPage() {
-  const [campaign] = useCampaign();
+  const { user } = useAuth();
+  const userId = user?.userId ?? "";
+  const campaigns = useCampaigns(userId);
+  const [storedCampaign] = useCampaign(user?.userId);
+  const campaign = campaigns.isSuccess
+    ? campaigns.data.find((item) => item.campaignId === storedCampaign)?.campaignId ?? campaigns.data[0]?.campaignId ?? ""
+    : "";
   const toast = useToast();
   // "saved:<id>" é um modelo salvo no S2; o resto são os modelos prontos do front.
   const [templateId, setTemplateId] = useState(TEMPLATES[0].id);
@@ -176,6 +184,7 @@ export function NewCharacterPage() {
         <h2 className="section-title">Meus modelos</h2>
         <SavedTemplates chosen={templateId} onChoose={setTemplateId} />
 
+        {!campaign && <p className="field-error field-error--felt">{campaigns.isPending ? "Carregando suas campanhas…" : campaigns.isError ? errorMessage(campaigns.error, "Não foi possível carregar suas campanhas.") : <>Você precisa participar de uma campanha. <Link to="/campanhas">Ver campanhas</Link></>}</p>}
         <div className="create-bar">
           <label className="create-bar__name">
             <span>Nome do personagem</span>
@@ -186,8 +195,8 @@ export function NewCharacterPage() {
               maxLength={80}
             />
           </label>
-          <button type="submit" className="button button--brass" disabled={saving}>
-            {saving ? "Criando…" : `Criar personagem na campanha ${campaign}`}
+          <button type="submit" className="button button--brass" disabled={saving || !campaign}>
+            {saving ? "Criando…" : campaign ? `Criar personagem na campanha ${campaign}` : "Selecione uma campanha para continuar"}
           </button>
         </div>
         {problem && <p className="field-error field-error--felt">{problem}</p>}
