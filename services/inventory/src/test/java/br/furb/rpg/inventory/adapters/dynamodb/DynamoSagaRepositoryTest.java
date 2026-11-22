@@ -219,6 +219,25 @@ class DynamoSagaRepositoryTest {
         assertThat(store.findInventory(CHARACTER)).isEmpty();
     }
 
+    @Test @DisplayName("débito que chega depois do prazo, antes do verificador de prazo rodar: expira, devolve o estoque e pede reembolso")
+    void debitAfterDeadlineBeforeExpirationIsRefunded() throws InterruptedException {
+        saga=new DynamoSagaRepository(store,json,2);
+        var op=start();
+        reply(op,"rpg.character.validated.v1");
+        reply(op,"rpg.external.validation-succeeded.v1");
+        assertThat(status(op)).isEqualTo(Status.WAITING_MONEY);
+        drainOutbox();
+        Thread.sleep(2100); // o S2 debitou dentro do prazo, mas o débito chega aqui depois dele
+        reply(op,"rpg.money.debited.v1");
+        assertThat(status(op)).isEqualTo(Status.EXPIRED);
+        assertThat(available()).isEqualTo(STOCK);
+        assertThat(reserved()).isZero();
+        var events=drainOutbox();
+        assertThat(types(events)).containsExactlyInAnyOrder("rpg.acquisition.cancelled.v1","rpg.money.refund-requested.v1");
+        assertThat(only(events,"rpg.acquisition.cancelled.v1").path("payload").path("reason").asText()).isEqualTo("DEADLINE_EXPIRED");
+        assertThat(store.findInventory(CHARACTER)).isEmpty();
+    }
+
     // ---------- compensações ----------
 
     @Test @DisplayName("validação externa recusada: devolve o estoque e termina COMPENSATED")

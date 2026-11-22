@@ -43,7 +43,7 @@ Todos passam pelo exchange `rpg.events` (tipo `topic`). As filas ficam em
 | `CampaignMemberJoined` | `campaign.member.joined.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`), S4 (`actions.history.v1`) |
 | `CampaignMemberCharacterChosen` | `campaign.member.character-chosen.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`) |
 | `CampaignMemberRemoved` | `campaign.member.removed.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`), S4 (`actions.history.v1`) |
-| `CampaignTemplateAssigned` | `campaign.template.assigned.v1` | S1 Campanhas | S2 (`characters.campaign-members.v1`), S4 (`actions.history.v1`) |
+| `CampaignTemplateAssigned` | `campaign.template.assigned.v1` | S1 Campanhas | S2 (`characters.campaign-members.v1`) |
 
 Os payloads da aquisição têm `operationId`, `campaignId`, `characterId`, `itemId` e `quantity`. Os
 campos próprios de cada evento estão descritos no esquema dele. O S3 publica `AcquisitionCancelled` sempre

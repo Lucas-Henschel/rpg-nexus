@@ -39,6 +39,14 @@ class SagaTransitionTest {
         assertThat(decision.effect()).isEqualTo(SagaTransition.Effect.REFUND_MONEY);
     }
 
+    @Test void debitArrivingAfterDeadlineExpiresAndIsRefunded() {
+        var waiting = new Acquisition("op-1", "camp-1", "user-1", "char-1", "item-1", 20,
+            Acquisition.Status.WAITING_MONEY, 0, now.minusSeconds(1));
+        var decision = SagaTransition.decide(waiting, "rpg.money.debited.v1", now);
+        assertThat(decision.next()).isEqualTo(Acquisition.Status.EXPIRED);
+        assertThat(decision.effect()).isEqualTo(SagaTransition.Effect.RELEASE_STOCK_AND_REFUND);
+    }
+
     @Test void characterApprovalRequestsExternalValidation() {
         var decision = SagaTransition.decide(acquisition(Acquisition.Status.VALIDATING_CHARACTER),
             "rpg.character.validated.v1", now);
