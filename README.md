@@ -5,6 +5,9 @@ de seis dígitos, montam as fichas e compram itens. Trabalho final de Sistemas D
 quatro microsserviços em três linguagens, falando por eventos no RabbitMQ e usando DynamoDB e S3
 emulados pelo MiniStack.
 
+O registro do tema (fluxo principal e os três elementos pedidos), o diagrama da arquitetura e a
+justificativa de cada serviço de nuvem estão em [`docs/registro-do-tema.md`](docs/registro-do-tema.md).
+
 | Serviço | Linguagem | Responsável | O que faz |
 | --- | --- | --- | --- |
 | [S1 Campanhas](services/campaigns/README.md) | TypeScript (Node.js) | Lucas | Campanhas, participantes, código de entrada, modelo de ficha da campanha, atividade |
@@ -121,7 +124,7 @@ Para ver cada um funcionando, com a pilha no ar, rode os scripts de [`scripts/re
 | R5 Dependência instável | [`validator.ts`](services/identity/src/validator.ts): `VALIDATION_FAILURE_RATE`, `VALIDATION_MIN_DELAY_MS`, `VALIDATION_MAX_DELAY_MS` |
 | R6 Reconexão | S1 [`connection.ts`](services/campaigns/src/messaging/connection.ts), S2 [`rabbitmq.py`](services/characters/app/messaging/rabbitmq.py), S3 Spring AMQP, S4 [`consumer.ts`](services/identity/src/messaging/consumer.ts) |
 | Retry e DLQ | Filas `.retry` e `.dlq` de cada consumidor em [`infra/rabbitmq`](infra/rabbitmq/README.md) |
-| Bônus: tracing | OpenTelemetry e Jaeger: [S1](services/campaigns/src/tracing), [S2](services/characters/app/tracing.py) |
+| Bônus: tracing | OpenTelemetry e Jaeger nos quatro serviços: [S1](services/campaigns/src/tracing), [S2](services/characters/app/tracing.py), [S3](services/inventory/src/main/java/br/furb/rpg/inventory/tracing) e [S4](services/identity/src/tracing), incluindo o `identity-validator` |
 | Bônus: infraestrutura como código | [`infra/terraform`](infra/terraform/README.md) |
 | Bônus: autoescala | [`infra/autoscaler`](infra/autoscaler/README.md) |
 | Bônus: CQRS | Modelo de leitura do S2 em [`dynamodb_read_model.py`](services/characters/app/adapters/dynamodb_read_model.py) |
@@ -129,6 +132,8 @@ Para ver cada um funcionando, com a pilha no ar, rode os scripts de [`scripts/re
 
 ## Documentação
 
+- [Registro do tema e arquitetura](docs/registro-do-tema.md): tema, integrantes, fluxo principal,
+  diagrama e por que cada serviço de nuvem.
 - [Contratos dos eventos](contracts/README.md): envelope, tipos, quem publica e quem consome.
 - Infraestrutura: [Terraform](infra/terraform/README.md), [RabbitMQ](infra/rabbitmq/README.md),
   [MiniStack](infra/ministack/README.md), [autoescala](infra/autoscaler/README.md).
