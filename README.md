@@ -110,6 +110,8 @@ só o endereço no host; entre contêineres o MiniStack continua em `http://mini
 
 ## Onde está cada requisito
 
+Para ver cada um funcionando, com a pilha no ar, rode os scripts de [`scripts/requisitos`](scripts/requisitos/README.md) (por exemplo, `bash scripts/requisitos/r1-idempotencia.sh`).
+
 | Requisito | Onde |
 | --- | --- |
 | R1 At-least-once com idempotência | Inbox gravada na mesma transação do efeito: S1 [`repositories/`](services/campaigns/src/repositories), S2 [`dynamodb_store.py`](services/characters/app/adapters/dynamodb_store.py), S3 [`DynamoSagaRepository.java`](services/inventory/src/main/java/br/furb/rpg/inventory/adapters/dynamodb/DynamoSagaRepository.java), S4 [`repositories/`](services/identity/src/repositories) |
