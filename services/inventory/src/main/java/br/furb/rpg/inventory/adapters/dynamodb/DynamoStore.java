@@ -3,6 +3,7 @@ package br.furb.rpg.inventory.adapters.dynamodb;
 import br.furb.rpg.inventory.ports.CatalogPort;
 import br.furb.rpg.inventory.ports.CommercePort;
 import br.furb.rpg.inventory.ports.OutboxPort;
+import br.furb.rpg.inventory.tracing.TraceContext;
 import java.time.Instant;
 import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,6 +51,10 @@ public class DynamoStore implements CatalogPort, CommercePort, OutboxPort {
             .expressionAttributeValues(values).build()).build();
     }
     public List<Map<String,AttributeValue>> scan(String table, String filter, Map<String,AttributeValue> values) {
+        // Varredura sem trace pai (ExpirationWorker e outbox, a cada 2 s) não vira trace no Jaeger.
+        return TraceContext.untracedIfRoot(() -> scanAll(table,filter,values));
+    }
+    private List<Map<String,AttributeValue>> scanAll(String table, String filter, Map<String,AttributeValue> values) {
         var rows = new ArrayList<Map<String,AttributeValue>>();
         Map<String,AttributeValue> last = null;
         do {
