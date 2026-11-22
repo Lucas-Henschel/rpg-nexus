@@ -247,10 +247,6 @@ services:
     restart: unless-stopped
     env_file: services/inventory/.env.example
     environment:
-      OTEL_SERVICE_NAME: inventory
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
-      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-      OTEL_TRACES_EXPORTER: ${OTEL_TRACES_EXPORTER:-otlp}
       AWS_REGION: ${AWS_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
@@ -262,6 +258,13 @@ services:
       SAGA_TIMEOUT_SECONDS: ${SAGA_TIMEOUT_SECONDS:-60}
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-this-jwt-secret-32-characters}
       CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
+      # Tracing: lidas pelo agente Java do OpenTelemetry (só traces; métricas e logs ficam de fora).
+      OTEL_SERVICE_NAME: inventory
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
     ports:
       - "127.0.0.1:${INVENTORY_PORT:-8080}:8080"
     healthcheck:
@@ -305,6 +308,8 @@ services:
       <<: *backend-env
       CONTRACTS_DIR: /app/contracts
       PORT: 3003
+      # Nome próprio no Jaeger, separado do S4 (mesma imagem).
+      SERVICE_NAME: identity-validator
       VALIDATION_MIN_DELAY_MS: ${VALIDATION_MIN_DELAY_MS:-100}
       VALIDATION_MAX_DELAY_MS: ${VALIDATION_MAX_DELAY_MS:-500}
       VALIDATION_FAILURE_RATE: ${VALIDATION_FAILURE_RATE:-0}
