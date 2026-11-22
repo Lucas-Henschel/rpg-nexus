@@ -1,7 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { createCharacter, createFromTemplate, type SavedTemplate } from "./api";
 import { useCampaignTemplate, useDeleteTemplate, useTemplates } from "./queries";
-import { errorMessage } from "../../shared/http";
+import {
+  errorMessage,
+  isMembershipPending,
+  MEMBERSHIP_GIVE_UP_MESSAGE,
+  retryWhileMembershipPending,
+} from "../../shared/http";
 import { useCampaign } from "../../shared/campaign";
 import { useCampaignCode } from "../campaigns/queries";
 import { cx } from "../../shared/ui/cx";
@@ -109,6 +114,8 @@ export function NewCharacterPage() {
   const templateId = choice ?? (campaignTemplate ? "campaign" : TEMPLATES[0].id);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  // Verdadeiro enquanto o S2 ainda não recebeu a entrada na campanha e a criação é repetida.
+  const [syncing, setSyncing] = useState(false);
   const [problem, setProblem] = useState("");
   const template = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
   const savedId = templateId.startsWith("saved:") ? templateId.slice("saved:".length) : null;
@@ -127,13 +134,13 @@ export function NewCharacterPage() {
       ? { id: fromCampaign.templateId, version: fromCampaign.version }
       : savedId && { id: savedId, version: undefined };
     try {
-      const created = fromSaved
-        ? await createFromTemplate(fromSaved.id, {
+      const create = () => fromSaved
+        ? createFromTemplate(fromSaved.id, {
             campaignId: campaign,
             name: name.trim(),
             version: fromSaved.version,
           })
-        : await createCharacter({
+        : createCharacter({
             campaignId: campaign,
             name: name.trim(),
             attributes: template.attributes,
@@ -142,11 +149,18 @@ export function NewCharacterPage() {
             maxItems: template.maxItems,
             sheet: sheetFromTemplate(template),
           });
+      // Logo depois de entrar na campanha, o S2 pode ainda não saber disso (evento do S1 a caminho).
+      const created = await retryWhileMembershipPending(create, () => setSyncing(true));
       toast("ok", `${created.name} criado.`);
       navigate(`/personagens/${created.id}`);
     } catch (error) {
-      setProblem(errorMessage(error, "Não foi possível criar o personagem."));
+      setProblem(
+        isMembershipPending(error)
+          ? MEMBERSHIP_GIVE_UP_MESSAGE
+          : errorMessage(error, "Não foi possível criar o personagem."),
+      );
       setSaving(false);
+      setSyncing(false);
     }
   };
 
@@ -236,7 +250,8 @@ export function NewCharacterPage() {
             />
           </label>
           <button type="submit" className="button button--brass" disabled={saving || !campaign}>
-            {saving ? "Criando…" : campaign ? `Criar personagem na campanha ${code}` : "Selecione uma campanha para continuar"}
+            {syncing ? "Confirmando sua entrada na campanha…" : null}
+            {!syncing && (saving ? "Criando…" : campaign ? `Criar personagem na campanha ${code}` : "Selecione uma campanha para continuar")}
           </button>
         </div>
         {problem && <p className="field-error field-error--felt">{problem}</p>}

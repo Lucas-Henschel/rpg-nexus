@@ -180,6 +180,33 @@ def test_atraso_simulado_do_consumidor_e_configuravel():
         Settings.from_env({"CONSUMER_SIMULATED_DELAY_MS": "-1"})
 
 
+def test_nomes_das_filas_vem_do_ambiente():
+    from app.messaging.topology import CONSUMER_QUEUES, consumer_queues
+
+    # Sem variáveis: os nomes do manifesto e do definitions.json.
+    padrao = consumer_queues(Settings.from_env({}))
+    assert [q.name for q in padrao] == [q.name for q in CONSUMER_QUEUES]
+
+    env = {
+        "RABBITMQ_QUEUE_VALIDATION": "outro.validation",
+        "RABBITMQ_QUEUE_ACQUISITION_OUTCOMES": "outro.outcomes",
+        "RABBITMQ_QUEUE_MONEY": "outro.money",
+        "RABBITMQ_QUEUE_CAMPAIGN_MEMBERS": "outro.members",
+    }
+    filas = consumer_queues(Settings.from_env(env))
+    assert [q.name for q in filas] == ["outro.validation", "outro.outcomes", "outro.money", "outro.members"]
+    # .retry e .dlq acompanham o nome; as ligações (routing keys) continuam as mesmas.
+    assert filas[0].retry_name == "outro.validation.retry" and filas[0].dlq_name == "outro.validation.dlq"
+    assert [q.bindings for q in filas] == [q.bindings for q in CONSUMER_QUEUES]
+
+
+def test_nomes_de_fila_repetidos_falham_cedo():
+    from app.messaging.topology import consumer_queues
+
+    with pytest.raises(ValueError, match="nomes diferentes"):
+        consumer_queues(Settings.from_env({"RABBITMQ_QUEUE_MONEY": "characters.validation-requested.v1"}))
+
+
 def test_internal_endpoints_are_off_by_default():
     # /internal/* não pede login; só liga quando ENABLE_INTERNAL_ENDPOINTS=true (Compose local).
     assert Settings.from_env({}).enable_internal_endpoints is False

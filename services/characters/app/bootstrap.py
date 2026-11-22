@@ -151,6 +151,7 @@ def build_container(
     if settings.messaging_enabled:
         from app.messaging.outbox_relay import OutboxRelay
         from app.messaging.rabbitmq import RabbitMQBus
+        from app.messaging.topology import consumer_queues
 
         bus = RabbitMQBus(
             url=settings.rabbitmq_url,
@@ -169,6 +170,7 @@ def build_container(
             ),
             fault=FaultInjector(settings.fault_crash_before_ack, settings.fault_marker_file),
             simulated_delay_ms=settings.consumer_simulated_delay_ms,
+            queues=consumer_queues(settings),
         )
         relay = OutboxRelay(
             store,

@@ -32,7 +32,7 @@ import uuid
 from typing import Any
 
 from app.config import Settings
-from app.messaging.topology import VALIDATION_QUEUE
+from app.messaging.topology import consumer_queues
 from app.security import sign_access_token
 
 from .rabbit_tools import (
@@ -180,12 +180,13 @@ async def run(base: str, poison: bool, poison_wait: float) -> None:
     check("outbox drenada", outbox.get("pending") == 0, json.dumps(outbox, default=str))
 
     if poison:
-        before = await queue_depth(VALIDATION_QUEUE.dlq_name)
+        dlq = consumer_queues(Settings.from_env())[0].dlq_name
+        before = await queue_depth(dlq)
         await publish([b"{poison"])
         print(f"… aguardando {poison_wait:.0f}s pelas tentativas de retry (F4)", flush=True)
         await asyncio.sleep(poison_wait)
-        after = await queue_depth(VALIDATION_QUEUE.dlq_name)
-        check("F4: poison message chegou à DLQ", after == before + 1, f"{VALIDATION_QUEUE.dlq_name}: {before} -> {after}")
+        after = await queue_depth(dlq)
+        check("F4: poison message chegou à DLQ", after == before + 1, f"{dlq}: {before} -> {after}")
 
 
 async def check_money(base: str, campaign: str) -> None:

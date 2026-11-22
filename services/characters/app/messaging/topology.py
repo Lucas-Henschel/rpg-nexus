@@ -11,7 +11,8 @@ enquanto outros serviços interessados nos mesmos eventos têm as suas próprias
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 
 from .events import (
     ACQUISITION_CANCELLED,
@@ -24,6 +25,9 @@ from .events import (
     MONEY_DEBIT_REQUESTED,
     MONEY_REFUND_REQUESTED,
 )
+
+if TYPE_CHECKING:
+    from app.config import Settings
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,19 @@ MEMBERS_QUEUE = QueueSpec(
     (CAMPAIGN_MEMBER_JOINED.routing_key, CAMPAIGN_MEMBER_REMOVED.routing_key, CAMPAIGN_TEMPLATE_ASSIGNED.routing_key),
 )
 CONSUMER_QUEUES: tuple[QueueSpec, ...] = (VALIDATION_QUEUE, OUTCOMES_QUEUE, MONEY_QUEUE, MEMBERS_QUEUE)
+
+
+def consumer_queues(settings: Settings) -> tuple[QueueSpec, ...]:
+    """Filas de consumo com os nomes vindos do ambiente (RABBITMQ_QUEUE_*); as ligações não mudam."""
+    names = (
+        settings.queue_validation,
+        settings.queue_acquisition_outcomes,
+        settings.queue_money,
+        settings.queue_campaign_members,
+    )
+    if len(set(names)) != len(names):
+        raise ValueError(f"as filas de consumo do S2 precisam ter nomes diferentes: {names}")
+    return tuple(replace(spec, name=name) for spec, name in zip(CONSUMER_QUEUES, names, strict=True))
 
 
 def expected_manifest_queues() -> list[dict[str, object]]:

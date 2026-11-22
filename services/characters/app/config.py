@@ -147,6 +147,12 @@ class Settings:
     outbox_batch_size: int = 25
     outbox_lease_seconds: int = 30
     validate_outgoing_events: bool = True
+    # Nomes das filas de consumo (as .retry e .dlq seguem o nome de cada uma). Os padrões são os do
+    # manifesto infra/manifests/characters.json e do definitions.json do RabbitMQ.
+    queue_validation: str = "characters.validation-requested.v1"
+    queue_acquisition_outcomes: str = "characters.acquisition-outcomes.v1"
+    queue_money: str = "characters.money-commands.v1"
+    queue_campaign_members: str = "characters.campaign-members.v1"
 
     # Tracing distribuído (OpenTelemetry). O endpoint vem de OTEL_EXPORTER_OTLP_ENDPOINT, lido pelo SDK.
     tracing_enabled: bool = False
@@ -216,6 +222,10 @@ class Settings:
             outbox_batch_size=e.int("OUTBOX_BATCH_SIZE", 25, minimum=1, maximum=100),
             outbox_lease_seconds=e.int("OUTBOX_LEASE_SECONDS", 30, minimum=1),
             validate_outgoing_events=e.bool("VALIDATE_OUTGOING_EVENTS", True),
+            queue_validation=e.str("RABBITMQ_QUEUE_VALIDATION", defaults.queue_validation),
+            queue_acquisition_outcomes=e.str("RABBITMQ_QUEUE_ACQUISITION_OUTCOMES", defaults.queue_acquisition_outcomes),
+            queue_money=e.str("RABBITMQ_QUEUE_MONEY", defaults.queue_money),
+            queue_campaign_members=e.str("RABBITMQ_QUEUE_CAMPAIGN_MEMBERS", defaults.queue_campaign_members),
             tracing_enabled=e.bool("TRACING_ENABLED", False),
             consumer_simulated_delay_ms=e.int("CONSUMER_SIMULATED_DELAY_MS", 0, minimum=0, maximum=60_000),
             default_max_items=e.int("DEFAULT_MAX_ITEMS", defaults.default_max_items, minimum=0, maximum=1000),

@@ -256,6 +256,10 @@ inicial). Fica na tabela `character_templates`, privado de quem criou.
 | consome | `CampaignMemberRemoved` (`rpg.campaign.member.removed.v1`, do S1) | `campaign.member.removed.v1` | `characters.campaign-members.v1` |
 | consome | `CampaignTemplateAssigned` (`rpg.campaign.template.assigned.v1`, do S1) | `campaign.template.assigned.v1` | `characters.campaign-members.v1` |
 
+Os nomes das quatro filas de consumo vêm do ambiente (`RABBITMQ_QUEUE_VALIDATION`,
+`RABBITMQ_QUEUE_ACQUISITION_OUTCOMES`, `RABBITMQ_QUEUE_MONEY`, `RABBITMQ_QUEUE_CAMPAIGN_MEMBERS`), com os
+nomes da tabela acima como padrão; `.retry` e `.dlq` seguem o nome de cada uma.
+
 Cada fila tem `.retry` e `.dlq`. Schemas: `contracts/events/character-*.schema.json`, com exemplos
 válidos e inválidos em `contracts/examples/`. Todo evento produzido é validado contra o schema antes de
 entrar na outbox (`VALIDATE_OUTGOING_EVENTS=true`).

@@ -36,7 +36,7 @@ class InventoryApi {
             @RequestHeader(value="Authorization",required=false) String authorization) {
         var userId=tokens.userId(authorization);
         if(userId==null) return unauthorized();
-        if(!campaigns.member(campaignId,userId)) return ResponseEntity.status(403).build();
+        if(!campaigns.member(campaignId,userId)) return notMember(campaignId);
         var shop=service.commerce().findShop(campaignId);
         return shop==null?ResponseEntity.notFound().build():ResponseEntity.ok(shop);
     }
@@ -44,14 +44,14 @@ class InventoryApi {
             @RequestHeader(value="Authorization",required=false) String authorization,@Valid @RequestBody Shop request) {
         var userId=tokens.userId(authorization);
         if(userId==null) return unauthorized();
-        if(!campaigns.owner(campaignId,userId)) return ResponseEntity.status(403).body(Map.of("error","campaign owner required"));
+        if(!campaigns.owner(campaignId,userId)) return ownerRequired(campaignId,userId);
         return ResponseEntity.ok(service.commerce().saveShop(campaignId,request.name(),request.active()));
     }
     @GetMapping("/shops/{campaignId}/items") ResponseEntity<?> shopItems(@PathVariable String campaignId,
             @RequestHeader(value="Authorization",required=false) String authorization) {
         var userId=tokens.userId(authorization);
         if(userId==null) return unauthorized();
-        if(!campaigns.member(campaignId,userId)) return ResponseEntity.status(403).build();
+        if(!campaigns.member(campaignId,userId)) return notMember(campaignId);
         return ResponseEntity.ok(service.commerce().listShopItems(campaignId));
     }
     @PostMapping("/shops/{campaignId}/items") ResponseEntity<?> createShopItem(
@@ -59,7 +59,7 @@ class InventoryApi {
             @Valid @RequestBody ShopItem request) {
         var userId=tokens.userId(authorization);
         if(userId==null) return unauthorized();
-        if(!campaigns.owner(campaignId,userId)) return ResponseEntity.status(403).body(Map.of("error","campaign owner required"));
+        if(!campaigns.owner(campaignId,userId)) return ownerRequired(campaignId,userId);
         if(service.commerce().findShop(campaignId)==null) return ResponseEntity.badRequest().body(Map.of("error","shop not found"));
         return ResponseEntity.status(201).body(service.commerce().createShopItem(campaignId,request.name(),
             request.description()==null?"":request.description(),request.price(),request.available()));
@@ -69,7 +69,7 @@ class InventoryApi {
             @Valid @RequestBody ShopItem request) {
         var userId=tokens.userId(authorization);
         if(userId==null) return unauthorized();
-        if(!campaigns.owner(campaignId,userId)) return ResponseEntity.status(403).body(Map.of("error","campaign owner required"));
+        if(!campaigns.owner(campaignId,userId)) return ownerRequired(campaignId,userId);
         if(service.commerce().findShop(campaignId)==null) return ResponseEntity.badRequest().body(Map.of("error","shop not found"));
         if(service.commerce().findShopItem(campaignId,itemId)==null) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(service.commerce().saveShopItem(campaignId,itemId,request.name(),
@@ -79,7 +79,7 @@ class InventoryApi {
             @PathVariable String campaignId,@PathVariable String itemId,@RequestHeader(value="Authorization",required=false) String authorization) {
         var userId=tokens.userId(authorization);
         if(userId==null) return unauthorized();
-        if(!campaigns.owner(campaignId,userId)) return ResponseEntity.status(403).body(Map.of("error","campaign owner required"));
+        if(!campaigns.owner(campaignId,userId)) return ownerRequired(campaignId,userId);
         return service.commerce().removeShopItem(campaignId,itemId)?ResponseEntity.noContent().build():ResponseEntity.notFound().build();
     }
     @PostMapping("/acquisitions") ResponseEntity<?> acquire(@RequestHeader("Idempotency-Key") String key,
@@ -118,6 +118,22 @@ class InventoryApi {
         if(acquisition==null) return ResponseEntity.notFound().build();
         if(!acquisition.userId().equals(userId) && !campaigns.owner(acquisition.campaignId(),userId)) return ResponseEntity.status(403).build();
         return ResponseEntity.ok(service.history(operationId));
+    }
+    /**
+     * 403 de quem ainda não aparece na cópia local de participantes. Logo depois de criar ou entrar na
+     * campanha, o evento do S1 pode não ter chegado (consistência eventual): o código igual ao do S2
+     * permite ao front esperar e tentar de novo em vez de mostrar erro.
+     */
+    private ResponseEntity<?> notMember(String campaignId) {
+        return ResponseEntity.status(403).body(Map.of("error",Map.of(
+            "code","NOT_CAMPAIGN_MEMBER",
+            "message","você não participa desta campanha. Se acabou de entrar nela, tente de novo em alguns segundos.",
+            "details",Map.of("campaignId",campaignId))));
+    }
+    /** Quem ainda não aparece como participante recebe NOT_CAMPAIGN_MEMBER; participante que não é dono, o erro de dono. */
+    private ResponseEntity<?> ownerRequired(String campaignId,String userId) {
+        if(!campaigns.member(campaignId,userId)) return notMember(campaignId);
+        return ResponseEntity.status(403).body(Map.of("error","campaign owner required"));
     }
     private ResponseEntity<?> unauthorized() { return ResponseEntity.status(401).body(Map.of("error","authentication required")); }
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)

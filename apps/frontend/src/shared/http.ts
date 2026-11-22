@@ -75,3 +75,39 @@ export function errorMessage(error: unknown, fallback: string): string {
 export function isConflict(error: unknown): boolean {
   return error instanceof ApiError && error.status === 412;
 }
+
+/**
+ * 403 NOT_CAMPAIGN_MEMBER do S2 ou do S3 logo depois de criar ou entrar numa campanha: o S2 conhece os
+ * participantes pelos eventos do S1 (consistência eventual), e o evento pode ainda não ter chegado.
+ * Vale tentar de novo por alguns segundos antes de mostrar o erro.
+ */
+export function isMembershipPending(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403 && error.code === "NOT_CAMPAIGN_MEMBER";
+}
+
+/** Esperas entre as tentativas enquanto o S2 não recebe a entrada na campanha (~10 s no total). */
+export const MEMBERSHIP_RETRY_DELAYS_MS = [500, 1000, 1500, 2000, 2500, 3000];
+
+export const MEMBERSHIP_GIVE_UP_MESSAGE =
+  "Sua entrada na campanha ainda não chegou a este serviço. Aguarde alguns segundos e tente de novo.";
+
+/** Roda `action`; se der NOT_CAMPAIGN_MEMBER, espera e repete. Avisa a tela a cada nova tentativa. */
+export async function retryWhileMembershipPending<T>(
+  action: () => Promise<T>,
+  onRetry?: (attempt: number) => void,
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await action();
+    } catch (error) {
+      const delay = MEMBERSHIP_RETRY_DELAYS_MS[attempt];
+
+      if (!isMembershipPending(error) || delay === undefined) {
+        throw error;
+      }
+
+      onRetry?.(attempt + 1);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}

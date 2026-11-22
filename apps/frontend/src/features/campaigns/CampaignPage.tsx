@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { navigate } from "../../app/navigation";
 import { Link } from "../../app/router";
-import { errorMessage } from "../../shared/http";
+import { errorMessage, isMembershipPending, MEMBERSHIP_GIVE_UP_MESSAGE } from "../../shared/http";
 import { useToast } from "../../shared/ui/toast-context";
 import { useAuth } from "../auth/auth-context";
 import { useCharacters, useTemplates } from "../characters/queries";
@@ -208,10 +208,21 @@ function CharacterForm({ campaign, me }: { campaign: CampaignView; me: Member })
     }
   };
 
+  // Logo depois de criar ou entrar na campanha, o S2 pode ainda não saber disso: a consulta repete
+  // sozinha por alguns segundos (queryClient) e, se não der, a pessoa tenta de novo pelo botão.
+  if (characters.isPending && isMembershipPending(characters.failureReason)) {
+    return <p className="campaign-empty">Confirmando sua entrada na campanha…</p>;
+  }
+
   if (characters.isError) {
     return (
       <p className="campaign-empty">
-        {errorMessage(characters.error, "Não foi possível carregar os personagens da campanha.")}
+        {isMembershipPending(characters.error)
+          ? MEMBERSHIP_GIVE_UP_MESSAGE
+          : errorMessage(characters.error, "Não foi possível carregar os personagens da campanha.")}{" "}
+        <button type="button" className="text-button" onClick={() => void characters.refetch()}>
+          Tentar de novo
+        </button>
       </p>
     );
   }
