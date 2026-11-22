@@ -138,6 +138,7 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
                 type.equals("rpg.external.validation-failed.v1") ?
                     ("DEADLINE_EXPIRED".equals(result.reason()) ? "DEADLINE_EXPIRED" : "EXTERNAL_VALIDATION_FAILED") :
                 type.equals("rpg.money.debit-rejected.v1") ? "PAYMENT_REJECTED" : "DEADLINE_EXPIRED", writes);
+            case RELEASE_STOCK_AND_REFUND -> compensate(row,decision.next().name(),true,"DEADLINE_EXPIRED",writes);
             case REQUEST_EXTERNAL -> {
                 writes.add(store.updateSaga(row,decision.next().name(),Instant.parse(DynamoStore.str(row,"deadlineAt"))));
                 writes.add(transition(row,"VALIDATING_EXTERNAL"));

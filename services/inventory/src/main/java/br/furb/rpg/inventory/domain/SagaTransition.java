@@ -6,7 +6,7 @@ import java.time.Instant;
 /** Pure state rules. Persistence checks the version and applies all effects atomically. */
 public final class SagaTransition {
     private SagaTransition() {}
-    public enum Effect { NONE, REQUEST_EXTERNAL, REQUEST_MONEY, DELIVER_ITEM, RELEASE_STOCK, REFUND_MONEY }
+    public enum Effect { NONE, REQUEST_EXTERNAL, REQUEST_MONEY, DELIVER_ITEM, RELEASE_STOCK, RELEASE_STOCK_AND_REFUND, REFUND_MONEY }
     public record Decision(Status next, Effect effect) {}
 
     public static Decision decide(Acquisition acquisition, String eventType, Instant now) {
@@ -18,7 +18,12 @@ public final class SagaTransition {
             return new Decision(current, Effect.REFUND_MONEY);
         if (current == Status.COMPENSATED || current == Status.EXPIRED)
             return new Decision(current, Effect.NONE);
-        if (!acquisition.deadlineAt().isAfter(now)) return new Decision(Status.EXPIRED, Effect.RELEASE_STOCK);
+        if (!acquisition.deadlineAt().isAfter(now)) {
+            // O S2 já debitou: além de devolver o estoque, o dinheiro precisa voltar.
+            if (current == Status.WAITING_MONEY && eventType.equals("rpg.money.debited.v1"))
+                return new Decision(Status.EXPIRED, Effect.RELEASE_STOCK_AND_REFUND);
+            return new Decision(Status.EXPIRED, Effect.RELEASE_STOCK);
+        }
         // 1º passo: o S2 confere o personagem e reserva espaço na mochila.
         if (current == Status.VALIDATING_CHARACTER) {
             if (eventType.equals("rpg.character.validated.v1"))
