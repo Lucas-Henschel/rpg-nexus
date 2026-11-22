@@ -29,8 +29,8 @@ Todos passam pelo exchange `rpg.events` (tipo `topic`). As filas ficam em
 | `CharacterValidated` | `character.validated.v1` | S2 Personagens | S3 (`inventory.saga-replies.v1`) |
 | `CharacterRejected` | `character.rejected.v1` | S2 Personagens | S3 (`inventory.saga-replies.v1`) |
 | `ExternalValidationRequested` | `external.validation.requested.v1` | S3 Inventário | S4 (`actions.validation-requested.v1`) |
-| `ExternalValidationSucceeded` | `external.validation.succeeded.v1` | S4 Ações | S3 (`inventory.saga-replies.v1`) |
-| `ExternalValidationFailed` | `external.validation.failed.v1` | S4 Ações | S3 (`inventory.saga-replies.v1`) |
+| `ExternalValidationSucceeded` | `external.validation.succeeded.v1` | S4 (`identity-validator`) | S3 (`inventory.saga-replies.v1`) |
+| `ExternalValidationFailed` | `external.validation.failed.v1` | S4 (`identity-validator`) | S3 (`inventory.saga-replies.v1`) |
 | `ItemAcquired` | `item.acquired.v1` | S3 Inventário | S1 (`campaigns.activity.v1`), S2 (`characters.acquisition-outcomes.v1`), S4 (`actions.history.v1`) |
 | `AcquisitionCancelled` | `acquisition.cancelled.v1` | S3 Inventário | S2 (`characters.acquisition-outcomes.v1`), S4 (`actions.history.v1`) |
 | `MoneyDebitRequested` | `money.debit.requested.v1` | S3 Inventário | S2 (`characters.money-commands.v1`) |

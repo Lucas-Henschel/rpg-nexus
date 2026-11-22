@@ -46,9 +46,9 @@ de consumo `Q` vem com:
 | `characters.validation-requested.v1` | S2 Personagens | `character.validation.requested.v1` |
 | `characters.acquisition-outcomes.v1` | S2 Personagens | `item.acquired.v1`, `acquisition.cancelled.v1` |
 | `inventory.saga-replies.v1` | S3 Inventário | `character.validated.v1`, `character.rejected.v1`, `external.validation.succeeded.v1`, `external.validation.failed.v1` |
-| `actions.validation-requested.v1` | S4 Ações | `external.validation.requested.v1` |
+| `actions.validation-requested.v1` | S4 (`identity-validator`) | `external.validation.requested.v1` |
 | `characters.money-commands.v1` | S2 Personagens | `money.debit.requested.v1`, `money.refund.requested.v1` |
-| `actions.history.v1` | S4 Ações | `campaign.created.v1`, `campaign.member.joined.v1`, `campaign.member.removed.v1`, `shop.item.purchased.v1`, `item.acquired.v1`, `acquisition.cancelled.v1` |
+| `actions.history.v1` | S4 (`identity`) | `campaign.created.v1`, `campaign.member.joined.v1`, `campaign.member.removed.v1`, `shop.item.purchased.v1`, `item.acquired.v1`, `acquisition.cancelled.v1` |
 
 Um serviço que usa o RabbitMQ deve esperar a topologia no Compose:
 

@@ -93,7 +93,6 @@ class InventoryApi {
         var result=service.acquire(key,request.campaignId(),userId,request.characterId(),request.itemId());
         switch(result.result()) {
             case CONFLICT -> { return ResponseEntity.status(409).body(Map.of("error","Idempotency-Key reused with different body")); }
-            case FORBIDDEN -> { return ResponseEntity.status(403).body(Map.of("error","active campaign membership required")); }
             case SHOP_ITEM_NOT_FOUND -> { return ResponseEntity.notFound().build(); }
             case OUT_OF_STOCK -> { return ResponseEntity.status(409).body(Map.of("error","out of stock")); }
             default -> { }

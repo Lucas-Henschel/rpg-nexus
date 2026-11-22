@@ -1,7 +1,7 @@
 {
   "owner": "services/inventory",
   "prefix": "inventory_",
-  "tables": ["items", "stocks", "inventory", "acquisition_sagas", "inventory_inbox", "inventory_outbox", "shops", "shop_items", "campaign_members", "saga_history"],
+  "tables": ["stocks", "inventory", "acquisition_sagas", "inventory_inbox", "inventory_outbox", "shops", "shop_items", "campaign_members", "saga_history"],
   "primaryKey": {"name": "id", "type": "S"},
   "billingMode": "PAY_PER_REQUEST",
   "note": "Create each prefixed table with partition key id (String). DynamoDB endpoint is configurable via DYNAMODB_ENDPOINT."

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:rpg-nexus:event:external-validation-requested:v1",
   "title": "ExternalValidationRequested v1",
-  "description": "O personagem foi aprovado pelo S2 e a Saga de aquisição (S3 Inventário) pede ao S4 Ações a validação na dependência externa instável.",
+  "description": "O personagem foi aprovado pelo S2 e a Saga de aquisição (S3 Inventário) pede ao S4 (contêiner identity-validator) a validação na dependência externa instável.",
   "x-routing": {
     "exchange": "rpg.events",
     "routingKey": "external.validation.requested.v1",
