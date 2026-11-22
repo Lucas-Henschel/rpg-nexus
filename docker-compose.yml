@@ -265,8 +265,16 @@ services:
       OTEL_TRACES_EXPORTER: otlp
       OTEL_METRICS_EXPORTER: none
       OTEL_LOGS_EXPORTER: none
+      # Sem um trace a cada execução do ExpirationWorker e do OutboxPublisher (a cada 2 s) no Jaeger.
+      OTEL_INSTRUMENTATION_SPRING_SCHEDULING_ENABLED: "false"
     ports:
       - "127.0.0.1:${INVENTORY_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -275,6 +283,8 @@ services:
       characters:
         condition: service_started
       campaigns:
+        condition: service_started
+      jaeger:
         condition: service_started
     networks:
       - rpg
