@@ -74,10 +74,9 @@ flowchart TB
 - **Setas sólidas:** chamadas HTTP, do front-end às APIs, e a consulta que o S1 faz ao S2 ao
   escolher o modelo de ficha da campanha.
 - **Setas pontilhadas:** eventos pelo RabbitMQ, sem detalhar filas.
-- **Bancos e armazenamento:** cada banco é um conjunto de tabelas DynamoDB que só aquele serviço lê e
-  escreve, e o que ele precisa saber dos outros chega por evento. O `identity-validator` tem as
-  próprias tabelas (inbox e outbox da validação) e não acessa as tabelas de identidade. DynamoDB e S3
-  são os serviços da AWS emulados pelo MiniStack.
+- **Bancos e armazenamento:** cada serviço tem sua instância MiniStack, credenciais e rede privada de
+  dados. O `identity-validator` compartilha a instância do S4, pois é um processo desse mesmo serviço.
+  O S3 de retratos fica na instância do S2 Personagens e tem uma porta publicada para URLs pré-assinadas.
 
 ## Serviços de nuvem e por que cada um
 

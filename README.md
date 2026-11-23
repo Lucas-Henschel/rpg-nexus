@@ -47,8 +47,7 @@ flowchart TB
     A1 & A2 & A3 & A4 & V4 <-.-> MQ
 ```
 
-Setas do front são chamadas HTTP; as pontilhadas são eventos passando pelo RabbitMQ. DynamoDB e S3 são os da AWS, emulados pelo MiniStack num único contêiner. Cada serviço só lê e
-escreve nas próprias tabelas; o que ele precisa saber dos outros chega por evento. Todo evento usa o mesmo envelope (`messageId`, `correlationId`, `type`, `version`,
+Setas do front são chamadas HTTP; as pontilhadas são eventos passando pelo RabbitMQ. Cada serviço tem uma instância MiniStack própria e uma rede privada de dados. O MiniStack de Personagens também fornece o S3 de retratos ao navegador. Cada serviço só alcança seu próprio endpoint; o que precisa saber dos outros chega por evento. Todo evento usa o mesmo envelope (`messageId`, `correlationId`, `type`, `version`,
 `occurredAt`, `payload`) e tem esquema em [`contracts/`](contracts/README.md). O Jaeger recebe os
 traces (OpenTelemetry) e não aparece no diagrama.
 
@@ -95,7 +94,8 @@ recriado. Depois disso, abra o front-end em [localhost:5173](http://localhost:51
 | S2 Personagens | [localhost:8000/docs](http://localhost:8000/docs) | `http://characters:8000` |
 | S3 Inventário e Loja | [localhost:8080](http://localhost:8080/health) | `http://inventory:8080` |
 | RabbitMQ (painel, `dev`/`dev`) | [localhost:15672](http://localhost:15672) | `amqp://rabbitmq:5672` |
-| MiniStack (DynamoDB e S3) | `http://localhost:4566` | `http://ministack:4566` |
+| MiniStack de Personagens (DynamoDB e S3) | `http://localhost:4566` | `http://ministack:4566` |
+| MiniStacks de Campanhas, Inventário e Identidade | Não publicados no host | Endpoints exclusivos nas redes privadas de cada serviço |
 | Jaeger (traces) | [localhost:16686](http://localhost:16686) | OTLP/HTTP em `http://jaeger:4318` |
 
 | Comando | Efeito |
@@ -109,7 +109,7 @@ recriado. Depois disso, abra o front-end em [localhost:5173](http://localhost:51
 
 Endpoints, credenciais, portas e nomes de filas vêm de variáveis de ambiente, comentadas em
 [`.env.example`](.env.example) e no `.env.example` de cada serviço. Mudar uma porta no `.env` muda
-só o endereço no host; entre contêineres o MiniStack continua em `http://ministack:4566`.
+só o endereço no host; os endpoints internos de cada serviço estão em [docker-compose.yml](docker-compose.yml).
 
 ## Onde está cada requisito
 

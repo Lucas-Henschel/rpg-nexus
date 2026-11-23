@@ -3,6 +3,7 @@
 
 # Fichas (sk = PROFILE) e reservas da Saga (sk = HOLD#{operationId}) sob a mesma chave de partição.
 resource "aws_dynamodb_table" "characters" {
+  provider = aws.characters
   name         = local.characters_env["TABLE_CHARACTERS"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "pk"
@@ -39,6 +40,7 @@ resource "aws_dynamodb_table" "characters" {
 
 # Idempotência (R1): uma linha por messageId já processado; expira sozinha pelo TTL.
 resource "aws_dynamodb_table" "inbox" {
+  provider = aws.characters
   name         = local.characters_env["TABLE_INBOX"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "messageId"
@@ -56,6 +58,7 @@ resource "aws_dynamodb_table" "inbox" {
 
 # Outbox transacional: eventos gravados junto com o efeito e publicados depois pelo relay.
 resource "aws_dynamodb_table" "outbox" {
+  provider = aws.characters
   name         = local.characters_env["TABLE_OUTBOX"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "messageId"
@@ -91,6 +94,7 @@ resource "aws_dynamodb_table" "outbox" {
 
 # Modelo de leitura (CQRS): um resumo por personagem; "painel da campanha" é uma Query pela chave primária.
 resource "aws_dynamodb_table" "read_model" {
+  provider = aws.characters
   name         = local.characters_env["TABLE_READ_MODEL"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "campaignId"
@@ -110,6 +114,7 @@ resource "aws_dynamodb_table" "read_model" {
 # Retratos dos personagens: characters/{characterId}/portrait.
 # Modelos de ficha: cabeçalho (sk = HEAD, versão atual) e cada versão imutável (sk = V#000001).
 resource "aws_dynamodb_table" "templates" {
+  provider = aws.characters
   name         = local.characters_env["TABLE_TEMPLATES"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "pk"
@@ -145,11 +150,13 @@ resource "aws_dynamodb_table" "templates" {
 }
 
 resource "aws_s3_bucket" "assets" {
+  provider = aws.characters
   bucket = var.assets_bucket
 }
 
 # O navegador envia e lê o retrato direto no S3 por URL pré-assinada.
 resource "aws_s3_bucket_cors_configuration" "assets" {
+  provider = aws.characters
   bucket = aws_s3_bucket.assets.id
 
   cors_rule {

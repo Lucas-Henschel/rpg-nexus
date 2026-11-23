@@ -1,26 +1,32 @@
-variable "aws_endpoint_url" {
-  description = "Endpoint das APIs AWS. No Compose é o MiniStack (http://ministack:4566); no host, http://localhost:4566."
-  type        = string
-  default     = "http://localhost:4566"
-}
-
 variable "aws_region" {
   type    = string
   default = "us-east-1"
 }
 
-variable "aws_access_key_id" {
-  description = "Credencial fictícia do emulador."
-  type        = string
-  default     = "test"
+variable "campaigns_access_key_id" { type = string }
+variable "campaigns_secret_access_key" {
+  type = string
+  sensitive = true
 }
-
-variable "aws_secret_access_key" {
-  description = "Credencial fictícia do emulador."
-  type        = string
-  default     = "test"
-  sensitive   = true
+variable "characters_access_key_id" { type = string }
+variable "characters_secret_access_key" {
+  type = string
+  sensitive = true
 }
+variable "inventory_access_key_id" { type = string }
+variable "inventory_secret_access_key" {
+  type = string
+  sensitive = true
+}
+variable "identity_access_key_id" { type = string }
+variable "identity_secret_access_key" {
+  type = string
+  sensitive = true
+}
+variable "campaigns_endpoint_url" { type = string }
+variable "characters_endpoint_url" { type = string }
+variable "inventory_endpoint_url" { type = string }
+variable "identity_endpoint_url" { type = string }
 
 variable "assets_bucket" {
   description = "Bucket dos retratos (RPG_ASSETS_BUCKET)."

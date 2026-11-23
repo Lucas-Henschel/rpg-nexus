@@ -6,6 +6,7 @@ locals {
 }
 
 resource "aws_dynamodb_table" "inventory" {
+  provider = aws.inventory
   for_each = toset(local.inventory_tables)
 
   name         = "${local.inventory_env["INVENTORY_TABLE_PREFIX"]}${each.key}"

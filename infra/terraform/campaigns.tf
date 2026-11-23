@@ -2,6 +2,7 @@
 # As mesmas tabelas são descritas em services/campaigns/src/db/setup.ts, usado nos testes e fora do Docker.
 
 resource "aws_dynamodb_table" "campaigns" {
+  provider = aws.campaigns
   name         = local.campaigns_env["TABLE_CAMPAIGNS"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "campaignId"
@@ -14,6 +15,7 @@ resource "aws_dynamodb_table" "campaigns" {
 
 # Códigos de entrada em uso: cada código de seis dígitos aponta para uma campanha.
 resource "aws_dynamodb_table" "campaign_join_codes" {
+  provider = aws.campaigns
   name         = local.campaigns_env["TABLE_JOIN_CODES"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "joinCode"
@@ -26,6 +28,7 @@ resource "aws_dynamodb_table" "campaign_join_codes" {
 
 # Participantes de uma campanha (um por usuário). O índice byUser acha as campanhas de um usuário.
 resource "aws_dynamodb_table" "campaign_members" {
+  provider = aws.campaigns
   name         = local.campaigns_env["TABLE_MEMBERS"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "campaignId"
@@ -51,6 +54,7 @@ resource "aws_dynamodb_table" "campaign_members" {
 
 # Atividade de uma campanha, ordenada pela data (activityKey = occurredAt#operationId).
 resource "aws_dynamodb_table" "campaign_activity" {
+  provider = aws.campaigns
   name         = local.campaigns_env["TABLE_ACTIVITY"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "campaignId"
@@ -69,6 +73,7 @@ resource "aws_dynamodb_table" "campaign_activity" {
 
 # Operações já contadas (uma aquisição conta uma vez só, mesmo vinda em mensagens diferentes).
 resource "aws_dynamodb_table" "campaign_operations" {
+  provider = aws.campaigns
   name         = local.campaigns_env["TABLE_OPERATIONS"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "operationId"
@@ -81,6 +86,7 @@ resource "aws_dynamodb_table" "campaign_operations" {
 
 # Mensagens já processadas; o DynamoDB apaga cada uma quando passa o `expiresAt`.
 resource "aws_dynamodb_table" "campaign_inbox" {
+  provider = aws.campaigns
   name         = local.campaigns_env["TABLE_INBOX"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "messageId"
@@ -100,6 +106,7 @@ resource "aws_dynamodb_table" "campaign_inbox" {
 # guarda só os pendentes, na ordem em que foram gravados; o DynamoDB apaga os publicados quando
 # passa o `expiresAt`.
 resource "aws_dynamodb_table" "campaign_outbox" {
+  provider = aws.campaigns
   name         = local.campaigns_env["TABLE_OUTBOX"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "messageId"
