@@ -85,6 +85,31 @@ class DynamoSagaRepositoryTest {
         assertThat(payload.path("deadlineAt").asText()).isNotBlank();
     }
 
+    @Test void versionTwoUsesExpiresAtAndUnitPrice() {
+        saga.validationEventVersion=2;
+        var op=start();
+        var request=only(drainOutbox(),"rpg.character.validation-requested.v2");
+        assertThat(request.path("version").asInt()).isEqualTo(2);
+        assertThat(request.path("payload").path("expiresAt").asText()).isNotBlank();
+        assertThat(request.path("payload").has("deadlineAt")).isFalse();
+        reply(op,"rpg.character.validated.v1");
+        drainOutbox();
+        reply(op,"rpg.external.validation-succeeded.v1");
+        drainOutbox();
+        reply(op,"rpg.money.debited.v1");
+        var purchase=only(drainOutbox(),"rpg.shop.item-purchased.v2");
+        assertThat(purchase.path("version").asInt()).isEqualTo(2);
+        assertThat(purchase.path("payload").path("unitPrice").asLong()).isEqualTo(PRICE);
+        assertThat(purchase.path("payload").has("amount")).isFalse();
+    }
+
+    @Test void historyReadsProjectionInsteadOfSagaWriteTable() {
+        var op=start();
+        client.deleteItem(r -> r.tableName(store.table("acquisition_sagas"))
+            .key(java.util.Map.of("id",DynamoStore.s(op))));
+        assertThat(steps(op)).containsExactly("STARTED");
+    }
+
     @Test @DisplayName("início: mesma chave e mesmos dados é idempotente; dados diferentes é conflito")
     void startIsIdempotent() {
         var op=start();

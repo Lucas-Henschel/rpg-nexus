@@ -25,7 +25,8 @@
         },
         "bindings": [
           "item.acquired.v1",
-          "shop.item.purchased.v1"
+          "shop.item.purchased.v1",
+          "shop.item.purchased.v2"
         ]
       },
       {

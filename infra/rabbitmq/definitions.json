@@ -361,6 +361,14 @@
       "destination_type": "queue", "routing_key": "shop.item.purchased.v1", "arguments": {}
     },
     {
+      "source": "rpg.events", "vhost": "/", "destination": "campaigns.activity.v1",
+      "destination_type": "queue", "routing_key": "shop.item.purchased.v2", "arguments": {}
+    },
+    {
+      "source": "rpg.events", "vhost": "/", "destination": "actions.history.v1",
+      "destination_type": "queue", "routing_key": "shop.item.purchased.v2", "arguments": {}
+    },
+    {
       "source": "rpg.events",
       "vhost": "/",
       "destination": "inventory.campaign-members.v1",
