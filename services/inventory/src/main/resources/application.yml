@@ -27,4 +27,6 @@ inventory:
   members-retry-queue: ${RABBITMQ_MEMBERS_RETRY_QUEUE:inventory.campaign-members.v1.retry}
   retry-base-delay-ms: ${RETRY_BASE_DELAY_MS:1000}
   saga-timeout-seconds: ${SAGA_TIMEOUT_SECONDS:60}
+  validation-event-version: ${VALIDATION_EVENT_VERSION:0}
+  run-schedulers: ${INVENTORY_RUN_SCHEDULERS:true}
   max-retries: ${MAX_RETRIES:3}

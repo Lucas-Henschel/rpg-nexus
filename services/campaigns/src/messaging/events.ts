@@ -31,6 +31,7 @@ const addFormats = addFormatsModule.default;
 const SCHEMAS: Record<string, string> = {
   "rpg.item.acquired.v1": "events/item-acquired.v1.schema.json",
   "rpg.shop.item-purchased.v1": "events/shop-item-purchased.v1.schema.json",
+  "rpg.shop.item-purchased.v2": "events/shop-item-purchased.v2.schema.json",
 };
 
 export function createAcquisitionParser(contractsDir: string): (body: Buffer) => Acquisition {

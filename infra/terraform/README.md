@@ -26,7 +26,7 @@ serviços só sobem depois que ele termina com sucesso.
 | Tabelas DynamoDB | `action_history`, `action_history_inbox`, `action_history_memberships` | `identity.tf` | Histórico de ações, mensagens já processadas e participantes que podem lê-lo (S4). |
 | Tabelas DynamoDB | `action_validation_inbox`, `action_validation_outbox` | `identity.tf` | Inbox e outbox do validador externo da compra (S4). |
 | Bucket S3 | `rpg-assets` | `characters.tf` | Retratos, com CORS para o front-end. |
-| Tabelas DynamoDB | `inventory_items`, `inventory_stocks`, `inventory_inventory`, `inventory_acquisition_sagas`, `inventory_inventory_inbox`, `inventory_inventory_outbox` | `inventory.tf` | Catálogo, estoque, inventário, Saga, inbox e outbox (S3); chave `id`. |
+| Tabelas DynamoDB | `inventory_stocks`, `inventory_inventory`, `inventory_acquisition_sagas`, `inventory_inventory_inbox`, `inventory_inventory_outbox`, `inventory_shops`, `inventory_shop_items`, `inventory_campaign_members`, `inventory_saga_history` | `inventory.tf` | Estoque, inventário, Saga, inbox, outbox, loja, participantes projetados e histórico de leitura (S3); chave `id`. |
 | Exchange, filas e ligações | `rpg.events`, ... | `rabbitmq.tf` | Topologia de `infra/rabbitmq/definitions.json`. |
 
 ## De onde vêm os nomes
@@ -65,7 +65,7 @@ estado, no volume `terraform-state`.
 ### Roteiro para a apresentação
 
 1. `docker compose down --volumes` e depois `docker compose up --build --wait`. Mostrar no log do
-   Terraform (`docker compose logs terraform`) a linha `Apply complete! Resources: 90 added`.
+   Terraform (`docker compose logs terraform`) a linha `Apply complete! Resources: ... added`.
 2. Apagar um recurso à mão, por exemplo uma tabela e uma fila:
 
    ```sh
@@ -111,7 +111,7 @@ docker compose exec rabbitmq rabbitmqctl list_queues name arguments
 | `campaigns.tf` | As sete tabelas do S1. |
 | `characters.tf` | As cinco tabelas do S2, o bucket e o CORS. |
 | `identity.tf` | As dez tabelas do S4 (identidade, histórico e validador externo). |
-| `inventory.tf` | As seis tabelas do S3, num recurso só (`for_each`). |
+| `inventory.tf` | As nove tabelas do S3, num recurso só (`for_each`). |
 | `rabbitmq.tf` | Exchange, filas e ligações de `definitions.json`. |
 | `outputs.tf` | Nomes dos recursos criados. |
 

@@ -1,7 +1,14 @@
 # Autoescala do consumidor
 
-`autoscale.sh` ajusta o número de réplicas de `characters-worker` conforme o tamanho da fila
-`characters.validation-requested.v1`.
+`autoscale.sh` ajusta o número de réplicas de um consumidor conforme o tamanho da fila.
+O perfil `autoscale` inicia quatro instâncias independentes do controlador:
+
+| Serviço | Controlador | Fila observada | Réplicas |
+| --- | --- | --- | --- |
+| S1 Campanhas | `autoscaler-campaigns` | `campaigns.activity.v1` | `campaigns-worker` |
+| S2 Personagens | `autoscaler` | `characters.validation-requested.v1` | `characters-worker` |
+| S3 Inventário | `autoscaler-inventory` | `inventory.saga-replies.v1` | `inventory-worker` |
+| S4 Identidade | `autoscaler-identity` | `actions.validation-requested.v1` | `identity-validator` |
 
 - **Medida:** total de mensagens da fila (prontas + em processamento), lido da API de gerenciamento
   do RabbitMQ a cada `AUTOSCALE_INTERVAL_SECONDS`.
@@ -12,8 +19,9 @@
 - **Como escala:** `docker compose up --scale`, pelo socket do Docker do host. Réplicas em execução
   nunca são recriadas.
 
-`characters-worker` é o mesmo serviço de Personagens, sem porta publicada no host; por isso pode ter
-várias réplicas. Todas consomem as mesmas filas (consumidores concorrentes). Remover uma réplica no
+Os workers não publicam portas no host; por isso podem ter várias réplicas. O `inventory-worker` não
+executa os agendadores de expiração ou publicação da outbox; essas tarefas ficam na instância principal.
+Todas as réplicas consomem as respectivas filas (consumidores concorrentes). Remover uma réplica no
 meio do processamento é seguro: a mensagem sem ACK volta para a fila e a inbox impede efeito duplicado.
 
 ## Demonstração
@@ -28,7 +36,7 @@ Antes, no `.env` da raiz, deixe o consumidor lento de propósito para a fila cre
 docker compose --profile autoscale up --build --detach --wait
 
 # 2. em um terminal, acompanhe as decisões
-docker compose logs -f autoscaler
+docker compose logs -f autoscaler autoscaler-campaigns autoscaler-inventory autoscaler-identity
 
 # 3. em outro, gere carga
 docker compose exec characters python -m scripts.publish_event flood --character-id <id> --campaign-id c1 --count 3000

@@ -17,6 +17,9 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
     private final DynamoStore store;
     private final ObjectMapper json;
     private final long timeout;
+    // 0 alterna v1/v2 por operação; 1 ou 2 fixa uma versão durante migrações.
+    @Value("${inventory.validation-event-version:0}")
+    private int validationEventVersion = 1;
     public DynamoSagaRepository(DynamoStore store, ObjectMapper json, @Value("${inventory.saga-timeout-seconds}") long timeout) {
         this.store=store; this.json=json; this.timeout=timeout;
     }
@@ -34,14 +37,25 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
         if(!name.isEmpty()) result.put("itemName",name.length()>120?name.substring(0,120):name);
         return result;
     }
-    Map<String,Object> validationPayload(Map<String,AttributeValue> row) {
-        var result=new HashMap<String,Object>(payload(row));
-        result.put("deadlineAt",DynamoStore.str(row,"deadlineAt"));
+    Map<String,Object> purchasePayload(Map<String,AttributeValue> row, int version) {
+        var result=new HashMap<String,Object>(deliveredPayload(row));
+        if(version==2) result.put("unitPrice",result.remove("amount"));
         return result;
+    }
+    Map<String,Object> validationPayload(Map<String,AttributeValue> row, int version) {
+        var result=new HashMap<String,Object>(payload(row));
+        result.put(version==2?"expiresAt":"deadlineAt",DynamoStore.str(row,"deadlineAt"));
+        return result;
+    }
+    Map<String,Object> validationPayload(Map<String,AttributeValue> row) { return validationPayload(row,1); }
+    int validationVersion(String operationId) {
+        if(validationEventVersion==0) return (operationId.hashCode()&1)+1;
+        if(validationEventVersion==1 || validationEventVersion==2) return validationEventVersion;
+        throw new IllegalArgumentException("VALIDATION_EVENT_VERSION must be 0, 1 or 2");
     }
     TransactWriteItem event(String operationId, String type, String route, Map<String,Object> payload) {
         var envelope=Map.of("messageId",UUID.randomUUID().toString(),"correlationId",operationId,
-            "type",type,"version",1,"occurredAt",Instant.now().toString(),"payload",payload);
+            "type",type,"version",type.endsWith(".v2")?2:1,"occurredAt",Instant.now().toString(),"payload",payload);
         var item=new HashMap<String,AttributeValue>();
         item.put("id",DynamoStore.s(UUID.randomUUID().toString()));
         item.put("status",DynamoStore.s("PENDING"));
@@ -68,11 +82,13 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
             .updateExpression("SET available = available - :one, reserved = if_not_exists(reserved, :zero) + :one")
             .conditionExpression("attribute_exists(id) AND available >= :one")
             .expressionAttributeValues(Map.of(":one",DynamoStore.n(1),":zero",DynamoStore.n(0))).build()).build();
+        int validationVersion=validationVersion(id);
         for(int attempt=0;attempt<12;attempt++) {
             try {
                 store.transact(List.of(stock,store.insert("acquisition_sagas",row),
                     transition(row,"STARTED"),
-                    event(id,"rpg.character.validation-requested.v1","character.validation.requested.v1",validationPayload(row))));
+                    event(id,"rpg.character.validation-requested.v"+validationVersion,
+                        "character.validation.requested.v"+validationVersion,validationPayload(row,validationVersion))));
                 return StartResult.STARTED;
             } catch(TransactionCanceledException e) {
                 existing=store.get("acquisition_sagas",id);
@@ -164,7 +180,9 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
                 writes.add(confirmReservation(row));
                 writes.add(transition(row,"COMPLETED"));
                 writes.add(event(id,"rpg.item.acquired.v1","item.acquired.v1",deliveredPayload(row)));
-                writes.add(event(id,"rpg.shop.item-purchased.v1","shop.item.purchased.v1",deliveredPayload(row)));
+                int purchaseVersion=validationVersion(id);
+                writes.add(event(id,"rpg.shop.item-purchased.v"+purchaseVersion,
+                    "shop.item.purchased.v"+purchaseVersion,purchasePayload(row,purchaseVersion)));
             }
             case REFUND_MONEY -> writes.add(event(id,"rpg.money.refund-requested.v1","money.refund.requested.v1",payload(row)));
             case NONE -> { }

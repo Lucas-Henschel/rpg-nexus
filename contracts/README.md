@@ -25,7 +25,7 @@ Todos passam pelo exchange `rpg.events` (tipo `topic`). As filas ficam em
 
 | Evento | Routing key | Produz | Consome (fila) |
 | --- | --- | --- | --- |
-| `CharacterValidationRequested` | `character.validation.requested.v1` | S3 Inventário | S2 (`characters.validation-requested.v1`) |
+| `CharacterValidationRequested` | `character.validation.requested.v1` e `.v2` | S3 Inventário | S2 (`characters.validation-requested.v1`) |
 | `CharacterValidated` | `character.validated.v1` | S2 Personagens | S3 (`inventory.saga-replies.v1`) |
 | `CharacterRejected` | `character.rejected.v1` | S2 Personagens | S3 (`inventory.saga-replies.v1`) |
 | `ExternalValidationRequested` | `external.validation.requested.v1` | S3 Inventário | S4 (`actions.validation-requested.v1`) |
@@ -38,7 +38,7 @@ Todos passam pelo exchange `rpg.events` (tipo `topic`). As filas ficam em
 | `MoneyDebited` | `money.debited.v1` | S2 Personagens | S3 (`inventory.saga-replies.v1`) |
 | `MoneyRefundRequested` | `money.refund.requested.v1` | S3 Inventário | S2 (`characters.money-commands.v1`) |
 | `MoneyRefunded` | `money.refunded.v1` | S2 Personagens | S3 (`inventory.saga-replies.v1`) |
-| `ShopItemPurchased` | `shop.item.purchased.v1` | S3 Inventário | S1 (`campaigns.activity.v1`), S4 (`actions.history.v1`) |
+| `ShopItemPurchased` | `shop.item.purchased.v1` e `.v2` | S3 Inventário | S1 (`campaigns.activity.v1`), S4 (`actions.history.v1`) |
 | `CampaignCreated` | `campaign.created.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`), S4 (`actions.history.v1`) |
 | `CampaignMemberJoined` | `campaign.member.joined.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`), S4 (`actions.history.v1`) |
 | `CampaignMemberCharacterChosen` | `campaign.member.character-chosen.v1` | S1 Campanhas | S3 (`inventory.campaign-members.v1`) |
@@ -66,6 +66,11 @@ A versão é mantida por `type`. Crie uma versão nova (`.v2`, com esquema e rou
 quando a mudança quebrar quem consome: remover ou renomear campos, mudar tipos ou significados, ou
 tornar obrigatório um campo novo. Campo opcional novo mantém a versão. As duas versões convivem até
 todos os consumidores migrarem e as mensagens antigas acabarem.
+
+O S3 escolhe v1 ou v2 de forma estável pelo ID da operação (`VALIDATION_EVENT_VERSION=0`). Para demonstrar
+uma versão específica, configure `VALIDATION_EVENT_VERSION=1` ou `2` e recrie o contêiner de inventário.
+Na v2, `CharacterValidationRequested` troca `deadlineAt` por `expiresAt`; `ShopItemPurchased` troca
+`amount` por `unitPrice`. S2, S1 e S4 validam as duas versões e convertem para seus modelos internos.
 
 Uma routing key nova precisa de uma fila em `infra/rabbitmq/definitions.json`; senão o RabbitMQ
 descarta a mensagem em silêncio. O teste abaixo confere isso.

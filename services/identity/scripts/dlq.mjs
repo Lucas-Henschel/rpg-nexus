@@ -23,6 +23,7 @@ const eventSchemas = new Map([
   ["rpg.campaign.member.joined.v1", "events/campaign-member-joined.v1.schema.json"],
   ["rpg.campaign.member.removed.v1", "events/campaign-member-removed.v1.schema.json"],
   ["rpg.shop.item-purchased.v1", "events/shop-item-purchased.v1.schema.json"],
+  ["rpg.shop.item-purchased.v2", "events/shop-item-purchased.v2.schema.json"],
   ["rpg.item.acquired.v1", "events/item-acquired.v1.schema.json"],
   ["rpg.acquisition.cancelled.v1", "events/acquisition-cancelled.v1.schema.json"],
 ]);

@@ -27,6 +27,7 @@ export function createHistoryEventParser(contractsDir: string): (body: Buffer) =
     ["rpg.campaign.member.joined.v1", "campaign-member-joined.v1.schema.json", "MEMBER_JOINED"],
     ["rpg.campaign.member.removed.v1", "campaign-member-removed.v1.schema.json", "MEMBER_REMOVED"],
     ["rpg.shop.item-purchased.v1", "shop-item-purchased.v1.schema.json", "SHOP_ITEM_PURCHASED"],
+    ["rpg.shop.item-purchased.v2", "shop-item-purchased.v2.schema.json", "SHOP_ITEM_PURCHASED"],
     ["rpg.item.acquired.v1", "item-acquired.v1.schema.json", "ITEM_ACQUIRED"],
     ["rpg.acquisition.cancelled.v1", "acquisition-cancelled.v1.schema.json", "ACQUISITION_CANCELLED"],
   ];
@@ -69,7 +70,7 @@ export function createHistoryEventParser(contractsDir: string): (body: Buffer) =
       case "MEMBER_REMOVED":
         return { ...common, userId: payload.userId as string, removedBy: payload.removedBy as string, reason: payload.reason as HistoryReason };
       case "SHOP_ITEM_PURCHASED":
-        return { ...common, operationId: payload.operationId as string, userId: payload.userId as string, characterId: payload.characterId as string, itemId: payload.itemId as string, quantity: payload.quantity as number, amount: payload.amount as number };
+        return { ...common, operationId: payload.operationId as string, userId: payload.userId as string, characterId: payload.characterId as string, itemId: payload.itemId as string, quantity: payload.quantity as number, amount: (wireType.endsWith(".v2") ? payload.unitPrice : payload.amount) as number };
       case "ITEM_ACQUIRED":
         return { ...common, operationId: payload.operationId as string, characterId: payload.characterId as string, itemId: payload.itemId as string, itemName: payload.itemName as string | undefined, quantity: payload.quantity as number };
       case "ACQUISITION_CANCELLED":
