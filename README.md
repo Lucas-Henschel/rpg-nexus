@@ -158,11 +158,11 @@ Para ver cada um funcionando, rode os [scripts de demonstração](#scripts-de-de
 | R5 Dependência instável | [`validator.ts`](services/identity/src/validator.ts): `VALIDATION_FAILURE_RATE`, `VALIDATION_MIN_DELAY_MS`, `VALIDATION_MAX_DELAY_MS` |
 | R6 Reconexão | S1 [`connection.ts`](services/campaigns/src/messaging/connection.ts), S2 [`rabbitmq.py`](services/characters/app/messaging/rabbitmq.py), S3 Spring AMQP, S4 [`consumer.ts`](services/identity/src/messaging/consumer.ts) |
 | Retry e DLQ | Filas `.retry` e `.dlq` de cada consumidor em [`infra/rabbitmq`](infra/rabbitmq/README.md) |
-| Bônus: tracing | OpenTelemetry e Jaeger nos quatro serviços: [S1](services/campaigns/src/tracing), [S2](services/characters/app/tracing.py), [S3](services/inventory/src/main/java/br/furb/rpg/inventory/tracing) e [S4](services/identity/src/tracing), incluindo o `identity-validator` |
+| Bônus: tracing | OpenTelemetry e Jaeger nos quatro serviços: [S1](services/campaigns/src/tracing), [S2](services/characters/app/tracing.py), [S3](services/inventory/src/main/java/br/furb/rpg/inventory/tracing) e [S4](services/identity/src/tracing), incluindo o `identity-validator`. [Roteiro de compra e verificação do trace](scripts/requisitos/bonus-tracing.sh) |
 | Bônus: infraestrutura como código | [`infra/terraform`](infra/terraform/README.md) |
-| Bônus: autoescala | [`infra/autoscaler`](infra/autoscaler/README.md) |
-| Bônus: CQRS | Modelo de leitura do S2 em [`dynamodb_read_model.py`](services/characters/app/adapters/dynamodb_read_model.py) |
-| Bônus: versionamento de eventos | `CharacterValidationRequested` v1 e v2 em [`contracts/events`](contracts/events) e [`events.py`](services/characters/app/messaging/events.py) |
+| Bônus: autoescala | Quatro consumidores por tamanho de fila em [`infra/autoscaler`](infra/autoscaler/README.md) |
+| Bônus: CQRS | Consultas de atividade, personagens, Saga e histórico em [modelos de leitura separados](docs/requisitos-transversais-implementacao.md) |
+| Bônus: versionamento de eventos | `CharacterValidationRequested` e `ShopItemPurchased` v1/v2 em [`contracts/events`](contracts/events) |
 
 ## Documentação
 

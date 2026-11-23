@@ -53,6 +53,11 @@ it("recusa a compra fora do contrato com PoisonMessage", async () => {
   expect(() => parse(body)).toThrow(PoisonMessage);
 });
 
+it("aceita ShopItemPurchased v2 sem alterar a projeção de atividade", async () => {
+  const body = await readFile(resolve(contractsDir, "examples/shop-item-purchased.v2.valid.json"));
+  expect(parse(body)).toMatchObject({ operationId: "op-2", campaignId: "c1", itemName: "Espada de Cinzas" });
+});
+
 it("recusa tipo de evento que não é aquisição com PoisonMessage", async () => {
   const event = JSON.parse((await example("valid")).toString("utf8"));
   const body = Buffer.from(JSON.stringify({ ...event, type: "rpg.campaign.created.v1" }));

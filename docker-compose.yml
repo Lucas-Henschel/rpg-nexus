@@ -189,14 +189,14 @@ services:
 
   # Bônus (autoescala): ajusta o número de réplicas de characters-worker pelo tamanho da fila.
   #   docker compose --profile autoscale up -d autoscaler
-  autoscaler:
+  autoscaler: &autoscaler
     image: docker:27-cli
     profiles: ["autoscale"]
     restart: unless-stopped
     depends_on:
       rabbitmq:
         condition: service_healthy
-    environment:
+    environment: &autoscaler-env
       RABBITMQ_API_URL: http://rabbitmq:15672
       RABBITMQ_USER: ${RABBITMQ_USER:-dev}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev}
@@ -215,6 +215,27 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - rpg
+
+  autoscaler-campaigns:
+    <<: *autoscaler
+    environment:
+      <<: *autoscaler-env
+      AUTOSCALE_QUEUE: campaigns.activity.v1
+      AUTOSCALE_SERVICE: campaigns-worker
+
+  autoscaler-inventory:
+    <<: *autoscaler
+    environment:
+      <<: *autoscaler-env
+      AUTOSCALE_QUEUE: inventory.saga-replies.v1
+      AUTOSCALE_SERVICE: inventory-worker
+
+  autoscaler-identity:
+    <<: *autoscaler
+    environment:
+      <<: *autoscaler-env
+      AUTOSCALE_QUEUE: actions.validation-requested.v1
+      AUTOSCALE_SERVICE: identity-validator
 
   campaigns:
     <<: *campaigns
@@ -241,13 +262,13 @@ services:
 
   # S3 Inventário. Nomes de filas e o prefixo das tabelas vêm de services/inventory/.env.example;
   # aqui só muda o que aponta para dentro da rede do Compose.
-  inventory:
+  inventory: &inventory
     build:
       context: .
       dockerfile: services/inventory/Dockerfile
     restart: unless-stopped
     env_file: services/inventory/.env.example
-    environment:
+    environment: &inventory-env
       AWS_REGION: ${AWS_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
@@ -289,6 +310,15 @@ services:
         condition: service_started
     networks:
       - rpg
+
+  inventory-worker:
+    <<: *inventory
+    profiles: ["autoscale"]
+    ports: []
+    environment:
+      <<: *inventory-env
+      OTEL_SERVICE_NAME: inventory-worker
+      INVENTORY_RUN_SCHEDULERS: "false"
 
   identity:
     <<: *identity

@@ -1,0 +1,11 @@
+{
+  "messageId": "77777777-7777-4777-8777-777777777777",
+  "correlationId": "op-2",
+  "type": "rpg.shop.item-purchased.v2",
+  "version": 2,
+  "occurredAt": "2026-11-17T00:00:00Z",
+  "payload": {
+    "operationId": "op-2", "campaignId": "c1", "userId": "u1", "characterId": "p1",
+    "itemId": "sword", "unitPrice": 30, "quantity": 1, "itemName": "Espada de Cinzas"
+  }
+}

@@ -65,6 +65,16 @@ describe("eventos do histórico", () => {
     expect(event).toMatchObject({ type: "SHOP_ITEM_PURCHASED", userId: "u2", amount: 25 });
   });
 
+  it("converte ShopItemPurchased v2 e mantém o preço no modelo de leitura", () => {
+    const event = parse(Buffer.from(JSON.stringify({
+      ...base,
+      version: 2,
+      type: "rpg.shop.item-purchased.v2",
+      payload: { operationId: "op-2", campaignId: "c1", userId: "u2", characterId: "p1", itemId: "espada", unitPrice: 25, quantity: 1 },
+    })));
+    expect(event).toMatchObject({ type: "SHOP_ITEM_PURCHASED", amount: 25 });
+  });
+
   it("manda evento desconhecido para a DLQ", () => {
     expect(() => parse(Buffer.from(JSON.stringify({ ...base, type: "rpg.unknown.v1", payload: {} })))).toThrow(PoisonMessage);
   });
