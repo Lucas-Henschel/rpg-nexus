@@ -695,8 +695,7 @@ select.ink-input {
 /* ---------- Login ---------- */
 
 .login-page {
-  height: 100dvh;
-  overflow: hidden;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(22rem, 0.95fr);
   align-items: center;
@@ -710,8 +709,6 @@ select.ink-input {
   position: relative;
   padding-bottom: 0;
 }
-
-.login-card { max-height: calc(100dvh - 2rem); overflow-y: auto; }
 
 .login-intro::after {
   content: "";
@@ -985,11 +982,9 @@ select.ink-input {
 
 @media (max-width: 800px) {
   .login-page {
-    height: 100dvh;
-    min-height: 0;
-    overflow: hidden;
+    min-height: 100dvh;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
     gap: 0.8rem;
     max-width: 34rem;
     padding: 0.8rem 0;
@@ -1009,31 +1004,12 @@ select.ink-input {
   }
 
   .login-intro__text { margin-top: 0.4rem; font-size: 0.95rem; }
-  .login-card { max-height: 100%; overflow-y: auto; }
-
   .login-quote {
     display: none;
   }
 }
 
 /* ---------- Inventário ---------- */
-
-.history-head { align-items: end; }
-.history-head .campaign-picker { min-width: min(100%, 18rem); }
-.history-state { margin-top: 2rem; padding: 1.5rem; border: 1.5px solid var(--feltro-linha); border-radius: 6px; }
-.history-state h2 { font-family: var(--fonte-titulo); font-size: 1.7rem; }
-.history-state p + .button, .history-state .button { margin-top: 1rem; }
-.history-state--error { border-color: var(--rubi); }
-.history-timeline { position: relative; display: grid; gap: 0; margin-top: 2.2rem; padding: 0; list-style: none; }
-.history-timeline::before { content: ""; position: absolute; top: 0.75rem; bottom: 0.75rem; left: 0.55rem; width: 2px; background: var(--feltro-linha); }
-.history-entry { position: relative; padding: 0 0 2rem 2.4rem; }
-.history-entry__mark { position: absolute; z-index: 1; left: 0; top: 0.45rem; width: 1.2rem; height: 1.2rem; border: 3px solid var(--feltro); border-radius: 50%; background: var(--latao); box-shadow: 0 0 0 2px var(--latao); }
-.history-entry--acquisition_cancelled .history-entry__mark { background: var(--rubi); box-shadow: 0 0 0 2px var(--rubi); }
-.history-entry article { padding: 1rem 1.15rem; border: 1.5px solid var(--feltro-linha); border-radius: 6px; }
-.history-entry time, .history-entry small { color: var(--texto-suave); font-size: 0.82rem; }
-.history-entry h2 { margin: 0.2rem 0 0.45rem; font-family: var(--fonte-titulo); font-size: 1.55rem; }
-.history-entry__reason { margin-top: 0.55rem; color: #f0a3b1; }
-.history-entry small { display: block; margin-top: 0.75rem; overflow-wrap: anywhere; }
 
 .inventory-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.4rem; align-items: start; }
 .inventory-panel { min-height: 25rem; }

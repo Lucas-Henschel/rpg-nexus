@@ -129,11 +129,11 @@ const JOURNEY: { title: string; text: string; to: string; action: string; servic
       service: "inventory",
     },
     {
-      title: "Releia a história",
-      text: "Cada item entregue e cada pedido cancelado fica registrado na linha do tempo da campanha.",
-      to: "/historico",
-      action: "Ver histórico",
-      service: "actions",
+      title: "Acompanhe a campanha",
+      text: "Compras, entregas e mudanças de participantes aparecem na atividade recente de cada campanha.",
+      to: "/campanhas",
+      action: "Ver campanhas",
+      service: "campaigns",
     },
   ];
 
