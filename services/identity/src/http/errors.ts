@@ -4,6 +4,7 @@ import {
   CampaignHistoryForbidden,
   InvalidAccessToken,
   InvalidCredentials,
+  InvalidHistoryCursor,
   InvalidRefreshToken,
   LoginTemporarilyLocked,
   UserAlreadyExists,
@@ -54,6 +55,10 @@ export function errorHandler(error: FastifyError, request: FastifyRequest, reply
 
   if (error instanceof CampaignHistoryForbidden) {
     return reply.status(403).send(errorBody("CAMPAIGN_HISTORY_FORBIDDEN", "você não participa desta campanha"));
+  }
+
+  if (error instanceof InvalidHistoryCursor) {
+    return reply.status(422).send(errorBody("INVALID_HISTORY_CURSOR", "cursor de histórico inválido"));
   }
 
 

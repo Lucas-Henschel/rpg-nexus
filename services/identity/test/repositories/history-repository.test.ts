@@ -43,4 +43,19 @@ describe("projeção de participantes do histórico", () => {
     await expect(present.isMember("c1", "u1")).resolves.toBe(true);
     await expect(absent.isMember("c1", "u2")).resolves.toBe(false);
   });
+
+  it("devolve cursor para consultar a próxima página", async () => {
+    const key = { campaignId: "c1", historyKey: "2026-11-20T00:00:00.000Z#m1" };
+    const { send, repository: history } = repository({
+      Items: [{ ...base, type: "MEMBER_JOINED", recordedAt: base.occurredAt }],
+      LastEvaluatedKey: key,
+    });
+    const first = await history.listPage("c1", 20);
+    expect(first.items).toHaveLength(1);
+    expect(first.nextCursor).toBeTruthy();
+
+    await history.listPage("c1", 20, first.nextCursor!);
+    const command = send.mock.calls[1]![0] as unknown as { input: { ExclusiveStartKey: unknown } };
+    expect(command.input.ExclusiveStartKey).toEqual(key);
+  });
 });

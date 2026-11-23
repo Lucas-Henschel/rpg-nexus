@@ -73,7 +73,8 @@ public class DynamoStore implements CatalogPort, CommercePort, OutboxPort {
     }
     @Override public List<InventoryEntry> findInventory(String characterId) {
         return scan("inventory","characterId = :c",Map.of(":c",s(characterId))).stream()
-            .map(r -> new InventoryEntry(str(r,"id"),str(r,"campaignId"),str(r,"itemId"),num(r,"quantity"))).toList();
+            .map(r -> new InventoryEntry(str(r,"id"),str(r,"campaignId"),str(r,"itemId"),num(r,"quantity"),
+                optional(r,"itemName"),r.containsKey("price")?num(r,"price"):0)).toList();
     }
     @Override public Shop findShop(String campaignId) {
         var row=get("shops",campaignId);

@@ -7,6 +7,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import type { Db } from "../db/client.js";
 import type { HistoryEntry, HistoryEvent, HistoryRecordResult } from "../domain/history.js";
+import { InvalidHistoryCursor } from "../domain/errors.js";
 
 type Item = Record<string, unknown>;
 
@@ -113,6 +114,32 @@ export function createHistoryRepository(db: Db, inboxTtlDays: number) {
       }));
 
       return Items.map(toEntry);
+    },
+
+    async listPage(campaignId: string, limit: number, cursor?: string): Promise<{ items: HistoryEntry[]; nextCursor: string | null }> {
+      let start: { campaignId: string; historyKey: string } | undefined;
+      if (cursor) {
+        try {
+          start = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+        } catch {
+          throw new InvalidHistoryCursor();
+        }
+      }
+      if (cursor && (!start || start.campaignId !== campaignId || typeof start.historyKey !== "string")) {
+        throw new InvalidHistoryCursor();
+      }
+      const { Items = [], LastEvaluatedKey } = await db.doc.send(new QueryCommand({
+        TableName: db.tables.history,
+        KeyConditionExpression: "campaignId = :campaignId",
+        ExpressionAttributeValues: { ":campaignId": campaignId },
+        ScanIndexForward: false,
+        Limit: limit,
+        ExclusiveStartKey: start,
+      }));
+      return {
+        items: Items.map(toEntry),
+        nextCursor: LastEvaluatedKey ? Buffer.from(JSON.stringify(LastEvaluatedKey)).toString("base64url") : null,
+      };
     },
   };
 }

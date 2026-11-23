@@ -7,6 +7,7 @@ import { ApiError, jsonBody } from "../../shared/http";
 import { authorizedRequest } from "../auth/session";
 
 const base = services.characters.url;
+export const PERSONAL_CAMPAIGN = "__personal__";
 
 export type StatMap = Record<string, number>;
 
@@ -124,6 +125,11 @@ export async function getCharacter(id: string): Promise<Character> {
 export async function createCharacter(input: CharacterInput): Promise<Character> {
   return (await authorizedRequest<Character>(base, "/characters", { method: "POST", ...jsonBody(input) }))
     .data;
+}
+
+export async function assignCharacterCampaign(id: string, campaignId: string): Promise<Character> {
+  return (await authorizedRequest<Character>(base, `/characters/${encodeURIComponent(id)}/campaign`,
+    { method: "PUT", ...jsonBody({ campaignId }) })).data;
 }
 
 /** If-Match com a versão que a tela carregou: o serviço responde 412 se a ficha mudou nesse meio-tempo. */

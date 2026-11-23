@@ -1,5 +1,6 @@
 /** Um bloco da ficha: cabeçalho com título e ferramentas de organização, e o conteúdo do tipo dele. */
 import type { Character, Hold, SheetBlock as Block } from "../api";
+import type { InventoryEntry, ShopItem } from "../../inventory/api";
 import { StatsEditor } from "./StatsEditor";
 import { BLOCK_TITLES, SINGLETON_BLOCKS } from "./templates";
 import { CounterBlock, DiceBlock, ListBlock, TextBlock } from "./FreeBlocks";
@@ -15,11 +16,13 @@ interface BodyProps {
   edit: (changes: Partial<Draft>) => void;
   character: Character;
   holds: Hold[];
+  inventory: InventoryEntry[];
+  shopItems: ShopItem[];
   onData: (data: Record<string, unknown>) => void;
   editing: boolean;
 }
 
-function BlockBody({ item, draft, edit, character, holds, onData, editing }: BodyProps) {
+function BlockBody({ item, draft, edit, character, holds, inventory, shopItems, onData, editing }: BodyProps) {
   switch (item.type) {
     case "hp":
       return <HpBlock current={draft.hpCurrent} max={draft.hpMax} onChange={edit} data={item.data} onData={onData} editing={editing} />;
@@ -29,6 +32,8 @@ function BlockBody({ item, draft, edit, character, holds, onData, editing }: Bod
           maxItems={draft.maxItems}
           slotsUsed={character.capacity.slotsUsed}
           holds={holds}
+          inventory={inventory}
+          shopItems={shopItems}
           onChange={(maxItems) => edit({ maxItems })}
           data={item.data} onData={onData} editing={editing}
         />

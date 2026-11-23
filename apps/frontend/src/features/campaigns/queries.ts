@@ -9,7 +9,6 @@ import {
   listMyCampaigns,
   removeMember,
 } from "./api";
-import { useAuth } from "../auth/auth-context";
 
 export const campaignKeys = {
   all: ["campaigns"] as const,
@@ -78,12 +77,4 @@ export function useRemoveMember(campaignId: string) {
     mutationFn: (userId: string) => removeMember(campaignId, userId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: campaignKeys.all }),
   });
-}
-
-/** Código de entrada da campanha, para mostrar no lugar do id. Sem a campanha na lista da pessoa, fica o id. */
-export function useCampaignCode(campaignId: string) {
-  const { user } = useAuth();
-  const campaigns = useCampaigns(user?.userId ?? "");
-
-  return campaigns.data?.find((campaign) => campaign.campaignId === campaignId)?.joinCode ?? campaignId;
 }

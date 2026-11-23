@@ -322,6 +322,8 @@ class DynamoDBCharacterStore:
     def save_profile(self, character: Character, expected_version: int, max_items_delta: int) -> None:
         e = _Expr()
         sets = [
+            f"{e.n('campaignId')} = {e.v(character.campaign_id)}",
+            f"{e.n('gsi1pk')} = {e.v(f'CAMPAIGN#{character.campaign_id}')}",
             f"{e.n('name')} = {e.v(character.name)}",
             f"{e.n('attributes')} = {e.v(character.attributes)}",
             f"{e.n('skills')} = {e.v(character.skills)}",

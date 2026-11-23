@@ -6,6 +6,6 @@ export function useHistory(campaignId: string) {
     queryKey: ["history", campaignId],
     queryFn: () => listHistory(campaignId),
     enabled: Boolean(campaignId),
-    refetchInterval: 5_000,
+    refetchInterval: 30_000,
   });
 }

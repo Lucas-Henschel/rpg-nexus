@@ -1,11 +1,15 @@
 import { useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { navigate } from "../../app/navigation";
 import { Link } from "../../app/router";
-import { errorMessage, isMembershipPending, MEMBERSHIP_GIVE_UP_MESSAGE } from "../../shared/http";
+import { errorMessage, isMembershipPending, MEMBERSHIP_GIVE_UP_MESSAGE, retryWhileMembershipPending } from "../../shared/http";
 import { useToast } from "../../shared/ui/toast-context";
 import { useAuth } from "../auth/auth-context";
-import { useCharacters, useTemplates } from "../characters/queries";
+import { characterKeys, useCharacters, useTemplates } from "../characters/queries";
+import { assignCharacterCampaign, PERSONAL_CAMPAIGN } from "../characters/api";
 import { CampaignShop } from "../inventory/CampaignShop";
+import { description, TITLES } from "../history/format";
+import { useHistory } from "../history/queries";
 import type { CampaignView, Member } from "./api";
 import { formatDate, formatDateTime } from "./format";
 import { useAssignTemplate, useCampaignView, useChooseCharacter, useRemoveMember } from "./queries";
@@ -16,7 +20,7 @@ export function CampaignPage({ id }: { id: string }) {
   const campaign = useCampaignView(id);
 
   return (
-    <main className="page">
+    <main className="page page--campaign">
       <Link to="/campanhas" className="back-link">
         Voltar às campanhas
       </Link>
@@ -47,36 +51,42 @@ export function CampaignPage({ id }: { id: string }) {
 
 function CampaignDetail({ campaign }: { campaign: CampaignView }) {
   const { user } = useAuth();
+  const history = useHistory(campaign.campaignId);
+  const [activityPage, setActivityPage] = useState(1);
+  const [activitySize, setActivitySize] = useState(20);
   const me = campaign.members.find((member) => member.userId === user?.userId);
+  const [characterPromptDismissed, setCharacterPromptDismissed] = useState(false);
+  const showCharacterPrompt = me?.role === "PLAYER" && !me.characterId && !characterPromptDismissed;
   const isOwner = me?.role === "OWNER";
   const names = new Map(
     campaign.members
       .filter((member) => member.characterId)
-      .map((member) => [member.characterId, member.characterName ?? member.username]),
+      .map((member) => [member.characterId!, member.characterName ?? member.username] as const),
   );
 
   return (
     <>
-      <h1 className="page__title">{campaign.name}</h1>
-      <p className="page__lead">
-        Código de entrada <strong>{campaign.joinCode}</strong> · Mestre: {campaign.ownerName} ·
-        Criada em {formatDate(campaign.createdAt)}
-      </p>
-      <p className="page__lead">
-        Modelo de ficha:{" "}
-        {campaign.template ? (
-          <strong>
-            {campaign.template.name} (versão {campaign.template.version})
-          </strong>
-        ) : (
-          "nenhum definido"
-        )}
-      </p>
-      {isOwner && <TemplateForm campaign={campaign} />}
+      <header className="campaign-topbar">
+        <div className="campaign-topbar__intro">
+          <div>
+            <span className="campaign-topbar__eyebrow">Campanha</span>
+            <h1 className="page__title">{campaign.name}</h1>
+          </div>
+          <div className="campaign-topbar__meta">
+            <span>Código <strong>{campaign.joinCode}</strong></span>
+            <span>Mestre <strong>{campaign.ownerName}</strong></span>
+            <span>Criada em {formatDate(campaign.createdAt)}</span>
+          </div>
+        </div>
+        <div className="campaign-topbar__template">
+          <span>Modelo de ficha</span>
+          <strong>{campaign.template ? `${campaign.template.name} · versão ${campaign.template.version}` : "Nenhum definido"}</strong>
+          {isOwner && <TemplateForm campaign={campaign} />}
+        </div>
+      </header>
 
-      <div className="campaign-columns">
-        <section className="paper">
-          <h2 className="sheet__heading">Participantes</h2>
+      <section className="paper campaign-participants">
+          <h2 className="sheet__heading">Participantes <span className="campaign-count">{campaign.members.length}</span></h2>
           <ul className="campaign-list">
             {campaign.members.map((member) => (
               <MemberRow
@@ -89,28 +99,39 @@ function CampaignDetail({ campaign }: { campaign: CampaignView }) {
             ))}
           </ul>
           {me && <CharacterForm campaign={campaign} me={me} />}
-        </section>
+      </section>
 
+      <div className="campaign-columns">
+        <div className="campaign-shop-space">{me && <CampaignShop campaignId={campaign.campaignId} member={me} />}</div>
         <section className="paper">
-          <h2 className="sheet__heading">Atividade recente</h2>
-          {campaign.recentActivity.length === 0 ? (
-            <p className="campaign-empty">Nenhum item conquistado ainda.</p>
-          ) : (
+          <h2 className="sheet__heading">Atividade recente <span className="campaign-count">{history.data?.length ?? 0}</span></h2>
+          {history.isPending ? <p className="campaign-empty">Carregando atividades…</p> : null}
+          {history.isError ? <p className="campaign-empty">Não foi possível carregar o histórico. <button type="button" className="text-button" onClick={() => void history.refetch()}>Tentar de novo</button></p> : null}
+          {history.isSuccess && history.data.length === 0 ? (
+            <p className="campaign-empty">Nenhuma atividade registrada ainda.</p>
+          ) : history.isSuccess && (
             <ul className="campaign-list">
-              {campaign.recentActivity.map((activity) => (
-                <li key={activity.operationId} className="campaign-list__row">
+              {history.data?.slice((activityPage - 1) * activitySize, activityPage * activitySize).map((activity, index) => (
+                <li key={`${activity.occurredAt}-${activity.type}-${index}`} className="campaign-list__row">
                   <span className="campaign-list__main">
-                    {names.get(activity.characterId) ?? activity.characterId} conquistou{" "}
-                    {activity.quantity}× {activity.itemName ?? "item"}
+                    <strong>{TITLES[activity.type]}</strong><br />{description(activity, names)}
                   </span>
                   <span className="campaign-list__side">{formatDateTime(activity.occurredAt)}</span>
                 </li>
               ))}
             </ul>
           )}
+          {history.data && history.data.length > 0 && <div className="list-pagination"><label>Por página <select value={activitySize} onChange={e => { setActivitySize(Number(e.target.value)); setActivityPage(1); }}><option value="10">10</option><option value="20">20</option><option value="50">50</option></select></label><button type="button" disabled={activityPage === 1} onClick={() => setActivityPage(activityPage - 1)}>Anterior</button><span>{activityPage}/{Math.ceil(history.data.length / activitySize)}</span><button type="button" disabled={activityPage * activitySize >= history.data.length} onClick={() => setActivityPage(activityPage + 1)}>Próxima</button></div>}
         </section>
       </div>
-      {me && <CampaignShop campaignId={campaign.campaignId} member={me} />}
+      {showCharacterPrompt && me && <div className="character-modal-backdrop" role="presentation">
+        <section className="paper character-modal" role="dialog" aria-modal="true" aria-labelledby="character-modal-title">
+          <h2 id="character-modal-title" className="sheet__heading">Escolha seu personagem</h2>
+          <p>Selecione quem vai jogar nesta campanha. Você pode criar um personagem pessoal e adicioná-lo agora.</p>
+          <CharacterForm campaign={campaign} me={me} onChosen={() => setCharacterPromptDismissed(true)} />
+          <button type="button" className="button button--ghost-ink" onClick={() => setCharacterPromptDismissed(true)}>Escolher depois</button>
+        </section>
+      </div>}
     </>
   );
 }
@@ -178,11 +199,14 @@ function MemberRow({ campaignId, member, isMe, canRemove }: MemberRowProps) {
 }
 
 /** O personagem que a pessoa logada usa na campanha, entre os personagens da campanha no S2. */
-function CharacterForm({ campaign, me }: { campaign: CampaignView; me: Member }) {
+function CharacterForm({ campaign, me, onChosen }: { campaign: CampaignView; me: Member; onChosen?: () => void }) {
   const toast = useToast();
+  const queryClient = useQueryClient();
   const characters = useCharacters(campaign.campaignId);
+  const personal = useCharacters(PERSONAL_CAMPAIGN);
   const choose = useChooseCharacter(campaign.campaignId);
   const [chosen, setChosen] = useState(me.characterId ?? "");
+  const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
   const takenByOthers = new Set(
@@ -190,7 +214,8 @@ function CharacterForm({ campaign, me }: { campaign: CampaignView; me: Member })
       .filter((member) => member.userId !== me.userId && member.characterId)
       .map((member) => member.characterId),
   );
-  const available = (characters.data ?? []).filter((character) => !takenByOthers.has(character.id));
+  const available = [...(characters.data ?? []), ...(personal.data ?? [])]
+    .filter((character) => character.ownerId === me.userId && !takenByOthers.has(character.id));
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -200,11 +225,21 @@ function CharacterForm({ campaign, me }: { campaign: CampaignView; me: Member })
     }
 
     setProblem(null);
+    setSaving(true);
     try {
+      if (character.campaignId === PERSONAL_CAMPAIGN) {
+        await retryWhileMembershipPending(() => assignCharacterCampaign(character.id, campaign.campaignId));
+        await queryClient.invalidateQueries({ queryKey: ["characters", "list"] });
+        await queryClient.invalidateQueries({ queryKey: characterKeys.detail(character.id) });
+      }
+
       await choose.mutateAsync({ characterId: character.id, characterName: character.name });
       toast("ok", `Você joga com ${character.name}.`);
+      onChosen?.();
     } catch (error) {
       setProblem(errorMessage(error, "Não foi possível escolher o personagem."));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -227,7 +262,7 @@ function CharacterForm({ campaign, me }: { campaign: CampaignView; me: Member })
     );
   }
 
-  if (characters.isSuccess && available.length === 0) {
+  if (characters.isSuccess && personal.isSuccess && available.length === 0) {
     return (
       <p className="campaign-empty">
         Nenhum personagem livre nesta campanha.{" "}
@@ -241,24 +276,15 @@ function CharacterForm({ campaign, me }: { campaign: CampaignView; me: Member })
   return (
     <form className="campaign-add" onSubmit={(e) => void submit(e)}>
       <label htmlFor="my-character">Seu personagem</label>
-      <select
-        id="my-character"
-        className="ink-input"
-        value={chosen}
-        onChange={(e) => setChosen(e.target.value)}
-        disabled={characters.isPending}
-      >
-        <option value="">{characters.isPending ? "Carregando…" : "Escolha um personagem"}</option>
-        {available.map((character) => (
-          <option key={character.id} value={character.id}>
-            {character.name}
-          </option>
-        ))}
-      </select>
+      <div id="my-character" className="choice-grid" role="group" aria-label="Escolha seu personagem">
+        {available.map(character => <button type="button" key={character.id}
+          className={`choice-card${chosen === character.id ? " choice-card--selected" : ""}`}
+          onClick={() => setChosen(character.id)}>{character.name}</button>)}
+      </div>
       <button
         type="submit"
         className="button button--ink button--small"
-        disabled={!chosen || chosen === me.characterId || choose.isPending}
+        disabled={!chosen || chosen === me.characterId || saving}
       >
         Usar
       </button>
@@ -314,20 +340,11 @@ function TemplateForm({ campaign }: { campaign: CampaignView }) {
   return (
     <form className="campaign-add" onSubmit={(e) => void submit(e)}>
       <label htmlFor="campaign-template">Modelo de ficha</label>
-      <select
-        id="campaign-template"
-        className="ink-input"
-        value={chosen}
-        onChange={(e) => setChosen(e.target.value)}
-        disabled={templates.isPending}
-      >
-        <option value="">{templates.isPending ? "Carregando…" : "Escolha um modelo"}</option>
-        {templates.data?.map((item) => (
-          <option key={item.templateId} value={item.templateId}>
-            {item.name} (versão {item.version})
-          </option>
-        ))}
-      </select>
+      <div id="campaign-template" className="choice-grid" role="group" aria-label="Escolha o modelo de ficha">
+        {templates.data?.map(item => <button type="button" key={item.templateId}
+          className={`choice-card${chosen === item.templateId ? " choice-card--selected" : ""}`}
+          onClick={() => setChosen(item.templateId)}>{item.name} <small>Versão {item.version}</small></button>)}
+      </div>
       <button
         type="submit"
         className="button button--ink button--small"

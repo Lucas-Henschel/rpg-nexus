@@ -1,5 +1,5 @@
-/** Escolha da campanha em uso, entre as campanhas de que a pessoa logada participa no S1. */
-import { useEffect, useState, type FormEvent } from "react";
+/** Seletor de campanha usando os nomes legíveis do serviço de Campanhas. */
+import { useRef, useState, type FormEvent } from "react";
 import { CAMPAIGN_PATTERN } from "../../shared/campaign";
 import { errorMessage } from "../../shared/http";
 import { useCampaigns } from "./queries";
@@ -8,56 +8,46 @@ interface Props {
   userId: string;
   value: string;
   onChange: (id: string) => void;
+  includePersonal?: boolean;
 }
 
-export function CampaignPicker({ userId, value, onChange }: Props) {
+export function CampaignPicker({ userId, value, onChange, includePersonal = false }: Props) {
+  const menu = useRef<HTMLDetailsElement>(null);
   const campaigns = useCampaigns(userId);
   const items = campaigns.data ?? [];
-  const known = items.some((campaign) => campaign.campaignId === value);
-  const first = items[0]?.campaignId;
-
-  // Corrige seleção antiga ou inválida; se não houver campanhas, limpa o ID persistido.
-  useEffect(() => {
-    if (!campaigns.isSuccess) return;
-    if (!items.length && value) {
-      onChange("");
-    } else if (first && !known) {
-      onChange(first);
-    }
-  }, [campaigns.isSuccess, first, items.length, known, onChange, value]);
 
   if (campaigns.isError) {
     return <TypedCampaign value={value} onChange={onChange} problem={campaigns.error} />;
   }
 
-  const emptyLabel = campaigns.isPending
-    ? "Carregando campanhas…"
-    : items.length
-      ? "Selecione uma campanha"
-      : "Você ainda não participa de campanhas";
+  let emptyLabel = "Você ainda não participa de campanhas";
+  if (campaigns.isPending) {
+    emptyLabel = "Carregando campanhas…";
+  } else if (items.length) {
+    emptyLabel = "Selecione uma campanha";
+  }
+
+  const selected = items.find(item => item.campaignId === value);
+  const label = includePersonal && value === "__personal__" ? "Meus personagens" :
+    selected?.name ?? emptyLabel;
 
   return (
     <div className="campaign-picker">
-      <label htmlFor="campaign">Campanha</label>
-      <select
-        id="campaign"
-        className="felt-input"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={campaigns.isPending || (campaigns.isSuccess && items.length === 0)}
-      >
-        {!known && value && (
-          <option value={value}>
-            {campaigns.isSuccess ? "Campanha anterior indisponível" : value}
-          </option>
-        )}
-        {!known && !value && <option value="">{emptyLabel}</option>}
-        {items.map((campaign) => (
-          <option key={campaign.campaignId} value={campaign.campaignId}>
-            {campaign.name} · {campaign.joinCode}
-          </option>
-        ))}
-      </select>
+      <span>{includePersonal ? "Destino da ficha" : "Campanha"}</span>
+      <details className="campaign-menu" ref={menu}>
+        <summary>{label}</summary>
+        <div className="campaign-menu__options" role="group" aria-label="Escolher campanha">
+          {includePersonal && <button type="button" aria-current={value === "__personal__" ? "true" : undefined}
+            onClick={() => { onChange("__personal__"); if (menu.current) { menu.current.open = false; } }}>
+            <strong>Meus personagens</strong><small>Sem campanha</small>
+          </button>}
+          {items.map(campaign => <button type="button" key={campaign.campaignId}
+            aria-current={campaign.campaignId === value ? "true" : undefined}
+            onClick={() => { onChange(campaign.campaignId); if (menu.current) { menu.current.open = false; } }}>
+            <strong>{campaign.name}</strong><small>Código {campaign.joinCode}</small>
+          </button>)}
+        </div>
+      </details>
     </div>
   );
 }

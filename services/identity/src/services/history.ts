@@ -11,6 +11,10 @@ export function createHistoryService(repository: HistoryRepository) {
       if (!(await repository.isMember(campaignId, userId))) throw new CampaignHistoryForbidden();
       return repository.list(campaignId, limit);
     },
+    async listPage(campaignId: string, userId: string, limit: number, cursor?: string) {
+      if (!(await repository.isMember(campaignId, userId))) throw new CampaignHistoryForbidden();
+      return repository.listPage(campaignId, limit, cursor);
+    },
   };
 }
 

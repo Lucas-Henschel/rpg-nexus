@@ -39,6 +39,15 @@ export interface HistoryEntry {
 }
 
 export async function listHistory(campaignId: string): Promise<HistoryEntry[]> {
-  const path = `/campaigns/${encodeURIComponent(campaignId)}/history?limit=100`;
-  return (await authorizedRequest<{ items: HistoryEntry[] }>(services.actions.url, path)).data.items;
+  const all: HistoryEntry[] = [];
+  let cursor: string | null = null;
+  do {
+    const path = `/campaigns/${encodeURIComponent(campaignId)}/history/page?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const page: { items: HistoryEntry[]; nextCursor: string | null } =
+      (await authorizedRequest<{ items: HistoryEntry[]; nextCursor: string | null }>(services.actions.url, path)).data;
+    all.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor);
+
+  return all;
 }

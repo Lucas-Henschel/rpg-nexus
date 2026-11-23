@@ -14,6 +14,22 @@ async function authenticatedApp(history: HistoryService) {
 }
 
 describe("GET /campaigns/:campaignId/history", () => {
+  it("expõe páginas sucessivas do histórico", async () => {
+    const listPage = vi.fn(async () => ({ items: [{
+      type: "MEMBER_JOINED" as const, campaignId: "c1", username: "Morgana",
+      occurredAt: "2026-11-18T20:00:00.000Z", recordedAt: "2026-11-18T20:00:01.000Z",
+    }], nextCursor: "cHJveGltYQ" }));
+    const history = { record: vi.fn(), list: vi.fn(), listPage } as unknown as HistoryService;
+    const { app, accessToken, userId } = await authenticatedApp(history);
+    const response = await app.inject({
+      method: "GET", url: "/campaigns/c1/history/page?limit=20&cursor=YW50ZXJpb3I",
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().nextCursor).toBe("cHJveGltYQ");
+    expect(listPage).toHaveBeenCalledWith("c1", userId, 20, "YW50ZXJpb3I");
+  });
+
   it("lista a linha do tempo autenticada e respeita o limite", async () => {
     const list = vi.fn(async () => [{
       type: "ITEM_ACQUIRED" as const,

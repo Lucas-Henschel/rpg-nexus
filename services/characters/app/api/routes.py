@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from app import __version__
 from app.application.dto import (
+    CharacterAssignCampaign,
     CharacterCreate,
     CharacterFromTemplate,
     CharacterOut,
@@ -172,6 +173,17 @@ def list_characters(
 @router.get("/characters/{character_id}", tags=["personagens"], response_model=CharacterOut, summary="Consultar ficha")
 def get_character(character_id: CharacterId, response: Response, c: ContainerDep, user: UserDep) -> CharacterOut:
     return _character_response(c.characters.get(character_id, user_id=_uid(user)), response, c, user)
+
+
+@router.put("/characters/{character_id}/campaign", tags=["personagens"], response_model=CharacterOut,
+            summary="Adicionar uma ficha pessoal a uma campanha")
+def assign_character_campaign(character_id: CharacterId, body: CharacterAssignCampaign,
+                              response: Response, c: ContainerDep, user: UserDep) -> CharacterOut:
+    try:
+        character = c.characters.assign_campaign(character_id, body.campaignId, user_id=_uid(user))
+    except ValueError as exc:
+        raise BadRequest(str(exc)) from exc
+    return _character_response(character, response, c, user)
 
 
 @router.patch(

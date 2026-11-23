@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { ApiError, errorMessage, isMembershipPending, MEMBERSHIP_GIVE_UP_MESSAGE } from "../../shared/http";
 import { useToast } from "../../shared/ui/toast-context";
 import type { Member } from "../campaigns/api";
@@ -16,13 +16,14 @@ export function CampaignShop({ campaignId, member }: { campaignId: string; membe
   const actions = useInventoryActions();
   const toast = useToast();
   const owner = member.role === "OWNER";
-  const [name, setName] = useState("Loja da campanha");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const name = nameDraft ?? shop.data?.name ?? "Loja da campanha";
   const [draft, setDraft] = useState({ itemId: "", name: "", description: "", price: "0", available: "1" });
   const [operationId, setOperationId] = useState("");
   const [problem, setProblem] = useState("");
   const acquisition = useAcquisition(operationId);
-
-  useEffect(() => { if (shop.data) setName(shop.data.name); }, [shop.data?.name]);
 
   async function configure(active: boolean) {
     setProblem("");
@@ -36,8 +37,11 @@ export function CampaignShop({ campaignId, member }: { campaignId: string; membe
     event.preventDefault();
     const price = Number(draft.price), available = Number(draft.available);
     if (!Number.isSafeInteger(price) || price < 0 || !Number.isSafeInteger(available) || available < 0) {
-      setProblem("Preço e estoque devem ser números inteiros não negativos."); return;
+      setProblem("Preço e estoque devem ser números inteiros não negativos.");
+
+ return;
     }
+
     setProblem("");
     try {
       await actions.saveShopItem.mutateAsync({ campaignId, item: {
@@ -54,16 +58,19 @@ export function CampaignShop({ campaignId, member }: { campaignId: string; membe
   }
 
   async function remove(item: ShopItem) {
-    if (!window.confirm(`Remover ${item.name} da loja?`)) return;
+    if (!window.confirm(`Remover ${item.name} da loja?`)) {return;}
+
     setProblem("");
     try {
       await actions.removeShopItem.mutateAsync({ campaignId, itemId: item.itemId });
+      setPage(1);
       toast("ok", "Item removido.");
     } catch (error) { setProblem(errorMessage(error, "Não foi possível remover o item.")); }
   }
 
   async function buy(item: ShopItem) {
-    if (!member.characterId) return;
+    if (!member.characterId) {return;}
+
     setProblem(""); setOperationId("");
     try {
       const result = await actions.acquire.mutateAsync({ campaignId, characterId: member.characterId, itemId: item.itemId });
@@ -72,8 +79,10 @@ export function CampaignShop({ campaignId, member }: { campaignId: string; membe
     } catch (error) { setProblem(errorMessage(error, "Não foi possível comprar o item.")); }
   }
 
-  return <section className="paper inventory-panel" aria-labelledby="campaign-shop-title">
-    <h2 id="campaign-shop-title" className="sheet__heading">Loja de itens</h2>
+  const visibleItems = items.data?.slice((page - 1) * pageSize, page * pageSize) ?? [];
+
+  return <section className="paper inventory-panel campaign-shop" aria-labelledby="campaign-shop-title">
+    <h2 id="campaign-shop-title" className="sheet__heading">Loja de itens <span className="campaign-count">{items.data?.length ?? 0}</span></h2>
     {/* Logo depois de criar ou entrar na campanha, o S3 pode ainda não saber disso (evento do S1 a caminho). */}
     {shop.isPending && <p>{isMembershipPending(shop.failureReason) ? "Confirmando sua entrada na campanha…" : "Carregando loja…"}</p>}
     {shop.isError && isMembershipPending(shop.error) && <p className="field-error">
@@ -85,7 +94,7 @@ export function CampaignShop({ campaignId, member }: { campaignId: string; membe
     {shop.isError && shop.error instanceof ApiError && shop.error.status === 404 && <p>Esta campanha ainda não tem loja.</p>}
     {owner && <div className="inventory-inline">
       <label className="inventory-field">Nome da loja
-        <input value={name} onChange={event => setName(event.target.value)} maxLength={100} />
+        <input value={name} onChange={event => setNameDraft(event.target.value)} maxLength={100} />
       </label>
       <button type="button" className="button button--ink button--small"
         disabled={!name.trim() || actions.saveShop.isPending}
@@ -101,21 +110,22 @@ export function CampaignShop({ campaignId, member }: { campaignId: string; membe
       {items.isError && <p className="field-error">{errorMessage(items.error, "Não foi possível carregar os itens.")}</p>}
       {items.data?.length === 0 && <p>Nenhum item cadastrado.</p>}
       <ul className="campaign-list">
-        {items.data?.map(item => <li className="campaign-list__row" key={item.itemId}>
+        {visibleItems.map(item => <li className="campaign-list__row" key={item.itemId}>
           <span className="campaign-list__main"><strong>{item.name}</strong> · {item.price} moedas
             <br /><small>{item.description ? `${item.description} · ` : ""}{item.available} disponíveis</small></span>
           <span className="campaign-list__side">
             {owner && <><button type="button" className="text-button" onClick={() => edit(item)}>Editar</button>{" · "}
               <button type="button" className="text-button" onClick={() => void remove(item)}
                 disabled={actions.removeShopItem.isPending}>Remover</button></>}
-            {!owner && shop.data.active && <button type="button" className="button button--ink button--small"
+            {shop.data.active && <button type="button" className="button button--ink button--small"
               onClick={() => void buy(item)} disabled={!member.characterId || item.available < 1 || actions.acquire.isPending}>Comprar</button>}
           </span>
         </li>)}
       </ul>
-      {!owner && shop.data.active && !member.characterId && <p>Escolha seu personagem acima para comprar.</p>}
-      {owner && <form className="inventory-form" onSubmit={event => void saveItem(event)}>
-        <h3 className="inventory-panel__sub">{draft.itemId ? "Editar item" : "Adicionar item"}</h3>
+      {(items.data?.length ?? 0) > 0 && <div className="list-pagination"><label>Itens por página <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}><option value="10">10</option><option value="20">20</option><option value="50">50</option></select></label><button type="button" disabled={page === 1} onClick={() => setPage(page - 1)}>Anterior</button><span>Página {page} de {Math.ceil((items.data?.length ?? 0) / pageSize)}</span><button type="button" disabled={page * pageSize >= (items.data?.length ?? 0)} onClick={() => setPage(page + 1)}>Próxima</button></div>}
+      {shop.data.active && !member.characterId && <p>Escolha seu personagem para comprar.</p>}
+      {owner && <form className="inventory-form inventory-form--row" onSubmit={event => void saveItem(event)}>
+        <h3 className="inventory-panel__sub inventory-form__title">{draft.itemId ? "Editar item" : "Adicionar item"}</h3>
         <label className="inventory-field">Nome <input required value={draft.name}
           onChange={event => setDraft({ ...draft, name: event.target.value })} /></label>
         <label className="inventory-field">Descrição <input value={draft.description}
@@ -132,6 +142,6 @@ export function CampaignShop({ campaignId, member }: { campaignId: string; membe
       </form>}
     </>}
     {problem && <p className="field-error" role="alert">{problem}</p>}
-    {operationId && <p aria-live="polite">Compra {operationId}: {PURCHASE_STATUS[acquisition.data?.status ?? ""] ?? "processando"}</p>}
+    {operationId && <p aria-live="polite">Sua compra: {PURCHASE_STATUS[acquisition.data?.status ?? ""] ?? "processando"}</p>}
   </section>;
 }

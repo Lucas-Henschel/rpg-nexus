@@ -42,6 +42,19 @@ def test_crud_basico(api):
     assert [c["id"] for c in listing["items"]] == [created["id"]]
 
 
+def test_personagem_pessoal_pode_entrar_na_campanha_depois(api):
+    created = _create(api, campaignId="__personal__")
+    personal = api.get("/characters", params={"campaignId": "__personal__"}).json()
+    assert [item["id"] for item in personal["items"]] == [created["id"]]
+
+    assigned = api.put(f"/characters/{created['id']}/campaign", json={"campaignId": "c1"})
+    assert assigned.status_code == 200, assigned.text
+    assert assigned.json()["campaignId"] == "c1"
+    assert assigned.json()["version"] == 2
+    assert api.get("/characters", params={"campaignId": "__personal__"}).json()["items"] == []
+    assert [item["id"] for item in api.get("/characters", params={"campaignId": "c1"}).json()["items"]] == [created["id"]]
+
+
 def test_idempotency_key(api):
     first = api.post("/characters", json=BODY, headers={"Idempotency-Key": "abc"})
     second = api.post("/characters", json=BODY, headers={"Idempotency-Key": "abc"})
