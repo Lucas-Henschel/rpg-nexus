@@ -5,7 +5,9 @@ import { Initials } from "../../../shared/ui/Sheet";
 import { useToast } from "../../../shared/ui/toast-context";
 import { useUploadPortrait } from "../queries";
 import type { Draft } from "./sheetDraft";
-import { useCampaignCode } from "../../campaigns/queries";
+import { useCampaigns } from "../../campaigns/queries";
+import { useAuth } from "../../auth/auth-context";
+import { PERSONAL_CAMPAIGN } from "../api";
 
 function PortraitPicker({ character, name, readOnly }: { character: Character; name: string; readOnly: boolean }) {
   const toast = useToast();
@@ -16,14 +18,18 @@ function PortraitPicker({ character, name, readOnly }: { character: Character; n
   const onChosen = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file) return;
-    if (!PORTRAIT_TYPES.includes(file.type)) return toast("error", "O retrato precisa ser PNG, JPEG ou WebP.");
-    if (file.size > PORTRAIT_MAX_BYTES) return toast("error", "O retrato pode ter até 2 MB.");
+    if (!file) {return;}
+
+    if (!PORTRAIT_TYPES.includes(file.type)) {return toast("error", "O retrato precisa ser PNG, JPEG ou WebP.");}
+
+    if (file.size > PORTRAIT_MAX_BYTES) {return toast("error", "O retrato pode ter até 2 MB.");}
+
     upload.mutate(file, {
       onSuccess: () => toast("ok", "Retrato enviado."),
       onError: error => toast("error", errorMessage(error, "Não foi possível enviar o retrato.")),
     });
   };
+
   return <div className="portrait">
     <div className="portrait__frame">
       {portrait ? <img src={portrait} alt={`Retrato de ${character.name}`} /> : <Initials name={name} />}
@@ -51,10 +57,14 @@ export function SheetIdentity({ character, draft, edit, readOnly = false }: {
   /** Ficha de outra pessoa (o mestre vendo a de um jogador): tudo só para leitura. */
   readOnly?: boolean;
 }) {
-  const campaignCode = useCampaignCode(character.campaignId);
+  const { user } = useAuth();
+  const campaigns = useCampaigns(user?.userId ?? "");
+  const campaignName = character.campaignId === PERSONAL_CAMPAIGN ? "Nenhuma campanha" :
+    campaigns.data?.find(item => item.campaignId === character.campaignId)?.name ?? "Campanha";
   const header = draft.sheet.header ?? {};
   const setHeader = (key: string, value: string) => edit({ sheet: { ...draft.sheet, header: { ...header, [key]: value } } });
   const value = (key: string) => typeof header[key] === "string" || typeof header[key] === "number" ? String(header[key]) : "";
+
   return <header className="sheet__identity">
     <PortraitPicker character={character} name={draft.name} readOnly={readOnly} />
     <div className="sheet__who">
@@ -72,7 +82,7 @@ export function SheetIdentity({ character, draft, edit, readOnly = false }: {
       </fieldset>
       <MoneyPanel character={character} />
       <fieldset className="sheet__fieldset" disabled={readOnly}>
-      <div className="sheet__meta"><span>Campanha {campaignCode}</span>
+      <div className="sheet__meta"><span>{campaignName}</span>
         <label className="switch"><input type="checkbox" checked={draft.active} onChange={event => edit({ active: event.target.checked })} />
           <span>{draft.active ? "Ativo: pode receber itens" : "Inativo: não recebe itens"}</span>
         </label>

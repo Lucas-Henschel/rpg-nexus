@@ -140,6 +140,11 @@ class CharacterFromTemplate(BaseModel):
     version: Annotated[int, Field(ge=1)] | None = None
 
 
+class CharacterAssignCampaign(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    campaignId: Id
+
+
 class CharacterPatch(BaseModel):
     """PATCH com semântica de JSON Merge Patch: em ``attributes``/``skills``, ``null`` remove a chave.
 

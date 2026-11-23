@@ -32,7 +32,7 @@ function SampleSheet() {
         </div>
         <div>
           <h2 className="sample__name">Lyra Ventobravo</h2>
-          <p className="sample__meta">Ladina da campanha A Coroa de Cinzas</p>
+          <p className="sample__meta">Personagem pessoal · pronto para entrar em uma campanha</p>
         </div>
       </header>
 
@@ -93,9 +93,14 @@ function SampleSheet() {
         ))}
       </ul>
 
+      <div className="sample__details">
+        <span><strong>Nível 3</strong> · Exploradora</span>
+        <span>Defesa 14</span>
+        <span>Saldo 100 moedas</span>
+      </div>
       <span className="sheet-label">Mochila</span>
-      <Backpack maxItems={10} delivered={3} reserved={1} />
-      <p className="sample__note">Ficha de exemplo. Pode mexer nos números.</p>
+      <Backpack maxItems={10} delivered={0} reserved={0} />
+      <p className="sample__note">Prévia de uma ficha pessoal. Ajuste os números para experimentar.</p>
     </Paper>
   );
 }
@@ -204,9 +209,6 @@ export function HomePage() {
         </ul>
       </section>
 
-      <footer className="footer">
-        <p>RPG Nexus, trabalho final de Sistemas Distribuídos da FURB.</p>
-      </footer>
     </main>
   );
 }

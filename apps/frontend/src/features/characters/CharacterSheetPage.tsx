@@ -1,10 +1,14 @@
 import { useMemo, useState } from "react";
-import type { Character, Hold } from "./api";
-import { errorMessage, isConflict } from "../../shared/http";
+import { useQueryClient } from "@tanstack/react-query";
+import { assignCharacterCampaign, PERSONAL_CAMPAIGN, type Character, type Hold } from "./api";
+import { errorMessage, isConflict, retryWhileMembershipPending } from "../../shared/http";
 import { Paper } from "../../shared/ui/Sheet";
 import { useToast } from "../../shared/ui/toast-context";
 import { Link } from "../../app/router";
-import { useCharacter, useHolds, useReloadCharacter, useSaveCharacter } from "./queries";
+import { characterKeys, useCharacter, useHolds, useReloadCharacter, useSaveCharacter } from "./queries";
+import { useCampaigns } from "../campaigns/queries";
+import { useAuth } from "../auth/auth-context";
+import { navigate } from "../../app/navigation";
 import { SaveAsTemplate } from "./sheet/SaveAsTemplate";
 import { SaveBar } from "./sheet/SaveBar";
 import { buildPatch, toDraft, validate, type Draft } from "./sheet/sheetDraft";
@@ -130,6 +134,8 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
         </fieldset>
       </Paper>
 
+      {canEdit && character.campaignId === PERSONAL_CAMPAIGN && <AssignCampaign character={character} disabled={dirty} />}
+
       {canEdit && (dirty || stale) && (
         <SaveBar
           stale={stale}
@@ -142,4 +148,47 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
       )}
     </main>
   );
+}
+
+function AssignCampaign({ character, disabled }: { character: Character; disabled: boolean }) {
+  const { user } = useAuth();
+  const campaigns = useCampaigns(user?.userId ?? "");
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [chosen, setChosen] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState("");
+
+  async function assign() {
+    if (!chosen) {return;}
+
+    setSaving(true);
+    setProblem("");
+    try {
+      const updated = await retryWhileMembershipPending(() => assignCharacterCampaign(character.id, chosen));
+      queryClient.setQueryData(characterKeys.detail(character.id), updated);
+      await queryClient.invalidateQueries({ queryKey: ["characters", "list"] });
+      toast("ok", `${character.name} foi adicionado à campanha.`);
+      navigate(`/campanhas/${encodeURIComponent(chosen)}`);
+    } catch (error) {
+      setProblem(errorMessage(error, "Não foi possível adicionar o personagem à campanha."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <section className="paper personal-assignment">
+    <h2 className="sheet__heading">Adicionar a uma campanha</h2>
+    {campaigns.data?.length ? <>
+      <div className="choice-grid" role="group" aria-label="Escolha uma campanha">
+        {campaigns.data.map(item => <button type="button" key={item.campaignId}
+          className={`choice-card${chosen === item.campaignId ? " choice-card--selected" : ""}`}
+          onClick={() => setChosen(item.campaignId)}>{item.name}</button>)}
+      </div>
+      <button type="button" className="button button--ink button--small" disabled={!chosen || disabled || saving}
+        onClick={() => void assign()}>{saving ? "Adicionando…" : "Adicionar personagem"}</button>
+      {disabled && <p>Salve as alterações da ficha antes de adicioná-la.</p>}
+    </> : <p>Entre em uma campanha para adicionar este personagem.</p>}
+    {problem && <p className="field-error">{problem}</p>}
+  </section>;
 }

@@ -1,59 +1,31 @@
+import { useState } from "react";
 import { Link } from "../../app/router";
 import { useCampaign } from "../../shared/campaign";
 import { errorMessage } from "../../shared/http";
 import { CampaignPicker } from "../campaigns/CampaignPicker";
 import { formatDateTime } from "../campaigns/format";
-import type { HistoryEntry } from "./api";
+import { description, TITLES } from "./format";
 import { useHistory } from "./queries";
 import { useAuth } from "../auth/auth-context";
-import { useCampaigns } from "../campaigns/queries";
-
-const REASONS: Record<NonNullable<HistoryEntry["reason"]>, string> = {
-  CHARACTER_REJECTED: "O personagem não pôde receber o item",
-  EXTERNAL_VALIDATION_FAILED: "A validação externa recusou o pedido",
-  DEADLINE_EXPIRED: "O prazo da operação terminou",
-  PAYMENT_REJECTED: "O personagem não possuía saldo suficiente",
-  LEFT: "O participante saiu da campanha",
-  REMOVED: "O participante foi removido da campanha",
-};
-
-const TITLES: Record<HistoryEntry["type"], string> = {
-  CAMPAIGN_CREATED: "Campanha criada",
-  MEMBER_JOINED: "Participante entrou",
-  MEMBER_REMOVED: "Participante saiu",
-  SHOP_ITEM_PURCHASED: "Compra realizada",
-  ITEM_ACQUIRED: "Item entregue",
-  ACQUISITION_CANCELLED: "Pedido cancelado",
-};
-
-function description(entry: HistoryEntry): string {
-  switch (entry.type) {
-    case "CAMPAIGN_CREATED":
-      return `${entry.ownerName ?? "O mestre"} criou a campanha ${entry.campaignName ?? entry.campaignId}.`;
-    case "MEMBER_JOINED":
-      return `${entry.username ?? entry.userId ?? "Um participante"} entrou como ${entry.role === "OWNER" ? "mestre" : "jogador"}.`;
-    case "MEMBER_REMOVED":
-      return REASONS[entry.reason ?? "REMOVED"];
-    case "SHOP_ITEM_PURCHASED":
-      return `${entry.characterId ?? "O personagem"} comprou ${entry.quantity ?? 1}× ${entry.itemName ?? entry.itemId ?? "item"}${entry.amount !== undefined ? ` por ${entry.amount}` : ""}.`;
-    case "ITEM_ACQUIRED":
-      return `${entry.characterId ?? "O personagem"} recebeu ${entry.quantity ?? 1}× ${entry.itemName ?? entry.itemId ?? "item"}.`;
-    case "ACQUISITION_CANCELLED": {
-      const reason = entry.reason ? REASONS[entry.reason] : "A entrega do item foi cancelada";
-      return entry.detail ? `${reason}: ${entry.detail}` : `${reason}.`;
-    }
-  }
-}
+import { useCampaigns, useCampaignView } from "../campaigns/queries";
 
 export function HistoryPage() {
   const { user } = useAuth();
   const userId = user?.userId ?? "";
   const campaigns = useCampaigns(userId);
   const [storedCampaignId, setCampaignId] = useCampaign(user?.userId);
-  const campaignId = campaigns.isSuccess
-    ? campaigns.data.find((item) => item.campaignId === storedCampaignId)?.campaignId ?? campaigns.data[0]?.campaignId ?? ""
-    : campaigns.isError ? storedCampaignId : "";
+  let campaignId = "";
+  if (campaigns.isSuccess) {
+    campaignId = campaigns.data.find((item) => item.campaignId === storedCampaignId)?.campaignId ?? campaigns.data[0]?.campaignId ?? "";
+  } else if (campaigns.isError) {
+    campaignId = storedCampaignId;
+  }
+
   const history = useHistory(campaignId);
+  const campaign = useCampaignView(campaignId);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const names = new Map(campaign.data?.members.filter(member => member.characterId).map(member => [member.characterId!, member.characterName ?? member.username]) ?? []);
 
   return (
     <main className="page page--narrow">
@@ -62,7 +34,7 @@ export function HistoryPage() {
           <h1 className="page__title">Histórico</h1>
           <p className="page__lead">Acontecimentos registrados durante a campanha.</p>
         </div>
-        <CampaignPicker userId={userId} value={campaignId} onChange={setCampaignId} />
+        <CampaignPicker userId={userId} value={campaignId} onChange={id => { setCampaignId(id); setPage(1); }} />
       </header>
 
       {!campaignId && campaigns.isPending && <p className="history-state">Carregando suas campanhas.</p>}
@@ -87,7 +59,7 @@ export function HistoryPage() {
       )}
       {history.isSuccess && history.data.length > 0 && (
         <ol className="history-timeline" aria-label="Linha do tempo da campanha">
-          {history.data.map((entry) => (
+          {history.data.slice((page - 1) * pageSize, page * pageSize).map((entry) => (
             <li
               key={`${entry.occurredAt}-${entry.type}-${entry.operationId ?? entry.userId ?? entry.campaignId}`}
               className={`history-entry history-entry--${entry.type.toLowerCase()}`}
@@ -96,13 +68,13 @@ export function HistoryPage() {
               <article>
                 <time dateTime={entry.occurredAt}>{formatDateTime(entry.occurredAt)}</time>
                 <h2>{TITLES[entry.type]}</h2>
-                <p>{description(entry)}</p>
-                {entry.operationId && <small>Operação {entry.operationId}</small>}
+                <p>{description(entry, names)}</p>
               </article>
             </li>
           ))}
         </ol>
       )}
+      {history.isSuccess && history.data.length > 0 && <div className="list-pagination"><label>Atividades por página <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}><option value="10">10</option><option value="20">20</option><option value="50">50</option></select></label><button type="button" disabled={page === 1} onClick={() => setPage(page - 1)}>Anterior</button><span>Página {page} de {Math.ceil(history.data.length / pageSize)}</span><button type="button" disabled={page * pageSize >= history.data.length} onClick={() => setPage(page + 1)}>Próxima</button></div>}
     </main>
   );
 }

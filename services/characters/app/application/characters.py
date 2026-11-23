@@ -68,6 +68,7 @@ class OwnerImmutable(DomainError):
 
 
 class CharacterService:
+    PERSONAL_CAMPAIGN = "__personal__"
     MAX_OPTIMISTIC_RETRIES = 5
 
     def __init__(
@@ -102,7 +103,8 @@ class CharacterService:
         """Cria a ficha. Com Idempotency-Key, o ID é derivado da chave: repetir a requisição devolve a mesma ficha."""
         if user_id is not None and data.ownerId not in (None, user_id):
             raise OwnerImmutable()
-        self._require_member(data.campaignId, user_id)
+        if data.campaignId != self.PERSONAL_CAMPAIGN:
+            self._require_member(data.campaignId, user_id)
         owner_id = user_id if user_id is not None else data.ownerId
         now = self._clock()
         character = Character(
@@ -135,7 +137,8 @@ class CharacterService:
         user_id: str | None = None,
     ) -> tuple[Character, bool]:
         """Cria a ficha copiando a versão do modelo. A cópia é fixa: editar o modelo depois não muda esta ficha."""
-        self._require_member(data.campaignId, user_id)
+        if data.campaignId != self.PERSONAL_CAMPAIGN:
+            self._require_member(data.campaignId, user_id)
         owner_id = user_id if user_id is not None else template.owner_id
         d = template.definition
         now = self._clock()
@@ -234,10 +237,26 @@ class CharacterService:
         self, campaign_id: str, limit: int = 50, cursor: str | None = None, *, user_id: str | None = None
     ) -> Page:
         """Fichas da campanha: o mestre vê todas; o jogador, só as dele; quem não participa, nenhuma (403)."""
+        if campaign_id == self.PERSONAL_CAMPAIGN:
+            return self._store.list_characters(campaign_id, limit, cursor, owner_id=user_id)
         if user_id is None or self.is_campaign_owner(campaign_id, user_id):
             return self._store.list_characters(campaign_id, limit, cursor)
         self._require_member(campaign_id, user_id)
         return self._store.list_characters(campaign_id, limit, cursor, owner_id=user_id)
+
+    def assign_campaign(self, character_id: str, campaign_id: str, *, user_id: str | None = None) -> Character:
+        if campaign_id == self.PERSONAL_CAMPAIGN:
+            raise ValueError("escolha uma campanha")
+        self._require_member(campaign_id, user_id)
+        current = self._owned(character_id, user_id)
+        if current.campaign_id == campaign_id:
+            return current
+        if current.campaign_id != self.PERSONAL_CAMPAIGN or current.slots_used:
+            raise ValueError("a ficha já pertence a outra campanha ou possui reservas")
+        updated = current.evolve(campaign_id=campaign_id, version=current.version + 1, updated_at=self._clock())
+        self._store.save_profile(updated, current.version, 0)
+        self._changed(character_id)
+        return updated
 
     def require_campaign_member(self, campaign_id: str, user_id: str | None) -> None:
         self._require_member(campaign_id, user_id)

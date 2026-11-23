@@ -1,21 +1,15 @@
 import { useState, type FormEvent } from "react";
-import { createCharacter, createFromTemplate, type SavedTemplate } from "./api";
-import { useCampaignTemplate, useDeleteTemplate, useTemplates } from "./queries";
-import {
-  errorMessage,
-  isMembershipPending,
-  MEMBERSHIP_GIVE_UP_MESSAGE,
-  retryWhileMembershipPending,
-} from "../../shared/http";
-import { useCampaign } from "../../shared/campaign";
-import { useCampaignCode } from "../campaigns/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { createCharacter, createFromTemplate, PERSONAL_CAMPAIGN, type SavedTemplate } from "./api";
+import { characterKeys, useCampaignTemplate, useDeleteTemplate, useTemplates } from "./queries";
+import { errorMessage, retryWhileMembershipPending } from "../../shared/http";
 import { cx } from "../../shared/ui/cx";
 import { useToast } from "../../shared/ui/toast-context";
 import { navigate } from "../../app/navigation";
 import { Link } from "../../app/router";
 import { sheetFromTemplate, TEMPLATES, type Template } from "./sheet/templates";
+import { CampaignPicker } from "../campaigns/CampaignPicker";
 import { useAuth } from "../auth/auth-context";
-import { useCampaigns } from "../campaigns/queries";
 
 function TemplateIcon({ icon }: { icon: Template["icon"] }) {
   const paths: Record<Template["icon"], string> = {
@@ -98,27 +92,22 @@ function SavedTemplates({
 }
 
 export function NewCharacterPage() {
-  const { user } = useAuth();
-  const userId = user?.userId ?? "";
-  const campaigns = useCampaigns(userId);
-  const [storedCampaign] = useCampaign(user?.userId);
-  const campaign = campaigns.isSuccess
-    ? campaigns.data.find((item) => item.campaignId === storedCampaign)?.campaignId ?? campaigns.data[0]?.campaignId ?? ""
-    : "";
-  const code = useCampaignCode(campaign);
   const toast = useToast();
-  const campaignTemplate = useCampaignTemplate(campaign).data ?? null;
-  // "campaign" é o modelo que o mestre definiu na campanha; "saved:<id>", um modelo salvo no S2; o resto
-  // são os modelos prontos do front. Enquanto a pessoa não escolhe, vale o da campanha, se houver.
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const [campaign, setCampaign] = useState(PERSONAL_CAMPAIGN);
+  const campaignTemplate = useCampaignTemplate(campaign === PERSONAL_CAMPAIGN ? "" : campaign).data ?? null;
   const [choice, setTemplateId] = useState<string | null>(null);
   const templateId = choice ?? (campaignTemplate ? "campaign" : TEMPLATES[0].id);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
-  // Verdadeiro enquanto o S2 ainda não recebeu a entrada na campanha e a criação é repetida.
-  const [syncing, setSyncing] = useState(false);
   const [problem, setProblem] = useState("");
   const template = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
   const savedId = templateId.startsWith("saved:") ? templateId.slice("saved:".length) : null;
+  let submitLabel = campaign === PERSONAL_CAMPAIGN ? "Criar personagem pessoal" : "Criar na campanha";
+  if (saving) {
+    submitLabel = "Criando…";
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -128,10 +117,8 @@ export function NewCharacterPage() {
 
     setSaving(true);
     setProblem("");
-    // O modelo da campanha vai com a versão dela: o mestre, dono do modelo, ganharia a versão atual.
-    const fromCampaign = templateId === "campaign" ? campaignTemplate : null;
-    const fromSaved = fromCampaign
-      ? { id: fromCampaign.templateId, version: fromCampaign.version }
+    const fromSaved = templateId === "campaign" && campaignTemplate
+      ? { id: campaignTemplate.templateId, version: campaignTemplate.version }
       : savedId && { id: savedId, version: undefined };
     try {
       const create = () => fromSaved
@@ -149,23 +136,18 @@ export function NewCharacterPage() {
             maxItems: template.maxItems,
             sheet: sheetFromTemplate(template),
           });
-      // Logo depois de entrar na campanha, o S2 pode ainda não saber disso (evento do S1 a caminho).
-      const created = await retryWhileMembershipPending(create, () => setSyncing(true));
+      const created = campaign === PERSONAL_CAMPAIGN ? await create() : await retryWhileMembershipPending(create);
+      await queryClient.invalidateQueries({ queryKey: characterKeys.list(campaign) });
       toast("ok", `${created.name} criado.`);
       navigate(`/personagens/${created.id}`);
     } catch (error) {
-      setProblem(
-        isMembershipPending(error)
-          ? MEMBERSHIP_GIVE_UP_MESSAGE
-          : errorMessage(error, "Não foi possível criar o personagem."),
-      );
+      setProblem(errorMessage(error, "Não foi possível criar o personagem."));
       setSaving(false);
-      setSyncing(false);
     }
   };
 
   return (
-    <main className="page">
+    <main className="page page--new-character">
       <Link to="/personagens" className="back-link">
         Voltar aos personagens
       </Link>
@@ -175,33 +157,27 @@ export function NewCharacterPage() {
         quiser.
       </p>
 
+      <section className="character-create-destination" aria-label="Destino do personagem">
+        <div>
+          <h2>Onde criar o personagem</h2>
+          <p>Comece com uma ficha pessoal ou crie direto em uma campanha.</p>
+        </div>
+        <CampaignPicker userId={user?.userId ?? ""} value={campaign} onChange={id => { setCampaign(id); setTemplateId(null); }} includePersonal />
+      </section>
+
       <form onSubmit={submit} noValidate>
-        {campaignTemplate && (
-          <>
-            <h2 className="section-title">Modelo da campanha</h2>
-            <div className="templates" role="radiogroup" aria-label="Modelo da campanha">
-              <label className={cx("template", templateId === "campaign" && "template--chosen")}>
-                <input
-                  type="radio"
-                  name="template"
-                  value="campaign"
-                  checked={templateId === "campaign"}
-                  onChange={() => setTemplateId("campaign")}
-                />
-                <span className="template__name">{campaignTemplate.name}</span>
-                <span className="template__summary">
-                  {campaignTemplate.description || "Modelo definido pelo mestre da campanha"}
-                </span>
-                <span className="template__meta">
-                  Versão {campaignTemplate.version} · {campaignTemplate.sheetDefinition?.columns.flat().length ?? 0}{" "}
-                  blocos · {campaignTemplate.initialValues.currency.amount}{" "}
-                  {campaignTemplate.initialValues.currency.name}
-                </span>
-              </label>
-            </div>
-            <h2 className="section-title">Outros modelos</h2>
-          </>
-        )}
+        {campaignTemplate && <>
+          <h2 className="section-title">Modelo da campanha</h2>
+          <div className="templates" role="radiogroup" aria-label="Modelo da campanha">
+            <label className={cx("template", templateId === "campaign" && "template--chosen")}>
+              <input type="radio" name="template" value="campaign" checked={templateId === "campaign"} onChange={() => setTemplateId("campaign")} />
+              <span className="template__name">{campaignTemplate.name}</span>
+              <span className="template__summary">{campaignTemplate.description || "Modelo definido pelo mestre da campanha"}</span>
+              <span className="template__meta">Versão {campaignTemplate.version}</span>
+            </label>
+          </div>
+          <h2 className="section-title">Outros modelos</h2>
+        </>}
         <div className="templates" role="radiogroup" aria-label="Modelo da ficha">
           {TEMPLATES.map((item) => {
             const blocks = item.columns.flat().length;
@@ -238,7 +214,6 @@ export function NewCharacterPage() {
         <h2 className="section-title">Meus modelos</h2>
         <SavedTemplates chosen={templateId} onChoose={setTemplateId} />
 
-        {!campaign && <p className="field-error field-error--felt">{campaigns.isPending ? "Carregando suas campanhas…" : campaigns.isError ? errorMessage(campaigns.error, "Não foi possível carregar suas campanhas.") : <>Você precisa participar de uma campanha. <Link to="/campanhas">Ver campanhas</Link></>}</p>}
         <div className="create-bar">
           <label className="create-bar__name">
             <span>Nome do personagem</span>
@@ -249,9 +224,8 @@ export function NewCharacterPage() {
               maxLength={80}
             />
           </label>
-          <button type="submit" className="button button--brass" disabled={saving || !campaign}>
-            {syncing ? "Confirmando sua entrada na campanha…" : null}
-            {!syncing && (saving ? "Criando…" : campaign ? `Criar personagem na campanha ${code}` : "Selecione uma campanha para continuar")}
+          <button type="submit" className="button button--brass" disabled={saving}>
+            {submitLabel}
           </button>
         </div>
         {problem && <p className="field-error field-error--felt">{problem}</p>}

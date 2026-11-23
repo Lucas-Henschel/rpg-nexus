@@ -1,8 +1,7 @@
-import { portraitUrl, type Character } from "./api";
+import { PERSONAL_CAMPAIGN, portraitUrl, type Character } from "./api";
 import { errorMessage, isMembershipPending, MEMBERSHIP_GIVE_UP_MESSAGE } from "../../shared/http";
 import { useCampaign } from "../../shared/campaign";
 import { CampaignPicker } from "../campaigns/CampaignPicker";
-import { useCampaignCode } from "../campaigns/queries";
 import { cx } from "../../shared/ui/cx";
 import { HpBar, Initials } from "../../shared/ui/Sheet";
 import { toLabel } from "../../shared/labels";
@@ -51,22 +50,23 @@ export function CharacterListPage() {
   const userId = user?.userId ?? "";
   const campaigns = useCampaigns(userId);
   const [storedCampaign, setCampaign] = useCampaign(user?.userId);
-  const campaign = campaigns.isSuccess
-    ? (campaigns.data.find((item) => item.campaignId === storedCampaign)?.campaignId ??
-      campaigns.data[0]?.campaignId ??
-      "")
-    : campaigns.isError
-      ? storedCampaign
-      : "";
+  let campaign = PERSONAL_CAMPAIGN;
+  if (storedCampaign !== PERSONAL_CAMPAIGN && campaigns.isSuccess) {
+    campaign = campaigns.data.find((item) => item.campaignId === storedCampaign)?.campaignId ?? PERSONAL_CAMPAIGN;
+  } else if (campaigns.isError && storedCampaign) {
+    campaign = storedCampaign;
+  }
+
   const characters = useCharacters(campaign);
-  const code = useCampaignCode(campaign);
+  const campaignName = campaign === PERSONAL_CAMPAIGN ? "seus personagens" :
+    campaigns.data?.find((item) => item.campaignId === campaign)?.name ?? "esta campanha";
 
   return (
     <main className="page">
       <header className="page__head">
         <div>
           <h1 className="page__title">Personagens</h1>
-          <CampaignPicker userId={userId} value={campaign} onChange={setCampaign} />
+          <CampaignPicker userId={userId} value={campaign} onChange={setCampaign} includePersonal />
         </div>
         <Link to="/personagens/novo" className="button button--brass">
           Criar personagem
@@ -77,20 +77,11 @@ export function CharacterListPage() {
         <p className="page__status">Carregando suas campanhas…</p>
       )}
 
-      {campaigns.isSuccess && campaigns.data.length === 0 && (
-        <div className="notice">
-          <p>Você ainda não participa de nenhuma campanha.</p>
-          <Link to="/campanhas" className="button button--brass">
-            Ver campanhas
-          </Link>
-        </div>
-      )}
-
       {characters.isPending && campaign && (
         <p className="page__status">
           {isMembershipPending(characters.failureReason)
-            ? `Confirmando sua entrada na campanha ${code}…`
-            : `Buscando as fichas da campanha ${code}…`}
+            ? `Confirmando sua entrada em ${campaignName}…`
+            : `Buscando as fichas de ${campaignName}…`}
         </p>
       )}
 
@@ -113,7 +104,7 @@ export function CharacterListPage() {
 
       {characters.isSuccess && characters.data.length === 0 && (
         <div className="notice">
-          <p>A campanha {code} ainda não tem personagens.</p>
+          <p>{campaign === PERSONAL_CAMPAIGN ? "Você ainda não tem personagens pessoais." : `${campaignName} ainda não tem personagens.`}</p>
           <Link to="/personagens/novo" className="button button--brass">
             Criar o primeiro personagem
           </Link>
