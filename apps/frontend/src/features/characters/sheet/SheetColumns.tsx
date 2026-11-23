@@ -1,6 +1,7 @@
 /** As duas colunas de blocos da ficha; ferramentas aparecem durante a edição. */
 import { useState } from "react";
 import type { BlockType, Character, Hold } from "../api";
+import type { InventoryEntry, ShopItem } from "../../inventory/api";
 import { BLOCK_TITLES, SINGLETON_BLOCKS } from "./templates";
 import { SheetBlock } from "./SheetBlock";
 import type { Draft } from "./sheetDraft";
@@ -59,10 +60,12 @@ interface Props {
   edit: (changes: Partial<Draft>) => void;
   character: Character;
   holds: Hold[];
+  inventory: InventoryEntry[];
+  shopItems: ShopItem[];
   editing: boolean;
 }
 
-export function SheetColumns({ draft, edit, character, holds, editing }: Props) {
+export function SheetColumns({ draft, edit, character, holds, inventory, shopItems, editing }: Props) {
   const [menuAt, setMenuAt] = useState<number | null>(null);
 
   const columns = draft.sheet.columns;
@@ -88,6 +91,8 @@ export function SheetColumns({ draft, edit, character, holds, editing }: Props) 
                 edit={edit}
                 character={character}
                 holds={holds}
+                inventory={inventory}
+                shopItems={shopItems}
                 editing={editing}
                 onPatch={(changes) => setColumns(patchBlock(columns, col, index, changes))}
                 actions={

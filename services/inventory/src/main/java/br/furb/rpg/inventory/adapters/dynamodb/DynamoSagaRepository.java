@@ -158,7 +158,8 @@ public class DynamoSagaRepository implements br.furb.rpg.inventory.ports.SagaPor
             }
             case DELIVER_ITEM -> {
                 writes.add(store.insert("inventory",Map.of("id",DynamoStore.s(id),"characterId",row.get("characterId"),
-                    "campaignId",row.get("campaignId"),"itemId",row.get("itemId"),"quantity",DynamoStore.n(1))));
+                    "campaignId",row.get("campaignId"),"itemId",row.get("itemId"),"quantity",DynamoStore.n(1),
+                    "itemName",row.get("itemName"),"price",row.get("price"))));
                 writes.add(store.updateSaga(row,decision.next().name(),Instant.parse(DynamoStore.str(row,"deadlineAt"))));
                 writes.add(confirmReservation(row));
                 writes.add(transition(row,"COMPLETED"));

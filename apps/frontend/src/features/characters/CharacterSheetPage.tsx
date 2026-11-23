@@ -14,6 +14,7 @@ import { SaveBar } from "./sheet/SaveBar";
 import { buildPatch, toDraft, validate, type Draft } from "./sheet/sheetDraft";
 import { SheetColumns } from "./sheet/SheetColumns";
 import { SheetIdentity } from "./sheet/SheetIdentity";
+import { useInventory, useShop } from "../inventory/queries";
 
 /** Carrega a ficha e as reservas; a edição só começa com os dois em mãos. */
 export function CharacterSheetPage({ id }: { id: string }) {
@@ -62,6 +63,8 @@ export function CharacterSheetPage({ id }: { id: string }) {
  * versão conhecida do servidor; o rascunho é o que a pessoa está editando em cima dela.
  */
 function SheetEditor({ character, holds }: { character: Character; holds: Hold[] }) {
+  const inventory = useInventory(character.id);
+  const shop = useShop(character.campaignId);
   const toast = useToast();
   const save = useSaveCharacter(character.id);
   const reloadCharacter = useReloadCharacter(character.id);
@@ -130,7 +133,8 @@ function SheetEditor({ character, holds }: { character: Character; holds: Hold[]
         )}
         <SheetIdentity character={character} draft={draft} edit={edit} readOnly={!canEdit} />
         <fieldset className="sheet__fieldset" disabled={!canEdit}>
-          <SheetColumns draft={draft} edit={edit} character={character} holds={holds} editing={editing} />
+          <SheetColumns draft={draft} edit={edit} character={character} holds={holds}
+            inventory={inventory.data ?? []} shopItems={shop.items.data ?? []} editing={editing} />
         </fieldset>
       </Paper>
 

@@ -26,6 +26,9 @@ export interface InventoryEntry {
   campaignId: string;
   itemId: string;
   quantity: number;
+  /** Snapshot do item no momento da compra; ausente em registros antigos. */
+  itemName?: string;
+  price?: number;
 }
 
 export type AcquisitionStatus =

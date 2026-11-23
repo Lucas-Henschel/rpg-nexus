@@ -4,6 +4,7 @@ import java.util.List;
 
 /** Leitura dos itens já entregues aos personagens pela Saga de compra. */
 public interface CatalogPort {
-    record InventoryEntry(String operationId, String campaignId, String itemId, long quantity) {}
+    record InventoryEntry(String operationId, String campaignId, String itemId, long quantity,
+                          String itemName, long price) {}
     List<InventoryEntry> findInventory(String characterId);
 }
