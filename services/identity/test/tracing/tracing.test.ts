@@ -1,4 +1,9 @@
-import { GetItemCommand } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBClient,
+  GetItemCommand,
+  TransactionCanceledException,
+  TransactWriteItemsCommand,
+} from "@aws-sdk/client-dynamodb";
 import { context, trace } from "@opentelemetry/api";
 import {
   InMemorySpanExporter,
@@ -10,6 +15,7 @@ import { createDynamoClient } from "../../src/db/client.js";
 import { buildApp } from "../../src/http/app.js";
 import { handleValidationDelivery } from "../../src/messaging/validation.js";
 import { publishValidationResponse } from "../../src/messaging/validation-outbox.js";
+import { traceDynamoCommands } from "../../src/tracing/dynamodb.js";
 import { startTracing, stopTracing } from "../../src/tracing/setup.js";
 import { traceHeaders, withConsumerSpan } from "../../src/tracing/spans.js";
 import { fakeDependencies, fakeHistory } from "../fakes.js";
@@ -236,4 +242,54 @@ it("não cria span solto para sondagens ou trabalho de fundo sem trace ativo", a
     .catch(() => undefined);
   await processor.forceFlush();
   expect(exporter.getFinishedSpans()).toEqual([]);
+});
+
+function failingDynamo(codes: string[]): DynamoDBClient {
+  const client = new DynamoDBClient({
+    endpoint: "http://127.0.0.1:9",
+    region: "us-east-1",
+    credentials: { accessKeyId: "x", secretAccessKey: "x" },
+  });
+  traceDynamoCommands(client);
+  client.middlewareStack.add(
+    () => async () => {
+      throw new TransactionCanceledException({
+        message: "Transaction cancelled",
+        $metadata: {},
+        CancellationReasons: codes.map((Code) => ({ Code })),
+      });
+    },
+    { step: "build", name: "failWith" },
+  );
+  return client;
+}
+
+async function transactionSpan(codes: string[]) {
+  const client = failingDynamo(codes);
+  await withConsumerSpan("history-test", undefined, {}, () =>
+    client
+      .send(
+        new TransactWriteItemsCommand({
+          TransactItems: [
+            { Put: { TableName: "t", Item: { id: { S: "1" } } } },
+          ],
+        }),
+      )
+      .catch(() => undefined),
+  );
+  await processor.forceFlush();
+  return exporter
+    .getFinishedSpans()
+    .find((span) => span.name === "DynamoDB TransactWriteItems");
+}
+
+it("condição recusada (mensagem repetida) não marca o span do DynamoDB como erro", async () => {
+  const dynamo = await transactionSpan(["ConditionalCheckFailed", "None"]);
+  expect(dynamo?.status.code).not.toBe(2);
+  expect(dynamo?.attributes["db.condition_failed"]).toBe(true);
+});
+
+it("transação cancelada por outro motivo continua sendo erro no span", async () => {
+  const dynamo = await transactionSpan(["None", "TransactionConflict"]);
+  expect(dynamo?.status.code).toBe(2);
 });

@@ -17,14 +17,29 @@ function tableNames(input: unknown): string[] {
     ),
   ];
 }
+// Recusa de escrita condicional (inbox detectando repetida) é resposta esperada, não erro do span.
+function onlyConditionsFailed(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.name === "ConditionalCheckFailedException") return true;
+  if (error.name !== "TransactionCanceledException") return false;
+  const reasons =
+    (error as { CancellationReasons?: { Code?: string }[] })
+      .CancellationReasons ?? [];
+  const codes = reasons
+    .map((reason) => reason.Code)
+    .filter((code) => code !== "None");
+  return (
+    codes.length > 0 && codes.every((code) => code === "ConditionalCheckFailed")
+  );
+}
 export function traceDynamoCommands(client: DynamoDBClient): void {
   client.middlewareStack.add(
     (next, { commandName = "Command" }) =>
-      (args) => {
+      async (args) => {
         if (isUntraced() || !trace.getSpan(context.active())?.isRecording())
           return next(args);
         const operation = commandName.replace(/Command$/, "");
-        return inSpan(
+        const outcome = await inSpan(
           `DynamoDB ${operation}`,
           SpanKind.CLIENT,
           {
@@ -33,8 +48,18 @@ export function traceDynamoCommands(client: DynamoDBClient): void {
             "aws.dynamodb.table_names": tableNames(args.input),
           },
           context.active(),
-          () => next(args),
+          async (span) => {
+            try {
+              return { output: await next(args) };
+            } catch (error) {
+              if (!onlyConditionsFailed(error)) throw error;
+              span.setAttribute("db.condition_failed", true);
+              return { refused: error };
+            }
+          },
         );
+        if ("refused" in outcome) throw outcome.refused;
+        return outcome.output;
       },
     { step: "initialize", name: "openTelemetrySpan" },
   );

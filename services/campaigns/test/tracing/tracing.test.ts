@@ -1,4 +1,10 @@
-import { GetItemCommand } from "@aws-sdk/client-dynamodb";
+import {
+  ConditionalCheckFailedException,
+  DynamoDBClient,
+  GetItemCommand,
+  TransactionCanceledException,
+  TransactWriteItemsCommand,
+} from "@aws-sdk/client-dynamodb";
 import { context, trace } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace";
 import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
@@ -6,6 +12,7 @@ import { loadEnv } from "../../src/config.js";
 import { createDynamoClient } from "../../src/db/client.js";
 import { buildApp } from "../../src/http/app.js";
 import { createCampaignService } from "../../src/services/campaigns.js";
+import { traceDynamoCommands } from "../../src/tracing/dynamodb.js";
 import { startTracing, stopTracing } from "../../src/tracing/setup.js";
 import {
   traceHeaders,
@@ -158,4 +165,84 @@ it("cada requisição HTTP vira um span 'MÉTODO /rota'; /health e /ready não",
 
   // Um span por requisição, com nome legível; sem o span do handler (o nome dele é o código da função).
   expect(names).toEqual(["POST /campaigns"]);
+});
+
+/** Cliente cujo envio falha com `error`, como se o DynamoDB tivesse respondido assim. */
+function failingDynamo(error: Error): DynamoDBClient {
+  const client = new DynamoDBClient({
+    endpoint: "http://127.0.0.1:9",
+    region: "us-east-1",
+    credentials: { accessKeyId: "x", secretAccessKey: "x" },
+  });
+
+  traceDynamoCommands(client);
+
+  client.middlewareStack.add(
+    () => async () => {
+      throw error;
+    },
+    { step: "build", name: "failWith" },
+  );
+
+  return client;
+}
+
+const cancelled = (codes: string[]) =>
+  new TransactionCanceledException({
+    message: "Transaction cancelled",
+    $metadata: {},
+    CancellationReasons: codes.map((Code) => ({ Code })),
+  });
+
+const transaction = new TransactWriteItemsCommand({
+  TransactItems: [{ Put: { TableName: "t", Item: { id: { S: "1" } } } }],
+});
+
+it("condição recusada numa transação não é erro no span; a exceção continua subindo", async () => {
+  const error = cancelled(["None", "None", "ConditionalCheckFailed", "None", "None"]);
+  const client = failingDynamo(error);
+
+  const thrown = await withConsumerSpan("fila", undefined, {}, () =>
+    client.send(transaction).catch((caught: unknown) => caught),
+  );
+
+  const [dynamo] = await finished("DynamoDB TransactWriteItems");
+
+  expect(thrown).toBe(error);
+  expect(dynamo?.status.code).not.toBe(2); // ERROR
+  expect(dynamo?.events).toEqual([]);
+  expect(dynamo?.attributes["db.condition_failed"]).toBe(true);
+});
+
+it("ConditionalCheckFailedException fora de transação também não é erro no span", async () => {
+  const client = failingDynamo(
+    new ConditionalCheckFailedException({
+      message: "The conditional request failed",
+      $metadata: {},
+    }),
+  );
+
+  await withConsumerSpan("fila", undefined, {}, () =>
+    client
+      .send(new GetItemCommand({ TableName: "t", Key: { id: { S: "1" } } }))
+      .catch(() => undefined),
+  );
+
+  const [dynamo] = await finished("DynamoDB GetItem");
+
+  expect(dynamo?.status.code).not.toBe(2);
+  expect(dynamo?.attributes["db.condition_failed"]).toBe(true);
+});
+
+it("transação cancelada por outro motivo continua sendo erro no span", async () => {
+  const client = failingDynamo(cancelled(["None", "TransactionConflict"]));
+
+  await withConsumerSpan("fila", undefined, {}, () =>
+    client.send(transaction).catch(() => undefined),
+  );
+
+  const [dynamo] = await finished("DynamoDB TransactWriteItems");
+
+  expect(dynamo?.status.code).toBe(2);
+  expect(dynamo?.attributes["db.condition_failed"]).toBeUndefined();
 });
