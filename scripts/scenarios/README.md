@@ -10,7 +10,7 @@ cenário muda volta ao normal no fim, mesmo se der erro ou se for interrompido c
 Com o sistema no ar (`docker compose up -d --wait`), na raiz do repositório:
 
 ```sh
-bash scenarios/f1_compensacao.sh
+bash scripts/scenarios/f1_compensacao.sh
 ```
 
 Precisa só de **bash, curl e Docker**. No Windows, rode pelo **Git Bash**. Não precisa de `jq`: para
@@ -20,7 +20,7 @@ MiniStack. As portas vêm do `.env` da raiz, como no Compose.
 Para ensaiar todos em sequência (leva uns 6 minutos):
 
 ```sh
-for f in scenarios/f*.sh; do bash "$f" || break; done
+for f in scripts/scenarios/f*.sh; do bash "$f" || break; done
 ```
 
 ## O que cada um faz
