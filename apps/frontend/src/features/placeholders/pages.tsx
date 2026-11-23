@@ -77,18 +77,3 @@ export function ItemsPage() {
     />
   );
 }
-
-export function HistoryPage() {
-  return (
-    <ComingSoon
-      title="Histórico"
-      lead="A linha do tempo da campanha: quem ganhou o quê, e o que foi cancelado."
-      service="actions"
-      planned={[
-        "Linha do tempo com cada item entregue e cada pedido cancelado",
-        "Rolagem de dados simples, se sobrar tempo",
-      ]}
-      endpoints={["GET /campaigns/{id}/history", "POST /rolls"]}
-    />
-  );
-}
