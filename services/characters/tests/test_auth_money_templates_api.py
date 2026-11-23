@@ -120,11 +120,12 @@ def test_saldo_inicial_e_sem_ajuste_manual(api):
     assert api.get(f"/characters/{lyra['id']}/money/transactions").json()["items"] == []
 
 
-def test_patch_muda_o_nome_da_moeda_mas_nao_o_saldo(api):
+def test_patch_atualiza_saldo_de_ouro_como_inteiro_nao_negativo(api):
     lyra = _create(api, currency={"name": "Moedas", "amount": 30})
-    updated = api.patch(f"/characters/{lyra['id']}", json={"currencyName": "Créditos"}).json()
-    assert updated["currency"] == {"name": "Créditos", "amount": 30}
-    assert api.patch(f"/characters/{lyra['id']}", json={"currency": {"amount": 999}}).status_code == 422
+    updated = api.patch(f"/characters/{lyra['id']}", json={"currencyAmount": 0}).json()
+    assert updated["currency"] == {"name": "Moedas", "amount": 0}
+    assert api.patch(f"/characters/{lyra['id']}", json={"currencyAmount": -1}).status_code == 422
+    assert api.patch(f"/characters/{lyra['id']}", json={"currencyName": "Créditos"}).status_code == 422
 
 
 # --- modelos ---------------------------------------------------------------------------------------

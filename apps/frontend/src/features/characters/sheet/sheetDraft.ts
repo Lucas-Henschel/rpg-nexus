@@ -13,7 +13,7 @@ export interface Draft {
   attributes: StatMap;
   skills: StatMap;
   sheet: Sheet;
-  currencyName: string;
+  currencyAmount: number;
 }
 
 export function toDraft(c: Character): Draft {
@@ -27,7 +27,7 @@ export function toDraft(c: Character): Draft {
     attributes: { ...c.attributes },
     skills: { ...c.skills },
     sheet: structuredClone(normalizeSheet(c.sheet)),
-    currencyName: c.currency.name,
+    currencyAmount: c.currency.amount,
   };
 }
 
@@ -81,8 +81,8 @@ export function buildPatch(c: Character, d: Draft): CharacterPatch {
     patch.skills = skills;
   }
 
-  if (d.currencyName.trim() !== c.currency.name) {
-    patch.currencyName = d.currencyName.trim();
+  if (d.currencyAmount !== c.currency.amount) {
+    patch.currencyAmount = d.currencyAmount;
   }
 
   if (JSON.stringify(d.sheet) !== JSON.stringify(normalizeSheet(c.sheet))) {
@@ -117,8 +117,8 @@ export function validate(d: Draft, slotsUsed: number): string {
     return `A mochila já tem ${slotsUsed} espaço(s) em uso; não dá para deixá-la menor que isso.`;
   }
 
-  if (!d.currencyName.trim()) {
-    return "A moeda precisa de um nome.";
+  if (!Number.isSafeInteger(d.currencyAmount) || d.currencyAmount < 0) {
+    return "O ouro deve ser um inteiro a partir de 0.";
   }
 
   for (const key of ["level", "defense"]) {
