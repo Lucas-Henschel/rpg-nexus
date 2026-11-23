@@ -41,7 +41,7 @@ export function SaveAsTemplate({ draft }: { draft: Draft }) {
           skills: draft.skills,
           hpMax: draft.hpMax,
           maxItems: draft.maxItems,
-          currency: { name: draft.currencyName.trim() || "Moedas", amount: money },
+          currency: { name: "Ouro", amount: money },
         },
       },
       {

@@ -107,12 +107,12 @@ class InMemoryCharacterStore:
                 raise ConcurrencyConflict("versão divergente")
             if max_items_delta < 0 and current.slots_available < -max_items_delta:
                 raise ConcurrencyConflict("capacidade livre insuficiente para reduzir maxItems")
-            # contadores de capacidade e o saldo são preservados do estado atual (não vêm do chamador)
+            # Contadores de capacidade vêm do estado atual; saldo é persistido junto ao perfil
+            # sob a mesma verificação de versão usada pelas operações de compra.
             self._characters[character.id] = copy.deepcopy(
                 character.evolve(
                     slots_used=current.slots_used,
                     max_items=current.max_items + max_items_delta,
-                    currency_amount=current.currency_amount,
                 )
             )
 
