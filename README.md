@@ -76,16 +76,26 @@ traces (OpenTelemetry) e não aparece no diagrama.
 
 ## Como rodar
 
-Pré-requisito: Docker Desktop (ou Docker Engine) com Compose v2. Na raiz:
+Pré-requisitos: **Git** e **Docker** (Docker Desktop ou Docker Engine) com **Compose v2**. Não é
+preciso instalar Node.js, Python, Java, Maven nem Terraform: cada serviço é compilado dentro da
+própria imagem e o Terraform roda num contêiner. Reserve ao Docker pelo menos 4 GB de memória (6 a
+8 GB é mais folgado) e uns 10 GB de disco.
 
 ```sh
+git clone https://github.com/Lucas-Henschel/rpg-nexus.git
+cd rpg-nexus
 cp .env.example .env
 docker compose up --build
 ```
 
+O `.env` é opcional (sem ele valem os mesmos padrões do `.env.example`), mas é nele que se muda uma
+porta ou um parâmetro. A primeira subida baixa as imagens e as dependências (npm, pip, Maven) e leva
+alguns minutos; as seguintes usam o cache.
+
 O contêiner `terraform` cria toda a infraestrutura antes dos serviços: tabelas DynamoDB, bucket S3
 e exchange, filas e ligações do RabbitMQ. Rodar de novo não muda nada; um recurso apagado é
-recriado. Depois disso, abra o front-end em [localhost:5173](http://localhost:5173).
+recriado. Depois disso, abra o front-end em [localhost:5173](http://localhost:5173) e siga o
+[primeiro uso](#primeiro-uso-uma-compra-de-ponta-a-ponta).
 
 | O quê | No host | Entre contêineres |
 | --- | --- | --- |
@@ -103,7 +113,7 @@ recriado. Depois disso, abra o front-end em [localhost:5173](http://localhost:51
 | `docker compose up --build --detach --wait` | Sobe tudo em segundo plano e espera ficar saudável. |
 | `docker compose logs -f <serviço>` | Logs de um serviço ([um painel por serviço](docs/logs-por-servico.md)). |
 | `docker compose up -d --scale characters-worker=3` | Três réplicas do consumidor do S2. |
-| `docker compose --profile autoscale up -d` | Liga a [autoescala](infra/autoscaler/README.md) dos consumidores de S1, S2, S3 e S4. |
+| `docker compose --profile autoscale up -d` | Liga a autoescala do consumidor do S2. Para ver réplicas subindo é preciso encher a fila: [como demonstrar](infra/autoscaler/README.md). |
 | `docker compose down` | Para tudo e mantém os dados. |
 | `docker compose down --volumes` | **Apaga os dados** (filas, tabelas, arquivos) e para tudo. |
 
@@ -111,9 +121,33 @@ Endpoints, credenciais, portas e nomes de filas vêm de variáveis de ambiente, 
 [`.env.example`](.env.example) e no `.env.example` de cada serviço. Mudar uma porta no `.env` muda
 só o endereço no host; entre contêineres o MiniStack continua em `http://ministack:4566`.
 
+## Primeiro uso: uma compra de ponta a ponta
+
+O sistema sobe vazio. Para ver o fluxo principal pelo front-end:
+
+1. Em [localhost:5173](http://localhost:5173), clique em **Criar conta** e entre. Esta conta será a do mestre.
+2. Em **Campanhas**, crie uma campanha e anote o código de seis dígitos.
+3. Abra a campanha. Em **Loja da campanha**, ative a loja e adicione um item com preço e estoque.
+4. Numa janela anônima (outra sessão), crie a conta do jogador e use **Entrar com código** em **Campanhas**.
+5. Ao abrir a campanha, o jogador escolhe ou cria o personagem. Na ficha do personagem (**Personagens**), dê a ele algum **Ouro**.
+6. De volta à campanha, o jogador clica em **Comprar**. A tela mostra os passos da compra até **Item entregue**; o item aparece na mochila e o saldo diminui.
+
+Para ver o que aconteceu por trás: no [Jaeger](http://localhost:16686), escolha o serviço `inventory` e abra o trace mais recente (ele passa por S3, S2, validador, S1 e S4); no [RabbitMQ](http://localhost:15672) (`dev`/`dev`), a aba **Queues** mostra as filas de cada consumidor e as DLQs.
+
+Sem front-end, `bash scripts/requisitos/r3-api-assincrona.sh` faz uma compra completa sozinho.
+
+## Scripts de demonstração
+
+Com a pilha no ar, na raiz do repositório. Precisam só de **bash**, **curl** e **Docker**; no Windows, use o **Git Bash** (detalhes no README de cada pasta).
+
+- [`scripts/requisitos`](scripts/requisitos/README.md): um script por requisito, R1 a R6 (por exemplo, `bash scripts/requisitos/r1-idempotencia.sh`).
+- [`scripts/scenarios`](scripts/scenarios/README.md): os cenários de falha F1 a F8 (compensação,
+  serviço que morre, mensagem duplicada, mensagem venenosa, corrida, broker fora, resposta tardia,
+  escala), cada um com as verificações e o resultado `PASS`/`FAIL`.
+
 ## Onde está cada requisito
 
-Para ver cada um funcionando, com a pilha no ar, rode os scripts de [`scripts/requisitos`](scripts/requisitos/README.md) (por exemplo, `bash scripts/requisitos/r1-idempotencia.sh`).
+Para ver cada um funcionando, rode os [scripts de demonstração](#scripts-de-demonstração).
 
 | Requisito | Onde |
 | --- | --- |
