@@ -54,7 +54,9 @@ export function errorHandler(error: FastifyError, request: FastifyRequest, reply
   }
 
   if (error instanceof CampaignHistoryForbidden) {
-    return reply.status(403).send(errorBody("CAMPAIGN_HISTORY_FORBIDDEN", "você não participa desta campanha"));
+    // Mesmo código do S2 e do S3: logo depois de entrar, a participação pode ainda não ter chegado
+    // pelo evento, e o front tenta de novo por alguns segundos.
+    return reply.status(403).send(errorBody("NOT_CAMPAIGN_MEMBER", "você não participa desta campanha"));
   }
 
   if (error instanceof InvalidHistoryCursor) {
