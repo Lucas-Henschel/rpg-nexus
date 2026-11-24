@@ -315,8 +315,8 @@ class CharacterService:
             changes["sheet"] = patch.sheet.model_dump() if patch.sheet else None
         if "active" in fields:
             changes["active"] = patch.active
-        if "currencyName" in fields and patch.currencyName is not None:
-            changes["currency_name"] = patch.currencyName
+        if "currencyAmount" in fields and patch.currencyAmount is not None:
+            changes["currency_amount"] = patch.currencyAmount
         if "hp" in fields and patch.hp is not None:
             changes["hp"] = HitPoints(current=patch.hp.current, max=patch.hp.max)
         if "attributes" in fields and patch.attributes is not None:

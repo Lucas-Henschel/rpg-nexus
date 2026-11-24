@@ -83,8 +83,7 @@ export interface CharacterPatch {
   maxItems?: number;
   active?: boolean;
   sheet?: Sheet;
-  /** Só o nome da moeda; o saldo não muda por PATCH. */
-  currencyName?: string;
+  currencyAmount?: number;
 }
 
 export interface Hold {

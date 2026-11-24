@@ -163,9 +163,8 @@ class CharacterPatch(BaseModel):
     active: bool | None = None
     #: Substitui a organização inteira da ficha; null volta para a ficha padrão.
     sheet: SheetLayout | None = None
-    #: Só o nome da moeda. O saldo muda pela compra na loja, nunca por PATCH:
-    #: um PATCH com a ficha antiga desfaria um débito feito nesse meio-tempo.
-    currencyName: CurrencyName | None = None
+    #: Saldo editável pelo dono. A versão otimista impede sobrescrever compras concorrentes.
+    currencyAmount: Annotated[int, Field(ge=0, le=2_147_483_647)] | None = None
 
     @field_validator("attributes", "skills")
     @classmethod
@@ -176,7 +175,7 @@ class CharacterPatch(BaseModel):
     def check_not_empty(self) -> CharacterPatch:
         if not self.model_fields_set:
             raise ValueError("informe ao menos um campo para alterar")
-        for name in ("name", "hp", "active", "attributes", "skills", "maxItems", "currencyName"):
+        for name in ("name", "hp", "active", "attributes", "skills", "maxItems", "currencyAmount"):
             if name in self.model_fields_set and getattr(self, name) is None:
                 raise ValueError(f"{name} não aceita null")
         return self

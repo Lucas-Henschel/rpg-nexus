@@ -331,8 +331,8 @@ class DynamoDBCharacterStore:
             f"{e.n('hpMax')} = {e.v(character.hp.max)}",
             f"{e.n('active')} = {e.v(character.active)}",
             f"{e.n('version')} = {e.v(character.version)}",
-            # só o nome da moeda: o saldo muda apenas pelas operações condicionais de dinheiro
             f"{e.n('currencyName')} = {e.v(character.currency_name)}",
+            f"{e.n('currencyAmount')} = {e.v(character.currency_amount)}",
             f"{e.n('updatedAt')} = {e.v(_ts(character.updated_at))}",
         ]
         removes = []

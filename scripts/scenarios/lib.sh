@@ -5,7 +5,7 @@
 # próprio computador e, se não houver, o Python do contêiner do MiniStack: não precisa de jq.
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT" || exit 2
 
 # --- Configuração ---------------------------------------------------------------------------------
@@ -24,11 +24,11 @@ _carrega_env() {
 }
 _carrega_env
 
-S1="http://localhost:${CAMPAIGNS_PORT:-3001}"
-S2="http://localhost:${CHARACTERS_PORT:-8000}"
-S3="http://localhost:${INVENTORY_PORT:-8080}"
-S4="http://localhost:${IDENTITY_PORT:-3002}"
-MQ="http://localhost:${RABBITMQ_MANAGEMENT_PORT:-15672}"
+S1="http://127.0.0.1:${CAMPAIGNS_PORT:-3001}"
+S2="http://127.0.0.1:${CHARACTERS_PORT:-8000}"
+S3="http://127.0.0.1:${INVENTORY_PORT:-8080}"
+S4="http://127.0.0.1:${IDENTITY_PORT:-3002}"
+MQ="http://127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}"
 MQ_AUTH="${RABBITMQ_USER:-dev}:${RABBITMQ_PASSWORD:-dev}"
 
 TMPD="$(mktemp -d 2>/dev/null || mktemp -d -t cenario)"
