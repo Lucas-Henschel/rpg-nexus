@@ -75,6 +75,18 @@ x-identity: &identity
     - rpg
     - db-identity
 
+# Base comum das telas de tabelas (dynamodb-admin): só sobem com `--profile db-admin`.
+x-db-admin: &db-admin
+  image: aaronshaf/dynamodb-admin:5.1.3
+  profiles: ["db-admin"]
+  restart: unless-stopped
+  depends_on:
+    terraform:
+      condition: service_completed_successfully
+
+x-db-admin-env: &db-admin-env
+  AWS_REGION: ${AWS_REGION:-us-east-1}
+
 services:
   rabbitmq:
     image: rabbitmq:4-management-alpine
@@ -181,6 +193,60 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+
+  # Telas para ver as tabelas de cada banco (só com `--profile db-admin`). Uma por MiniStack, ligada
+  # só à rede de dados daquele serviço: cada tela enxerga um banco, como o próprio serviço.
+  db-admin-campaigns:
+    <<: *db-admin
+    environment:
+      <<: *db-admin-env
+      DYNAMO_ENDPOINT: ${CAMPAIGNS_AWS_ENDPOINT_URL:-http://ministack-campaigns:4566}
+      AWS_ACCESS_KEY_ID: ${CAMPAIGNS_AWS_ACCESS_KEY_ID:-campaigns-local}
+      AWS_SECRET_ACCESS_KEY: ${CAMPAIGNS_AWS_SECRET_ACCESS_KEY:-campaigns-local-secret}
+    ports:
+      - "127.0.0.1:${DB_ADMIN_CAMPAIGNS_PORT:-8001}:8001"
+    networks:
+      - db-admin
+      - db-campaigns
+
+  db-admin-characters:
+    <<: *db-admin
+    environment:
+      <<: *db-admin-env
+      DYNAMO_ENDPOINT: ${CHARACTERS_AWS_ENDPOINT_URL:-http://ministack:4566}
+      AWS_ACCESS_KEY_ID: ${CHARACTERS_AWS_ACCESS_KEY_ID:-characters-local}
+      AWS_SECRET_ACCESS_KEY: ${CHARACTERS_AWS_SECRET_ACCESS_KEY:-characters-local-secret}
+    ports:
+      - "127.0.0.1:${DB_ADMIN_CHARACTERS_PORT:-8002}:8001"
+    networks:
+      - db-admin
+      - db-characters
+
+  db-admin-inventory:
+    <<: *db-admin
+    environment:
+      <<: *db-admin-env
+      DYNAMO_ENDPOINT: ${INVENTORY_AWS_ENDPOINT_URL:-http://ministack-inventory:4566}
+      AWS_ACCESS_KEY_ID: ${INVENTORY_AWS_ACCESS_KEY_ID:-inventory-local}
+      AWS_SECRET_ACCESS_KEY: ${INVENTORY_AWS_SECRET_ACCESS_KEY:-inventory-local-secret}
+    ports:
+      - "127.0.0.1:${DB_ADMIN_INVENTORY_PORT:-8003}:8001"
+    networks:
+      - db-admin
+      - db-inventory
+
+  db-admin-identity:
+    <<: *db-admin
+    environment:
+      <<: *db-admin-env
+      DYNAMO_ENDPOINT: ${IDENTITY_AWS_ENDPOINT_URL:-http://ministack-identity:4566}
+      AWS_ACCESS_KEY_ID: ${IDENTITY_AWS_ACCESS_KEY_ID:-identity-local}
+      AWS_SECRET_ACCESS_KEY: ${IDENTITY_AWS_SECRET_ACCESS_KEY:-identity-local-secret}
+    ports:
+      - "127.0.0.1:${DB_ADMIN_IDENTITY_PORT:-8004}:8001"
+    networks:
+      - db-admin
+      - db-identity
 
   # Cria toda a infraestrutura e termina: tabelas DynamoDB e
   # bucket S3 no MiniStack, exchange/filas/ligações no RabbitMQ. Os serviços só sobem depois.
@@ -475,6 +541,9 @@ networks:
     internal: true
   db-identity:
     internal: true
+  # Só para publicar as portas das telas de tabelas no host; os MiniStacks não entram nela.
+  db-admin:
+    driver: bridge
 
 volumes:
   rabbitmq-data:
