@@ -70,7 +70,7 @@ describe("GET /campaigns/:campaignId/history", () => {
       headers: { authorization: `Bearer ${accessToken}` },
     });
     expect(response.statusCode).toBe(403);
-    expect(response.json()).toMatchObject({ error: { code: "CAMPAIGN_HISTORY_FORBIDDEN" } });
+    expect(response.json()).toMatchObject({ error: { code: "NOT_CAMPAIGN_MEMBER" } });
   });
 
   it("rejeita campanha ou limite inválido", async () => {

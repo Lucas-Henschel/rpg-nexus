@@ -168,6 +168,8 @@ Para ver cada um funcionando, rode os [scripts de demonstração](#scripts-de-de
 
 - [Registro do tema e arquitetura](docs/registro-do-tema.md): tema, integrantes, fluxo principal,
   diagrama e por que cada serviço de nuvem.
+- [Fluxo da compra pela mensageria](docs/fluxo-mensageria.md): diagramas das filas, do caminho
+  feliz, da compensação e de retry/DLQ.
 - [Contratos dos eventos](contracts/README.md): envelope, tipos, quem publica e quem consome.
 - Infraestrutura: [Terraform](infra/terraform/README.md), [RabbitMQ](infra/rabbitmq/README.md),
   [MiniStack](infra/ministack/README.md), [autoescala](infra/autoscaler/README.md).
