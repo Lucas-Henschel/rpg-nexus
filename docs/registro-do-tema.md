@@ -59,7 +59,7 @@ flowchart TB
     end
     subgraph S4["S4 Identidade · Node.js"]
         A4["API + histórico"] --- D4[("DynamoDB")]
-        V4["identity-validator<br/>(lento e instável)"] --- D5[("DynamoDB")]
+        V4["identity-validator<br/>(lento e instável)"] -- "tabelas próprias" --- D4
     end
 
     MQ{{"RabbitMQ · exchange rpg.events"}}
