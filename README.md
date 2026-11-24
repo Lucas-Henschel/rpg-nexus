@@ -147,9 +147,9 @@ Com a pilha no ar, na raiz do repositório. Precisam só de **bash**, **curl** e
   serviço que morre, mensagem duplicada, mensagem venenosa, corrida, broker fora, resposta tardia,
   escala), cada um com as verificações e o resultado `PASS`/`FAIL`.
 - [`scripts/demo/popular-banco.sh`](scripts/demo/popular-banco.sh): dados de demonstração. Cria os
-  usuários `mestre` e `jogador` (senha `rpg-nexus-demo`), uma campanha com loja, o personagem do
-  jogador e cinco compras (quatro concluídas e uma compensada por falta de ouro). Bom para entrar no
-  front e mostrar as tabelas com `--profile db-admin`.
+  usuários `mestre` e `jogador` (senha `12345678`), uma campanha com loja e quatro itens e o
+  personagem do jogador, com retrato no S3. Não faz compras: elas ficam para a demonstração. Bom
+  para entrar no front e mostrar as tabelas com `--profile db-admin`.
 
 ## Onde está cada requisito
 
