@@ -1,9 +1,6 @@
 # Variáveis comuns, vindas do .env da raiz. Use dentro de `environment` com `<<: *backend-env`
 x-aws-env: &aws-env
-  AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL:-http://ministack:4566}
   AWS_REGION: ${AWS_REGION:-us-east-1}
-  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
 
 x-backend-env: &backend-env
   <<: *aws-env
@@ -21,6 +18,9 @@ x-characters: &characters
   env_file: services/characters/.env.example
   environment:
     <<: *backend-env
+    AWS_ENDPOINT_URL: ${CHARACTERS_AWS_ENDPOINT_URL:-http://ministack:4566}
+    AWS_ACCESS_KEY_ID: ${CHARACTERS_AWS_ACCESS_KEY_ID:-characters-local}
+    AWS_SECRET_ACCESS_KEY: ${CHARACTERS_AWS_SECRET_ACCESS_KEY:-characters-local-secret}
     S3_BUCKET: ${RPG_ASSETS_BUCKET:-rpg-assets}
     # Endereços vistos pelo NAVEGADOR (URLs pré-assinadas do S3 e origem do front).
     S3_PUBLIC_ENDPOINT_URL: http://localhost:${MINISTACK_PORT:-4566}
@@ -32,6 +32,7 @@ x-characters: &characters
     JWT_SECRET: ${JWT_SECRET:-dev-only-change-this-jwt-secret-32-characters}
   networks:
     - rpg
+    - db-characters
 
 # Base comum do S1 Campanhas. Nomes de filas e tabelas vêm de services/campaigns/.env.example;
 # os valores abaixo trocam os endereços do host pelos da rede Compose.
@@ -42,6 +43,9 @@ x-campaigns: &campaigns
   env_file: services/campaigns/.env.example
   environment:
     <<: *backend-env
+    AWS_ENDPOINT_URL: ${CAMPAIGNS_AWS_ENDPOINT_URL:-http://ministack-campaigns:4566}
+    AWS_ACCESS_KEY_ID: ${CAMPAIGNS_AWS_ACCESS_KEY_ID:-campaigns-local}
+    AWS_SECRET_ACCESS_KEY: ${CAMPAIGNS_AWS_SECRET_ACCESS_KEY:-campaigns-local-secret}
     CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
     CONTRACTS_DIR: /app/contracts
     # O mesmo segredo do S4, para validar o access token.
@@ -50,6 +54,7 @@ x-campaigns: &campaigns
     CHARACTERS_URL: http://characters:8000
   networks:
     - rpg
+    - db-campaigns
 
 # Base comum do S4 Identidade e histórico. Também consome os resultados das aquisições.
 x-identity: &identity
@@ -59,12 +64,16 @@ x-identity: &identity
   env_file: services/identity/.env.example
   environment:
     <<: *backend-env
+    AWS_ENDPOINT_URL: ${IDENTITY_AWS_ENDPOINT_URL:-http://ministack-identity:4566}
+    AWS_ACCESS_KEY_ID: ${IDENTITY_AWS_ACCESS_KEY_ID:-identity-local}
+    AWS_SECRET_ACCESS_KEY: ${IDENTITY_AWS_SECRET_ACCESS_KEY:-identity-local-secret}
     CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
     JWT_SECRET: ${JWT_SECRET:-dev-only-change-this-jwt-secret-32-characters}
     CONTRACTS_DIR: /app/contracts
     SERVICE_NAME: identity
   networks:
     - rpg
+    - db-identity
 
 services:
   rabbitmq:
@@ -91,8 +100,8 @@ services:
   ministack:
     image: ministackorg/ministack:latest
     environment:
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      AWS_ACCESS_KEY_ID: ${CHARACTERS_AWS_ACCESS_KEY_ID:-characters-local}
+      AWS_SECRET_ACCESS_KEY: ${CHARACTERS_AWS_SECRET_ACCESS_KEY:-characters-local-secret}
       AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
       MINISTACK_REGION: ${AWS_REGION:-us-east-1}
       PERSIST_STATE: "1"
@@ -104,7 +113,7 @@ services:
     volumes:
       - ministack-data:/data
     networks:
-      - rpg
+      - db-characters
     healthcheck:
       test:
         - CMD-SHELL
@@ -116,6 +125,63 @@ services:
       retries: 10
       start_period: 10s
 
+  ministack-campaigns:
+    image: ministackorg/ministack:latest
+    environment:
+      AWS_ACCESS_KEY_ID: ${CAMPAIGNS_AWS_ACCESS_KEY_ID:-campaigns-local}
+      AWS_SECRET_ACCESS_KEY: ${CAMPAIGNS_AWS_SECRET_ACCESS_KEY:-campaigns-local-secret}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
+      MINISTACK_REGION: ${AWS_REGION:-us-east-1}
+      PERSIST_STATE: "1"
+      STATE_DIR: /data/state
+    volumes:
+      - ministack-campaigns-data:/data
+    networks:
+      - db-campaigns
+    healthcheck:
+      test: ["CMD-SHELL", "aws --endpoint-url http://localhost:4566 dynamodb list-tables > /dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  ministack-inventory:
+    image: ministackorg/ministack:latest
+    environment:
+      AWS_ACCESS_KEY_ID: ${INVENTORY_AWS_ACCESS_KEY_ID:-inventory-local}
+      AWS_SECRET_ACCESS_KEY: ${INVENTORY_AWS_SECRET_ACCESS_KEY:-inventory-local-secret}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
+      MINISTACK_REGION: ${AWS_REGION:-us-east-1}
+      PERSIST_STATE: "1"
+      STATE_DIR: /data/state
+    volumes:
+      - ministack-inventory-data:/data
+    networks:
+      - db-inventory
+    healthcheck:
+      test: ["CMD-SHELL", "aws --endpoint-url http://localhost:4566 dynamodb list-tables > /dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  ministack-identity:
+    image: ministackorg/ministack:latest
+    environment:
+      AWS_ACCESS_KEY_ID: ${IDENTITY_AWS_ACCESS_KEY_ID:-identity-local}
+      AWS_SECRET_ACCESS_KEY: ${IDENTITY_AWS_SECRET_ACCESS_KEY:-identity-local-secret}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
+      MINISTACK_REGION: ${AWS_REGION:-us-east-1}
+      PERSIST_STATE: "1"
+      STATE_DIR: /data/state
+    volumes:
+      - ministack-identity-data:/data
+    networks:
+      - db-identity
+    healthcheck:
+      test: ["CMD-SHELL", "aws --endpoint-url http://localhost:4566 dynamodb list-tables > /dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
   # Cria toda a infraestrutura e termina: tabelas DynamoDB e
   # bucket S3 no MiniStack, exchange/filas/ligações no RabbitMQ. Os serviços só sobem depois.
   # Rodar de novo não muda nada; um recurso apagado à mão é recriado. Guia: infra/terraform/README.md
@@ -125,15 +191,30 @@ services:
     depends_on:
       ministack:
         condition: service_healthy
+      ministack-campaigns:
+        condition: service_healthy
+      ministack-inventory:
+        condition: service_healthy
+      ministack-identity:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     environment:
       TF_IN_AUTOMATION: "1"
       TF_DATA_DIR: /state/.terraform
-      TF_VAR_aws_endpoint_url: ${AWS_ENDPOINT_URL:-http://ministack:4566}
       TF_VAR_aws_region: ${AWS_REGION:-us-east-1}
-      TF_VAR_aws_access_key_id: ${AWS_ACCESS_KEY_ID:-test}
-      TF_VAR_aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY:-test}
+      TF_VAR_campaigns_access_key_id: ${CAMPAIGNS_AWS_ACCESS_KEY_ID:-campaigns-local}
+      TF_VAR_campaigns_secret_access_key: ${CAMPAIGNS_AWS_SECRET_ACCESS_KEY:-campaigns-local-secret}
+      TF_VAR_characters_access_key_id: ${CHARACTERS_AWS_ACCESS_KEY_ID:-characters-local}
+      TF_VAR_characters_secret_access_key: ${CHARACTERS_AWS_SECRET_ACCESS_KEY:-characters-local-secret}
+      TF_VAR_inventory_access_key_id: ${INVENTORY_AWS_ACCESS_KEY_ID:-inventory-local}
+      TF_VAR_inventory_secret_access_key: ${INVENTORY_AWS_SECRET_ACCESS_KEY:-inventory-local-secret}
+      TF_VAR_identity_access_key_id: ${IDENTITY_AWS_ACCESS_KEY_ID:-identity-local}
+      TF_VAR_identity_secret_access_key: ${IDENTITY_AWS_SECRET_ACCESS_KEY:-identity-local-secret}
+      TF_VAR_campaigns_endpoint_url: ${CAMPAIGNS_AWS_ENDPOINT_URL:-http://ministack-campaigns:4566}
+      TF_VAR_characters_endpoint_url: ${CHARACTERS_AWS_ENDPOINT_URL:-http://ministack:4566}
+      TF_VAR_inventory_endpoint_url: ${INVENTORY_AWS_ENDPOINT_URL:-http://ministack-inventory:4566}
+      TF_VAR_identity_endpoint_url: ${IDENTITY_AWS_ENDPOINT_URL:-http://ministack-identity:4566}
       TF_VAR_assets_bucket: ${RPG_ASSETS_BUCKET:-rpg-assets}
       TF_VAR_cors_allowed_origin: http://localhost:${FRONTEND_PORT:-5173}
       TF_VAR_rabbitmq_management_url: http://rabbitmq:15672
@@ -152,6 +233,10 @@ services:
       - terraform-state:/state
     networks:
       - rpg
+      - db-campaigns
+      - db-characters
+      - db-inventory
+      - db-identity
 
   characters:
     <<: *characters
@@ -270,9 +355,9 @@ services:
     env_file: services/inventory/.env.example
     environment: &inventory-env
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
-      DYNAMODB_ENDPOINT: ${AWS_ENDPOINT_URL:-http://ministack:4566}
+      AWS_ACCESS_KEY_ID: ${INVENTORY_AWS_ACCESS_KEY_ID:-inventory-local}
+      AWS_SECRET_ACCESS_KEY: ${INVENTORY_AWS_SECRET_ACCESS_KEY:-inventory-local-secret}
+      DYNAMODB_ENDPOINT: ${INVENTORY_AWS_ENDPOINT_URL:-http://ministack-inventory:4566}
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-dev}
@@ -310,6 +395,7 @@ services:
         condition: service_started
     networks:
       - rpg
+      - db-inventory
 
   inventory-worker:
     <<: *inventory
@@ -339,6 +425,9 @@ services:
     restart: unless-stopped
     environment:
       <<: *backend-env
+      AWS_ENDPOINT_URL: ${IDENTITY_AWS_ENDPOINT_URL:-http://ministack-identity:4566}
+      AWS_ACCESS_KEY_ID: ${IDENTITY_AWS_ACCESS_KEY_ID:-identity-local}
+      AWS_SECRET_ACCESS_KEY: ${IDENTITY_AWS_SECRET_ACCESS_KEY:-identity-local-secret}
       CONTRACTS_DIR: /app/contracts
       PORT: 3003
       # Nome próprio no Jaeger, separado do S4 (mesma imagem).
@@ -357,6 +446,9 @@ services:
         condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
+    networks:
+      - rpg
+      - db-identity
 
   frontend:
     build:
@@ -375,8 +467,19 @@ services:
 networks:
   rpg:
     driver: bridge
+  db-campaigns:
+    internal: true
+  db-characters:
+    driver: bridge
+  db-inventory:
+    internal: true
+  db-identity:
+    internal: true
 
 volumes:
   rabbitmq-data:
   ministack-data:
+  ministack-campaigns-data:
+  ministack-inventory-data:
+  ministack-identity-data:
   terraform-state:

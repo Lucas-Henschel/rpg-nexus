@@ -195,12 +195,19 @@ print(json.dumps({"routing_key": sys.argv[1], "payload": sys.stdin.read(), "payl
 
 # dynamo_scan TABELA  → itens da tabela como JSON simples (lido de dentro do contêiner do MiniStack).
 dynamo_scan() {
-  dc exec -T ministack python3 -c '
+  local service
+  case "$1" in
+    campaigns*|campaign_*) service=ministack-campaigns ;;
+    inventory_*) service=ministack-inventory ;;
+    identity_*|action_*) service=ministack-identity ;;
+    characters|character_*) service=ministack ;;
+    *) echo "Tabela sem dono conhecido: $1" >&2; return 1 ;;
+  esac
+  dc exec -T "$service" python3 -c '
 import json, sys, boto3
 from boto3.dynamodb.types import TypeDeserializer
 t = TypeDeserializer()
-db = boto3.client("dynamodb", endpoint_url="http://localhost:4566", region_name="us-east-1",
-                  aws_access_key_id="test", aws_secret_access_key="test")
+db = boto3.client("dynamodb", endpoint_url="http://localhost:4566", region_name="us-east-1")
 itens, chave = [], None
 while True:
     args = {"TableName": sys.argv[1]}

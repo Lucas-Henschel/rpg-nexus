@@ -1,20 +1,35 @@
 # MiniStack local
 
+O Compose usa **quatro instâncias MiniStack**. Cada microsserviço e seus workers
+alcançam apenas a instância ligada à sua rede `db-*`. O Terraform é o processo de
+provisionamento e participa das quatro redes. A instância `ministack` pertence ao S2
+Personagens e fornece também o bucket S3; sua porta é publicada para as URLs de
+retratos usadas pelo navegador. `ministack-campaigns`, `ministack-inventory` e
+`ministack-identity` não publicam portas no host.
+
+As credenciais locais são diferentes por serviço e vêm do `.env` da raiz. A
+separação efetiva no Compose é feita por instâncias e redes; não se deve tratar o
+IAM do emulador como um controle de acesso comprovado. Na AWS real, atribua a cada
+serviço uma identidade IAM com acesso apenas às suas tabelas e, para o S2, ao bucket.
+
+**Migração de um ambiente antigo:** o Terraform não transfere automaticamente as
+tabelas nem os dados da instância única anterior. Faça backup antes de trocar de
+ambiente. Para uma instalação nova de demonstração, remova os volumes antigos com
+`docker compose down --volumes` e suba novamente; esse comando apaga os dados locais.
+
 Valide a definição Compose, inclusive sem um `.env` local, a partir da raiz:
 
 ```sh
 docker compose --env-file .env.example config --quiet
 ```
 
-O serviço `ministack` usa `ministackorg/ministack:latest` para as APIs S3 e
-DynamoDB. O host acessa [localhost:4566](http://localhost:4566), com porta
-configurável por `MINISTACK_PORT`. Contêineres na rede `rpg` usam
-`http://ministack:4566`; a porta interna continua sendo `4566` quando a porta do
-host muda. A publicação é restrita ao host local.
+As instâncias usam `ministackorg/ministack:latest`. O host acessa somente o
+MiniStack de Personagens em [localhost:4566](http://localhost:4566), com porta
+configurável por `MINISTACK_PORT`. Cada serviço usa o nome de sua instância na
+rede privada; a porta interna é sempre `4566`.
 
-As credenciais fictícias `test`/`test` e a região `us-east-1` vêm de
-`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_REGION`. Os defaults do
-Compose coincidem com `.env.example` e permitem validar sem `.env` local.
+Os quatro pares de credenciais e a região vêm das variáveis no `.env.example`
+da raiz. Os defaults do Compose coincidem com esse arquivo.
 
 O health check chama a AWS CLI interna contra `http://localhost:4566` e exige
 sucesso em `s3api list-buckets` e `dynamodb list-tables`. A disponibilidade do
@@ -23,13 +38,13 @@ executável `aws` é documentada no
 e sua inclusão consta no
 [Dockerfile oficial](https://github.com/ministackorg/ministack/blob/main/Dockerfile).
 
-O volume nomeado `ministack-data`, com prefixo do projeto Compose, é montado
-em `/data`. `PERSIST_STATE=1` preserva metadados em `/data/state` e
-`S3_PERSIST=1` preserva o conteúdo dos objetos em `/data/s3`, conforme a
+Cada instância tem seu próprio volume montado em `/data`. `PERSIST_STATE=1`
+preserva metadados em `/data/state`; `S3_PERSIST=1` preserva os retratos do S2
+em `/data/s3`, conforme a
 [configuração oficial de persistência](https://ministack.org/docs/configuration#persistence).
 
-O bucket e as tabelas DynamoDB são criados pelo contêiner `terraform`, que espera o MiniStack
-saudável (veja [`infra/terraform/README.md`](../terraform/README.md)).
+O bucket e as tabelas DynamoDB são criados pelo contêiner `terraform`, que espera
+as quatro instâncias saudáveis (veja [`infra/terraform/README.md`](../terraform/README.md)).
 
 A entrada principal do ambiente é `docker compose up`; `docker compose down` preserva os volumes.
 Para conferir os serviços declarados:
@@ -37,3 +52,7 @@ Para conferir os serviços declarados:
 ```sh
 docker compose --env-file .env.example config --services
 ```
+
+Com a pilha ativa, `bash scripts/requisitos/banco-isolamento.sh` confirma que cada
+API resolve apenas o nome DNS do próprio MiniStack. O teste de isolamento usa a
+rede, pois credenciais fictícias do emulador não são uma prova de aplicação de IAM.

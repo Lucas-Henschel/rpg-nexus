@@ -1,25 +1,72 @@
-variable "aws_endpoint_url" {
-  description = "Endpoint das APIs AWS. No Compose é o MiniStack (http://ministack:4566); no host, http://localhost:4566."
-  type        = string
-  default     = "http://localhost:4566"
-}
-
 variable "aws_region" {
   type    = string
   default = "us-east-1"
 }
 
-variable "aws_access_key_id" {
-  description = "Credencial fictícia do emulador."
+# Credenciais fictícias de cada serviço no próprio MiniStack (CAMPAIGNS_AWS_ACCESS_KEY_ID etc.).
+variable "campaigns_access_key_id" {
+  description = "Credencial do S1 Campanhas no MiniStack dele."
   type        = string
-  default     = "test"
 }
 
-variable "aws_secret_access_key" {
-  description = "Credencial fictícia do emulador."
+variable "campaigns_secret_access_key" {
+  description = "Segredo do S1 Campanhas no MiniStack dele."
   type        = string
-  default     = "test"
   sensitive   = true
+}
+
+variable "characters_access_key_id" {
+  description = "Credencial do S2 Personagens no MiniStack dele (DynamoDB e bucket dos retratos)."
+  type        = string
+}
+
+variable "characters_secret_access_key" {
+  description = "Segredo do S2 Personagens no MiniStack dele."
+  type        = string
+  sensitive   = true
+}
+
+variable "inventory_access_key_id" {
+  description = "Credencial do S3 Inventário no MiniStack dele."
+  type        = string
+}
+
+variable "inventory_secret_access_key" {
+  description = "Segredo do S3 Inventário no MiniStack dele."
+  type        = string
+  sensitive   = true
+}
+
+variable "identity_access_key_id" {
+  description = "Credencial do S4 Identidade (e do identity-validator) no MiniStack dele."
+  type        = string
+}
+
+variable "identity_secret_access_key" {
+  description = "Segredo do S4 Identidade no MiniStack dele."
+  type        = string
+  sensitive   = true
+}
+
+# Endpoint de cada MiniStack. No Compose, o nome do contêiner na rede de dados do serviço.
+variable "campaigns_endpoint_url" {
+  description = "MiniStack do S1 (CAMPAIGNS_AWS_ENDPOINT_URL), ex.: http://ministack-campaigns:4566."
+  type        = string
+}
+
+variable "characters_endpoint_url" {
+  description = "MiniStack do S2 (CHARACTERS_AWS_ENDPOINT_URL), ex.: http://ministack:4566."
+  type        = string
+}
+
+variable "inventory_endpoint_url" {
+  description = "MiniStack do S3 (INVENTORY_AWS_ENDPOINT_URL), ex.: http://ministack-inventory:4566."
+  type        = string
+}
+
+variable "identity_endpoint_url" {
+  description = "MiniStack do S4 (IDENTITY_AWS_ENDPOINT_URL), ex.: http://ministack-identity:4566."
+  type        = string
 }
 
 variable "assets_bucket" {

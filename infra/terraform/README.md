@@ -1,5 +1,12 @@
 # Infraestrutura como código (Terraform)
 
+O provider AWS tem quatro aliases (`aws.campaigns`, `aws.characters`,
+`aws.inventory`, `aws.identity`), cada um apontando para uma instância MiniStack
+separada e usando as credenciais do respectivo serviço. O provider RabbitMQ usa a
+rede compartilhada. O Terraform é o único contêiner conectado às quatro redes de
+dados; as APIs e workers só entram na rede do próprio serviço. Consulte
+[`infra/ministack/README.md`](../ministack/README.md) antes de migrar volumes antigos.
+
 Toda a infraestrutura do projeto é criada por este Terraform, no próprio `docker compose up`. O
 contêiner `terraform` espera o MiniStack e o RabbitMQ ficarem saudáveis, aplica e termina; os
 serviços só sobem depois que ele termina com sucesso.
@@ -43,9 +50,8 @@ Nada de nome fixo no Terraform:
 - **bucket, endpoints e credenciais:** do `.env` da raiz, pelas variáveis `TF_VAR_*` que o
   `docker-compose.yml` passa ao contêiner (`variables.tf` lista todas).
 
-Os providers são o da AWS e o do RabbitMQ (`cyrilgdn/rabbitmq`, pela API de gerenciamento). Só os
-endpoints apontam para o MiniStack e para o RabbitMQ local, então o mesmo código serviria para a AWS
-real.
+Os providers são o da AWS (quatro aliases) e o do RabbitMQ (`cyrilgdn/rabbitmq`, pela API de
+gerenciamento). Os endpoints apontam para as instâncias MiniStack locais.
 
 ## Recriar o ambiente do zero
 
@@ -69,7 +75,7 @@ estado, no volume `terraform-state`.
 2. Apagar um recurso à mão, por exemplo uma tabela e uma fila:
 
    ```sh
-   docker compose exec characters python -c "import boto3; boto3.client('dynamodb', region_name='us-east-1').delete_table(TableName='campaign_activity')"
+   docker compose exec ministack-campaigns aws --endpoint-url http://localhost:4566 dynamodb delete-table --table-name campaign_activity
    ```
 
    e a fila `campaigns.activity.v1.dlq` pelo painel do RabbitMQ (aba *Queues*, botão *Delete*).
@@ -82,8 +88,9 @@ Uma pilha que subiu antes desta mudança tem as tabelas e o bucket criados pelos
 do estado do Terraform. Nesse caso o `apply` falha com "already exists"/`ResourceInUseException`.
 Resolva uma vez com `docker compose down --volumes` (apaga os dados locais de teste).
 
-O mesmo acontece se só um dos volumes for apagado (por exemplo `terraform-state` sem `ministack-data`):
-apague sempre os dois juntos, com `down --volumes`.
+Após migrar do ambiente com um único MiniStack, o estado anterior do Terraform ainda aponta para
+recursos da instância antiga. Faça backup dos dados antes da migração. Para uma instalação nova de
+demonstração, apague todos os volumes juntos com `down --volumes`.
 
 ## Outros comandos
 
@@ -96,7 +103,10 @@ docker compose run --rm terraform destroy -auto-approve   # apaga tudo o que o T
 Conferir a partir do host:
 
 ```sh
-aws --endpoint-url http://localhost:4566 dynamodb list-tables
+docker compose exec ministack-campaigns aws --endpoint-url http://localhost:4566 dynamodb list-tables
+docker compose exec ministack-inventory aws --endpoint-url http://localhost:4566 dynamodb list-tables
+docker compose exec ministack-identity aws --endpoint-url http://localhost:4566 dynamodb list-tables
+docker compose exec ministack aws --endpoint-url http://localhost:4566 dynamodb list-tables
 aws --endpoint-url http://localhost:4566 s3api get-bucket-cors --bucket rpg-assets
 docker compose exec rabbitmq rabbitmqctl list_queues name arguments
 ```
