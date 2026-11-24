@@ -37,47 +37,47 @@ provider "aws" {
 }
 
 provider "aws" {
-  alias = "characters"
-  region = var.aws_region
-  access_key = var.characters_access_key_id
-  secret_key = var.characters_secret_access_key
+  alias                       = "characters"
+  region                      = var.aws_region
+  access_key                  = var.characters_access_key_id
+  secret_key                  = var.characters_secret_access_key
   skip_credentials_validation = true
-  skip_metadata_api_check = true
-  skip_requesting_account_id = true
-  s3_use_path_style = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  s3_use_path_style           = true
   endpoints {
     dynamodb = var.characters_endpoint_url
-    s3 = var.characters_endpoint_url
+    s3       = var.characters_endpoint_url
   }
 }
 
 provider "aws" {
-  alias = "inventory"
-  region = var.aws_region
-  access_key = var.inventory_access_key_id
-  secret_key = var.inventory_secret_access_key
+  alias                       = "inventory"
+  region                      = var.aws_region
+  access_key                  = var.inventory_access_key_id
+  secret_key                  = var.inventory_secret_access_key
   skip_credentials_validation = true
-  skip_metadata_api_check = true
-  skip_requesting_account_id = true
-  s3_use_path_style = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  s3_use_path_style           = true
   endpoints {
     dynamodb = var.inventory_endpoint_url
-    s3 = var.inventory_endpoint_url
+    s3       = var.inventory_endpoint_url
   }
 }
 
 provider "aws" {
-  alias = "identity"
-  region = var.aws_region
-  access_key = var.identity_access_key_id
-  secret_key = var.identity_secret_access_key
+  alias                       = "identity"
+  region                      = var.aws_region
+  access_key                  = var.identity_access_key_id
+  secret_key                  = var.identity_secret_access_key
   skip_credentials_validation = true
-  skip_metadata_api_check = true
-  skip_requesting_account_id = true
-  s3_use_path_style = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  s3_use_path_style           = true
   endpoints {
     dynamodb = var.identity_endpoint_url
-    s3 = var.identity_endpoint_url
+    s3       = var.identity_endpoint_url
   }
 }
 

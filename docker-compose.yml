@@ -18,7 +18,7 @@ x-characters: &characters
   env_file: services/characters/.env.example
   environment:
     <<: *backend-env
-    AWS_ENDPOINT_URL: http://ministack:4566
+    AWS_ENDPOINT_URL: ${CHARACTERS_AWS_ENDPOINT_URL:-http://ministack:4566}
     AWS_ACCESS_KEY_ID: ${CHARACTERS_AWS_ACCESS_KEY_ID:-characters-local}
     AWS_SECRET_ACCESS_KEY: ${CHARACTERS_AWS_SECRET_ACCESS_KEY:-characters-local-secret}
     S3_BUCKET: ${RPG_ASSETS_BUCKET:-rpg-assets}
@@ -43,7 +43,7 @@ x-campaigns: &campaigns
   env_file: services/campaigns/.env.example
   environment:
     <<: *backend-env
-    AWS_ENDPOINT_URL: http://ministack-campaigns:4566
+    AWS_ENDPOINT_URL: ${CAMPAIGNS_AWS_ENDPOINT_URL:-http://ministack-campaigns:4566}
     AWS_ACCESS_KEY_ID: ${CAMPAIGNS_AWS_ACCESS_KEY_ID:-campaigns-local}
     AWS_SECRET_ACCESS_KEY: ${CAMPAIGNS_AWS_SECRET_ACCESS_KEY:-campaigns-local-secret}
     CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
@@ -64,7 +64,7 @@ x-identity: &identity
   env_file: services/identity/.env.example
   environment:
     <<: *backend-env
-    AWS_ENDPOINT_URL: http://ministack-identity:4566
+    AWS_ENDPOINT_URL: ${IDENTITY_AWS_ENDPOINT_URL:-http://ministack-identity:4566}
     AWS_ACCESS_KEY_ID: ${IDENTITY_AWS_ACCESS_KEY_ID:-identity-local}
     AWS_SECRET_ACCESS_KEY: ${IDENTITY_AWS_SECRET_ACCESS_KEY:-identity-local-secret}
     CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
@@ -211,10 +211,10 @@ services:
       TF_VAR_inventory_secret_access_key: ${INVENTORY_AWS_SECRET_ACCESS_KEY:-inventory-local-secret}
       TF_VAR_identity_access_key_id: ${IDENTITY_AWS_ACCESS_KEY_ID:-identity-local}
       TF_VAR_identity_secret_access_key: ${IDENTITY_AWS_SECRET_ACCESS_KEY:-identity-local-secret}
-      TF_VAR_campaigns_endpoint_url: http://ministack-campaigns:4566
-      TF_VAR_characters_endpoint_url: http://ministack:4566
-      TF_VAR_inventory_endpoint_url: http://ministack-inventory:4566
-      TF_VAR_identity_endpoint_url: http://ministack-identity:4566
+      TF_VAR_campaigns_endpoint_url: ${CAMPAIGNS_AWS_ENDPOINT_URL:-http://ministack-campaigns:4566}
+      TF_VAR_characters_endpoint_url: ${CHARACTERS_AWS_ENDPOINT_URL:-http://ministack:4566}
+      TF_VAR_inventory_endpoint_url: ${INVENTORY_AWS_ENDPOINT_URL:-http://ministack-inventory:4566}
+      TF_VAR_identity_endpoint_url: ${IDENTITY_AWS_ENDPOINT_URL:-http://ministack-identity:4566}
       TF_VAR_assets_bucket: ${RPG_ASSETS_BUCKET:-rpg-assets}
       TF_VAR_cors_allowed_origin: http://localhost:${FRONTEND_PORT:-5173}
       TF_VAR_rabbitmq_management_url: http://rabbitmq:15672
@@ -357,7 +357,7 @@ services:
       AWS_REGION: ${AWS_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${INVENTORY_AWS_ACCESS_KEY_ID:-inventory-local}
       AWS_SECRET_ACCESS_KEY: ${INVENTORY_AWS_SECRET_ACCESS_KEY:-inventory-local-secret}
-      DYNAMODB_ENDPOINT: http://ministack-inventory:4566
+      DYNAMODB_ENDPOINT: ${INVENTORY_AWS_ENDPOINT_URL:-http://ministack-inventory:4566}
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-dev}
@@ -425,7 +425,7 @@ services:
     restart: unless-stopped
     environment:
       <<: *backend-env
-      AWS_ENDPOINT_URL: http://ministack-identity:4566
+      AWS_ENDPOINT_URL: ${IDENTITY_AWS_ENDPOINT_URL:-http://ministack-identity:4566}
       AWS_ACCESS_KEY_ID: ${IDENTITY_AWS_ACCESS_KEY_ID:-identity-local}
       AWS_SECRET_ACCESS_KEY: ${IDENTITY_AWS_SECRET_ACCESS_KEY:-identity-local-secret}
       CONTRACTS_DIR: /app/contracts

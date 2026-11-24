@@ -1,7 +1,7 @@
 # Tabelas DynamoDB do S4 Identidade. Os nomes vêm de services/identity/.env.example (env.tf).
 
 resource "aws_dynamodb_table" "identity_users" {
-  provider = aws.identity
+  provider     = aws.identity
   name         = local.identity_env["TABLE_USERS"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "userId"
@@ -14,7 +14,7 @@ resource "aws_dynamodb_table" "identity_users" {
 
 # Reserva atômica dos e-mails e nomes de usuário normalizados.
 resource "aws_dynamodb_table" "identity_unique_identifiers" {
-  provider = aws.identity
+  provider     = aws.identity
   name         = local.identity_env["TABLE_IDENTITIES"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "identityKey"
@@ -27,7 +27,7 @@ resource "aws_dynamodb_table" "identity_unique_identifiers" {
 
 # Refresh tokens ficam somente como hash; o DynamoDB remove sessões expiradas pelo TTL.
 resource "aws_dynamodb_table" "identity_sessions" {
-  provider = aws.identity
+  provider     = aws.identity
   name         = local.identity_env["TABLE_SESSIONS"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "sessionId"
@@ -46,7 +46,7 @@ resource "aws_dynamodb_table" "identity_sessions" {
 
 # Contadores e bloqueios temporários de login; as chaves são hashes, nunca e-mails ou usernames.
 resource "aws_dynamodb_table" "identity_login_attempts" {
-  provider = aws.identity
+  provider     = aws.identity
   name         = local.identity_env["TABLE_LOGIN_ATTEMPTS"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "throttleKey"
@@ -63,7 +63,7 @@ resource "aws_dynamodb_table" "identity_login_attempts" {
 }
 
 resource "aws_dynamodb_table" "action_history" {
-  provider = aws.identity
+  provider     = aws.identity
   name         = local.identity_env["TABLE_HISTORY"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "campaignId"
@@ -82,7 +82,7 @@ resource "aws_dynamodb_table" "action_history" {
 
 # Projeção de participantes usada para autorizar a leitura do histórico.
 resource "aws_dynamodb_table" "action_history_memberships" {
-  provider = aws.identity
+  provider     = aws.identity
   name         = local.identity_env["TABLE_HISTORY_MEMBERSHIPS"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "campaignId"
@@ -100,7 +100,7 @@ resource "aws_dynamodb_table" "action_history_memberships" {
 }
 
 resource "aws_dynamodb_table" "action_history_inbox" {
-  provider = aws.identity
+  provider     = aws.identity
   name         = local.identity_env["TABLE_HISTORY_INBOX"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "messageId"
@@ -118,7 +118,7 @@ resource "aws_dynamodb_table" "action_history_inbox" {
 
 # Auditoria de segurança do S4; eventos são append-only e não contêm credenciais.
 resource "aws_dynamodb_table" "identity_audit" {
-  provider = aws.identity
+  provider     = aws.identity
   name         = local.identity_env["TABLE_AUDIT"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "auditId"
@@ -132,7 +132,7 @@ resource "aws_dynamodb_table" "identity_audit" {
 
 # Inbox idempotente e outbox transacional da dependência externa simulada.
 resource "aws_dynamodb_table" "action_validation_inbox" {
-  provider = aws.identity
+  provider     = aws.identity
   name         = local.identity_env["TABLE_VALIDATION_INBOX"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "messageId"
@@ -149,7 +149,7 @@ resource "aws_dynamodb_table" "action_validation_inbox" {
 }
 
 resource "aws_dynamodb_table" "action_validation_outbox" {
-  provider = aws.identity
+  provider     = aws.identity
   name         = local.identity_env["TABLE_VALIDATION_OUTBOX"]
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "messageId"
