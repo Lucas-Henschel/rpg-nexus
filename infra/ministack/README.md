@@ -53,6 +53,5 @@ Para conferir os serviços declarados:
 docker compose --env-file .env.example config --services
 ```
 
-Com a pilha ativa, `bash scripts/requisitos/banco-isolamento.sh` confirma que cada
-API resolve apenas o nome DNS do próprio MiniStack. O teste de isolamento usa a
-rede, pois credenciais fictícias do emulador não são uma prova de aplicação de IAM.
+O isolamento é garantido pela rede: cada API resolve apenas o nome DNS do próprio
+MiniStack, pois credenciais fictícias do emulador não são uma prova de aplicação de IAM.
