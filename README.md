@@ -5,8 +5,8 @@ de seis dígitos, montam as fichas e compram itens. Trabalho final de Sistemas D
 quatro microsserviços em três linguagens, falando por eventos no RabbitMQ e usando DynamoDB e S3
 emulados pelo MiniStack.
 
-O registro do tema (fluxo principal e os três elementos pedidos), o diagrama da arquitetura e a
-justificativa de cada serviço de nuvem estão em [`docs/registro-do-tema.md`](docs/registro-do-tema.md).
+O registro do tema (fluxo principal e os três elementos pedidos) e o diagrama da arquitetura estão
+em [`docs/registro-do-tema.md`](docs/registro-do-tema.md).
 
 | Serviço | Linguagem | Responsável | O que faz |
 | --- | --- | --- | --- |
@@ -172,8 +172,8 @@ Para ver cada um funcionando, rode os [scripts de demonstração](#scripts-de-de
 
 ## Documentação
 
-- [Registro do tema e arquitetura](docs/registro-do-tema.md): tema, integrantes, fluxo principal,
-  diagrama e por que cada serviço de nuvem.
+- [Registro do tema e arquitetura](docs/registro-do-tema.md): tema, integrantes, linguagens, fluxo
+  principal e diagrama.
 - [Fluxo da compra pela mensageria](docs/fluxo-mensageria.md): diagramas das filas, do caminho
   feliz, da compensação e de retry/DLQ.
 - [Contratos dos eventos](contracts/README.md): envelope, tipos, quem publica e quem consome.
