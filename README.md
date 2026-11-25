@@ -146,6 +146,10 @@ Com a pilha no ar, na raiz do repositório. Precisam só de **bash**, **curl** e
 - [`scripts/scenarios`](scripts/scenarios/README.md): os cenários de falha F1 a F8 (compensação,
   serviço que morre, mensagem duplicada, mensagem venenosa, corrida, broker fora, resposta tardia,
   escala), cada um com as verificações e o resultado `PASS`/`FAIL`.
+- [`scripts/demo/popular-banco.sh`](scripts/demo/popular-banco.sh): dados de demonstração. Cria os
+  usuários `mestre` e `jogador` (senha `12345678`), uma campanha com loja e quatro itens e o
+  personagem do jogador, com retrato no S3. Não faz compras: elas ficam para a demonstração. Bom
+  para entrar no front e mostrar as tabelas com `--profile db-admin`.
 
 ## Onde está cada requisito
 
@@ -163,7 +167,7 @@ Para ver cada um funcionando, rode os [scripts de demonstração](#scripts-de-de
 | Bônus: tracing | OpenTelemetry e Jaeger nos quatro serviços: [S1](services/campaigns/src/tracing), [S2](services/characters/app/tracing.py), [S3](services/inventory/src/main/java/br/furb/rpg/inventory/tracing) e [S4](services/identity/src/tracing), incluindo o `identity-validator`. [Roteiro de compra e verificação do trace](scripts/requisitos/bonus-tracing.sh) |
 | Bônus: infraestrutura como código | [`infra/terraform`](infra/terraform/README.md) |
 | Bônus: autoescala | Quatro consumidores por tamanho de fila em [`infra/autoscaler`](infra/autoscaler/README.md) |
-| Bônus: CQRS | Consultas de atividade, personagens, Saga e histórico em [modelos de leitura separados](docs/requisitos-transversais-implementacao.md) |
+| Bônus: CQRS | Consultas em modelos de leitura separados das tabelas de escrita: atividade do S1 ([`activity-repository.ts`](services/campaigns/src/repositories/activity-repository.ts)), resumo dos personagens do S2 ([`dynamodb_read_model.py`](services/characters/app/adapters/dynamodb_read_model.py)), histórico da Saga do S3 ([`DynamoSagaRepository.java`](services/inventory/src/main/java/br/furb/rpg/inventory/adapters/dynamodb/DynamoSagaRepository.java)) e histórico da campanha do S4 ([`history-repository.ts`](services/identity/src/repositories/history-repository.ts)) |
 | Bônus: versionamento de eventos | `CharacterValidationRequested` e `ShopItemPurchased` v1/v2 em [`contracts/events`](contracts/events) |
 
 ## Documentação
