@@ -11,7 +11,7 @@ mostra o que aconteceu (respostas HTTP, logs e estado dos bancos) e confere o re
 | `r4-consumidores-concorrentes.sh` | R4 Consumidores concorrentes | F8 escala horizontal | 3 réplicas: carga dividida, cada operação decidida uma vez, mochila nunca acima do limite |
 | `r5-dependencia-instavel.sh` | R5 Dependência instável | F1 compensação e F7 resposta tardia | Falha 100%: `COMPENSATED`, estoque e mochila devolvidos. Atraso maior que o prazo: `EXPIRED`, a resposta atrasada não muda nada |
 | `r6-reconexao.sh` | R6 Reconexão | F6 broker fora | RabbitMQ parado por 30 s: tudo reconecta sozinho e o que foi pedido durante a queda termina |
-| `bonus-versionamento-eventos.sh` | Versionamento de eventos | — | Gera v1 e v2, deixa ambas visíveis na fila do RabbitMQ, depois retoma o consumidor e confere as duas compras |
+| `bonus-versionamento-eventos.sh` | Bônus: versionamento de eventos | — | Gera v1 e v2, deixa ambas visíveis na fila do RabbitMQ, depois retoma o consumidor e confere as duas compras |
 
 ## Como rodar
 
@@ -39,7 +39,7 @@ Git Bash na pasta do repositório.
    bash scripts/requisitos/r2-concorrencia.sh
    ```
 
-Para apresentar as duas versões de evento pelo painel do RabbitMQ, rode o script R7. Ele grava o resultado
+Para apresentar as duas versões de evento pelo painel do RabbitMQ, rode o script do bônus. Ele grava o resultado
 em `logs/versionamento-eventos-<data-hora>.log`, pausa antes de consumir as mensagens para você inspecioná-las
 no painel e restaura a configuração anterior do Inventário ao terminar:
 
