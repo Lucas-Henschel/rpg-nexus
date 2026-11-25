@@ -428,6 +428,7 @@ services:
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-dev}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev}
       SAGA_TIMEOUT_SECONDS: ${SAGA_TIMEOUT_SECONDS:-60}
+      VALIDATION_EVENT_VERSION: ${VALIDATION_EVENT_VERSION:-0}
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-this-jwt-secret-32-characters}
       CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
       # Tracing: lidas pelo agente Java do OpenTelemetry (só traces; métricas e logs ficam de fora).
