@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Dados de demonstração: dois usuários com senha conhecida, uma campanha com loja e itens e o
 # personagem do jogador, com retrato. Nenhuma compra é feita: elas ficam para a demonstração ao vivo.
-# Serve para entrar no front com dados reais e mostrar as tabelas de cada banco
-# (`docker compose --profile db-admin up -d`).
+# Serve para entrar no front com dados reais e mostrar as tabelas de cada banco (portas 8001 a 8004).
 #
 # Com a pilha no ar, na raiz do repositório:  bash scripts/demo/popular-banco.sh
 # Pode rodar de novo: os usuários são reaproveitados e uma campanha nova é criada.
@@ -84,7 +83,7 @@ cat <<EOF
     jogador / $SENHA   (Thorin, com $OURO de ouro, pronto para comprar na loja)
   Campanha "Mesa de demonstração", código $CODIGO
 
-  Tabelas (docker compose --profile db-admin up -d):
+  Tabelas de cada banco:
     Campanhas   http://localhost:${DB_ADMIN_CAMPAIGNS_PORT:-8001}   campanha e participantes
     Personagens http://localhost:${DB_ADMIN_CHARACTERS_PORT:-8002}   characters e character_read_model (CQRS)
     Inventário  http://localhost:${DB_ADMIN_INVENTORY_PORT:-8003}   loja e estoque dos itens

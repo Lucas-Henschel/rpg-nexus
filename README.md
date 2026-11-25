@@ -107,7 +107,7 @@ recriado. Depois disso, abra o front-end em [localhost:5173](http://localhost:51
 | MiniStack de Personagens (DynamoDB e S3) | `http://localhost:4566` | `http://ministack:4566` |
 | MiniStacks de Campanhas, Inventário e Identidade | Não publicados no host | Endpoints exclusivos nas redes privadas de cada serviço |
 | Jaeger (traces) | [localhost:16686](http://localhost:16686) | OTLP/HTTP em `http://jaeger:4318` |
-| Tabelas de cada banco (`--profile db-admin`) | [Campanhas 8001](http://localhost:8001), [Personagens 8002](http://localhost:8002), [Inventário 8003](http://localhost:8003), [Identidade 8004](http://localhost:8004) | Cada tela só alcança o MiniStack do seu serviço |
+| Tabelas de cada banco (dynamodb-admin) | [Campanhas 8001](http://localhost:8001), [Personagens 8002](http://localhost:8002), [Inventário 8003](http://localhost:8003), [Identidade 8004](http://localhost:8004) | Cada tela só alcança o MiniStack do seu serviço |
 
 | Comando | Efeito |
 | --- | --- |
@@ -115,8 +115,7 @@ recriado. Depois disso, abra o front-end em [localhost:5173](http://localhost:51
 | `docker compose logs -f <serviço>` | Logs de um serviço ([um painel por serviço](docs/logs-por-servico.md)). |
 | `docker compose up -d --scale characters-worker=3` | Três réplicas do consumidor do S2. |
 | `docker compose --profile autoscale up -d` | Liga a autoescala do consumidor do S2. Para ver réplicas subindo é preciso encher a fila: [como demonstrar](infra/autoscaler/README.md). |
-| `docker compose --profile db-admin up -d` | Abre as telas das tabelas (dynamodb-admin), uma por banco, nas portas 8001 a 8004. |
-| `docker compose down` | Para tudo e mantém os dados. Com perfis ligados, repita o perfil: `docker compose --profile db-admin down`. |
+| `docker compose down` | Para tudo e mantém os dados. Com a autoescala ligada, repita o perfil: `docker compose --profile autoscale down`. |
 | `docker compose down --volumes` | **Apaga os dados** (filas, tabelas, arquivos) e para tudo. |
 
 Endpoints, credenciais, portas e nomes de filas vêm de variáveis de ambiente, comentadas em
@@ -149,7 +148,7 @@ Com a pilha no ar, na raiz do repositório. Precisam só de **bash**, **curl** e
 - [`scripts/demo/popular-banco.sh`](scripts/demo/popular-banco.sh): dados de demonstração. Cria os
   usuários `mestre` e `jogador` (senha `12345678`), uma campanha com loja e quatro itens e o
   personagem do jogador, com retrato no S3. Não faz compras: elas ficam para a demonstração. Bom
-  para entrar no front e mostrar as tabelas com `--profile db-admin`.
+  para entrar no front e mostrar as tabelas nas portas 8001 a 8004.
 
 ## Onde está cada requisito
 
