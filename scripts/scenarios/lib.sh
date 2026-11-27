@@ -154,9 +154,9 @@ http() {
     -H 'Content-Type: application/json')
   [ -n "${TOKEN:-}" ] && args+=(-H "Authorization: Bearer $TOKEN")
   for h in "$@"; do args+=(-H "$h"); done
-  [ -n "$corpo" ] && args+=(--data-binary "$corpo")
-  : > "$TMPD/body"
-  STATUS=$(curl "${args[@]}" "$url" 2>/dev/null) || STATUS=000
+    [ -n "$corpo" ] && args+=(--data-binary @-)
+    : > "$TMPD/body"
+    STATUS=$(printf '%s' "$corpo" | curl "${args[@]}" "$url" 2>/dev/null) || STATUS=000
   BODY=$(cat "$TMPD/body")
 }
 
