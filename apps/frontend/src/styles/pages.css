@@ -575,6 +575,10 @@ select.ink-input {
 .campaign-participants .campaign-add { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .75rem; margin-top: .65rem; }
 .campaign-participants .campaign-add .choice-grid { min-width: 0; flex-basis: auto; }
 .campaign-participants .choice-card { padding: .4rem .65rem; }
+.campaign-summary { margin-bottom: 1rem; padding: 1.25rem; border-top: 3px solid var(--latao); border-radius: 6px; box-shadow: var(--sombra-papel); }
+.campaign-summary .sheet__heading { margin: 0 0 .8rem; }
+.campaign-summary h3 { margin: 1.25rem 0 0; }
+.campaign-summary .campaign-list { margin-top: .25rem; }
 .campaign-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .campaign-columns > .paper, .campaign-shop { min-width: 0; min-height: 0; padding: 1.25rem; }
 .campaign-shop { height: 100%; }

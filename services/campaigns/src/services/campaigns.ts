@@ -1,5 +1,6 @@
 // Regras de campanhas e participantes. As rotas HTTP e o consumidor usam este serviço, nunca os repositórios direto.
 import { randomUUID } from "node:crypto";
+import type { CampaignSummary } from "../domain/activity.js";
 import type { Acquisition } from "../domain/acquisition.js";
 import type { AssignedTemplate, Campaign, CampaignView } from "../domain/campaign.js";
 import {
@@ -184,6 +185,13 @@ export function createCampaignService(
       ]);
 
       return { ...campaign, members: sortMembers(campaignMembers), recentActivity };
+    },
+
+    /** Totais da atividade da campanha (itens mais conquistados, por personagem). Só para quem participa. */
+    async summary(campaignId: string, user: AuthUser): Promise<CampaignSummary> {
+      await requireMember(campaignId, user);
+
+      return activity.summarize(campaignId);
     },
 
     async listMembers(campaignId: string, user: AuthUser): Promise<Member[]> {

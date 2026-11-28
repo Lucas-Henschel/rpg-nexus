@@ -40,6 +40,12 @@ export function campaignRoutes(
     });
 
     app.get(
+      "/campaigns/:campaignId/summary",
+      { schema: { params: CampaignParams } },
+      async (request) => service.summary(request.params.campaignId, userOf(request)),
+    );
+
+    app.get(
       "/campaigns/:campaignId/members",
       { schema: { params: CampaignParams } },
       async (request) => {

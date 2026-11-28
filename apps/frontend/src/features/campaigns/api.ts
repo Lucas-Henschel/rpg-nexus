@@ -54,6 +54,19 @@ export interface CampaignView extends Campaign {
   recentActivity: Activity[];
 }
 
+/** Totais da atividade da campanha, calculados pelo S1 (modelo de leitura). */
+export interface CampaignSummary {
+  acquisitions: number;
+  totalQuantity: number;
+  topItems: { itemId: string; itemName: string | null; quantity: number }[];
+  byCharacter: { characterId: string; quantity: number }[];
+  lastAcquiredAt: string | null;
+}
+
+export async function getCampaignSummary(campaignId: string): Promise<CampaignSummary> {
+  return (await authorizedRequest<CampaignSummary>(base, `${path(campaignId)}/summary`)).data;
+}
+
 /** As campanhas de que a pessoa logada participa. */
 export async function listMyCampaigns(): Promise<Campaign[]> {
   return (await authorizedRequest<{ items: Campaign[] }>(base, "/users/me/campaigns")).data.items;

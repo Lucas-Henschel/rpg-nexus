@@ -52,3 +52,25 @@ it("recentes: mais nova primeiro, no máximo 20", async () => {
 it("campanha sem atividade → lista vazia", async () => {
   expect(await activity.listRecent("sem-atividade")).toEqual([]);
 });
+
+it("resumo: soma por item e por personagem, lendo todas as páginas", async () => {
+  const summary = await activity.summarize(campaignId);
+
+  expect(summary).toEqual({
+    acquisitions: 21,
+    totalQuantity: 21,
+    topItems: [{ itemId: "espada", itemName: null, quantity: 21 }],
+    byCharacter: [{ characterId: "ch1", quantity: 21 }],
+    lastAcquiredAt: "2026-11-16T12:30:00.000Z",
+  });
+});
+
+it("resumo de campanha sem atividade → zerado", async () => {
+  expect(await activity.summarize("sem-atividade")).toEqual({
+    acquisitions: 0,
+    totalQuantity: 0,
+    topItems: [],
+    byCharacter: [],
+    lastAcquiredAt: null,
+  });
+});

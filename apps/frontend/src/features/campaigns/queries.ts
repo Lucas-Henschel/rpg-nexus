@@ -5,6 +5,7 @@ import {
   chooseCharacter,
   createCampaign,
   getCampaign,
+  getCampaignSummary,
   joinCampaign,
   listMyCampaigns,
   removeMember,
@@ -14,6 +15,7 @@ export const campaignKeys = {
   all: ["campaigns"] as const,
   list: (userId: string) => ["campaigns", "list", userId] as const,
   detail: (id: string) => ["campaigns", "detail", id] as const,
+  summary: (id: string) => ["campaigns", "summary", id] as const,
 };
 
 export function useCampaigns(userId: string) {
@@ -29,6 +31,14 @@ export function useCampaignView(id: string) {
     queryKey: campaignKeys.detail(id),
     queryFn: () => getCampaign(id),
     // Itens conquistados e jogadores novos chegam sem ninguém mexer na tela: busca de novo a cada 5 s.
+    refetchInterval: 5_000,
+  });
+}
+
+export function useCampaignSummary(id: string) {
+  return useQuery({
+    queryKey: campaignKeys.summary(id),
+    queryFn: () => getCampaignSummary(id),
     refetchInterval: 5_000,
   });
 }

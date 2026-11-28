@@ -95,6 +95,9 @@ export function fakeRepositories(): Repositories & { outbox: OutboxMessage[] } {
       async listRecent() {
         return [];
       },
+      async summarize() {
+        return { acquisitions: 0, totalQuantity: 0, topItems: [], byCharacter: [], lastAcquiredAt: null };
+      },
     },
 
     acquisitions: {
