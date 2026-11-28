@@ -12,7 +12,7 @@ import { description, TITLES } from "../history/format";
 import { useHistory } from "../history/queries";
 import type { CampaignView, Member } from "./api";
 import { formatDate, formatDateTime } from "./format";
-import { useAssignTemplate, useCampaignView, useChooseCharacter, useRemoveMember } from "./queries";
+import { useAssignTemplate, useCampaignSummary, useCampaignView, useChooseCharacter, useRemoveMember } from "./queries";
 
 const ROLE_LABEL = { OWNER: "Mestre", PLAYER: "Jogador" } as const;
 
@@ -52,6 +52,7 @@ export function CampaignPage({ id }: { id: string }) {
 function CampaignDetail({ campaign }: { campaign: CampaignView }) {
   const { user } = useAuth();
   const history = useHistory(campaign.campaignId);
+  const summary = useCampaignSummary(campaign.campaignId);
   const [activityPage, setActivityPage] = useState(1);
   const [activitySize, setActivitySize] = useState(20);
   const me = campaign.members.find((member) => member.userId === user?.userId);
@@ -99,6 +100,49 @@ function CampaignDetail({ campaign }: { campaign: CampaignView }) {
             ))}
           </ul>
           {me && <CharacterForm campaign={campaign} me={me} />}
+      </section>
+
+      <section className="paper campaign-summary">
+        <h2 className="sheet__heading">Resumo da campanha</h2>
+        {summary.isPending ? <p className="campaign-empty">Carregando resumo…</p> : null}
+        {summary.isError ? (
+          <p className="campaign-empty">Não foi possível carregar o resumo.</p>
+        ) : null}
+        {summary.isSuccess && summary.data.acquisitions === 0 ? (
+          <p className="campaign-empty">Nenhum item conquistado ainda.</p>
+        ) : (
+          summary.isSuccess && (
+            <>
+              <p>
+                <strong>{summary.data.totalQuantity}</strong> itens em {summary.data.acquisitions}{" "}
+                aquisições
+                {summary.data.lastAcquiredAt
+                  ? ` · última em ${formatDateTime(summary.data.lastAcquiredAt)}`
+                  : ""}
+              </p>
+              <h3>Itens mais conquistados</h3>
+              <ul className="campaign-list">
+                {summary.data.topItems.map((item) => (
+                  <li key={item.itemId} className="campaign-list__row">
+                    <span className="campaign-list__main">{item.itemName ?? item.itemId}</span>
+                    <span className="campaign-list__side">{item.quantity}</span>
+                  </li>
+                ))}
+              </ul>
+              <h3>Por personagem</h3>
+              <ul className="campaign-list">
+                {summary.data.byCharacter.map((entry) => (
+                  <li key={entry.characterId} className="campaign-list__row">
+                    <span className="campaign-list__main">
+                      {names.get(entry.characterId) ?? entry.characterId}
+                    </span>
+                    <span className="campaign-list__side">{entry.quantity}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )
+        )}
       </section>
 
       <div className="campaign-columns">
