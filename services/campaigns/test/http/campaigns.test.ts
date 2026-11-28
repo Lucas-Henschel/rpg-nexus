@@ -190,6 +190,36 @@ describe("GET /campaigns/:campaignId", () => {
   });
 });
 
+describe("GET /campaigns/:campaignId/summary", () => {
+  it("participante vê o resumo", async () => {
+    const app = testApp();
+    const { campaignId } = await createCampaign(app);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/summary`,
+      headers: as(ANA),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ acquisitions: 0, topItems: [], lastAcquiredAt: null });
+  });
+
+  it("quem não participa → 403 NOT_A_MEMBER", async () => {
+    const app = testApp();
+    const { campaignId } = await createCampaign(app);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/campaigns/${campaignId}/summary`,
+      headers: as(BETO),
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({ error: { code: "NOT_A_MEMBER" } });
+  });
+});
+
 describe("POST /campaigns/join", () => {
   const join = (app: App, joinCode: string, user = BETO) =>
     app.inject({
